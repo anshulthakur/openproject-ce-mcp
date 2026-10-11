@@ -92,9 +92,7 @@ development baseline.
 - `openproject-ce-mcp configure --help` and `openproject-ce-mcp-setup --help`
   show the command that was run.
 
-Thanks to our contributors:
-
-- [@webadmin-stattreisen](https://github.com/webadmin-stattreisen) ([#45](https://github.com/jtauschl/openproject-ce-mcp/pull/45))
+Thanks to our contributors: [@webadmin-stattreisen](https://github.com/webadmin-stattreisen) ([#45](https://github.com/jtauschl/openproject-ce-mcp/pull/45)).
 
 ## [0.4.2] - 2026-10-09
 
@@ -301,9 +299,7 @@ broader OpenProject version compatibility.
   times, working hours) tool groups — both were previously always on with no
   way to configure them through `configure`.
 
-Thanks to our contributors:
-
-- [@ThomasPIET](https://github.com/ThomasPIET) ([#32](https://github.com/jtauschl/openproject-ce-mcp/pull/32))
+Thanks to our contributors: [@ThomasPIET](https://github.com/ThomasPIET) ([#32](https://github.com/jtauschl/openproject-ce-mcp/pull/32)).
 
 ## [0.3.8] - 2026-08-25
 
