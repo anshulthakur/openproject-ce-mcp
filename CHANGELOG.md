@@ -40,6 +40,12 @@ development baseline.
 
 ### Fixed
 
+- A confirmed `delete_project`, `delete_user` or `delete_group` no longer
+  reports the deletion as done: OpenProject only schedules it and deletes in a
+  background job, and the message now says so. A confirmed `delete_project`
+  no longer returns the project as it was before the deletion.
+- The `delete_user` and `delete_group` previews look the user or group up and
+  show it, so a wrong id fails before anyone approves the deletion.
 - `list_work_package_file_links` takes `offset` and `limit`, so file links
   beyond the first page can be listed with the `next_offset` it returns.
 - Tool descriptions no longer state wrong facts: `get_project`,
