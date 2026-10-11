@@ -40,6 +40,15 @@ development baseline.
 
 ### Fixed
 
+- Tool descriptions no longer state wrong facts: `get_project`,
+  `set_project_favorite` and `list_sprints` accept a project name too; the
+  get, create, update and delete tools for agenda items and sections need
+  OpenProject 17.6, and `list_work_package_meeting_agenda_items` needs 17.7,
+  not 17.4; `update_recurring_meeting` changes already materialized future
+  occurrences and can delete cancelled ones; a cancelled recurring meeting
+  occurrence can be restored. `create_storage`, `delete_storage`,
+  `update_user_non_working_time` and `set_work_package_watcher` describe their
+  checks and effects correctly.
 - `OPENPROJECT_VERIFY_SSL=false` and the proxy settings now take effect while
   retries are enabled, which is the default. They used to apply only with
   `OPENPROJECT_MAX_RETRIES=0`. Proxies come from `HTTP_PROXY`, `HTTPS_PROXY`
