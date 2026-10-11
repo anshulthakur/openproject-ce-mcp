@@ -34,6 +34,9 @@ development baseline.
   itself uses.
 - A capability without a project (the global context) is now visible only
   when `OPENPROJECT_READ_PROJECTS` is `*`.
+- The server instructions name every opt-in tool group, so an agent can tell
+  that a missing personal, admin or user-schedule tool is switched off, not
+  broken.
 
 ### Fixed
 
@@ -60,6 +63,10 @@ development baseline.
 - Starting `openproject-ce-mcp` with missing or invalid configuration, such
   as no `OPENPROJECT_BASE_URL`, prints a short error naming the problem and
   how to set it up, and exits with status 1 instead of a Python traceback.
+- `openproject-ce-mcp doctor` lists the meeting and user-schedule write
+  settings in its scope summary.
+- `openproject-ce-mcp configure --help` and `openproject-ce-mcp-setup --help`
+  show the command that was run.
 
 ## [0.4.2] - 2026-10-09
 
