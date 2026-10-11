@@ -22,12 +22,14 @@ already applies project-wide, without forcing lock/unlock onto the
 form-based `_finalize_write` shape they don't fit.
 
 `delete()`/`lock()`/`unlock()` all check `access.ensure_write_enabled("admin", ...)`
-UNCONDITIONALLY (not gated inside the confirm branch): none of them have a
-prior GET to piggyback the check on (unlike e.g. `MembershipService.delete()`,
-which checks only inside `if confirm:` because it already does a prior GET
-for the allowlist check). `delete()` is wired via `_finalize_write`'s
-`gate_before_preview=True` (OPM-2705), same as Group and Storage; lock/unlock
-keep their own `_finalize_action` (a genuinely different, form-less shape).
+UNCONDITIONALLY (not gated inside the confirm branch). lock/unlock have no
+prior GET to piggyback the check on; delete checks before its preview GET,
+so a disabled admin write never reads the user (unlike e.g.
+`MembershipService.delete()`, which checks only inside `if confirm:` because
+its prior GET serves the allowlist check). `delete()` is wired via
+`_finalize_write`'s `gate_before_preview=True` (OPM-2705), same as Group and
+Storage; lock/unlock keep their own `_finalize_action` (a genuinely different,
+form-less shape).
 
 `create()`/`update()`/lock/unlock's `_finalize_action` all call
 `hidden_fields.ensure_field_writable("user", <field>, ...)` for every field
@@ -220,9 +222,11 @@ class UserService:
         return self._to_write_result("update", outcome)
 
     async def delete(self, user_id: int, *, confirm: bool = False) -> UserWriteResult:
-        # No detail fetched on either branch -- delete's commit callable
-        # returns None, matching the pre-existing result=None shape.
+        # Checked before the preview's lookup, so a disabled admin write never
+        # reads the user either.
+        access.ensure_write_enabled("admin", settings=self._settings)
         payload = {"id": user_id}
+        preview_detail = None if confirm else (await self._api.get_user(str(user_id))).to_detail()
 
         async def _commit(p: dict[str, Any]) -> None:
             await self._api.commit_delete(user_id)
@@ -236,9 +240,12 @@ class UserService:
             commit=_commit,
             committed_identity=lambda d: {"user_id": user_id},
             rejected_message="",
-            preview_message="OpenProject is ready to delete the user. Ask for confirmation, then call again with confirm=true.",
-            success_message="User deleted successfully.",
+            preview_message="OpenProject found the user. Ask for confirmation, then call again with confirm=true to delete it.",
+            success_message=(
+                "User deletion accepted: OpenProject blocks the account at once and deletes the user in a background job."
+            ),
             gate_before_preview=True,
+            preview_detail=preview_detail,
         )
         return self._to_write_result("delete", outcome)
 
@@ -273,8 +280,7 @@ class UserService:
         commit: Any,
     ) -> UserWriteResult:
         # Shared shape for lock/unlock only: no form, no validation-errors
-        # branch, no prior GET -- checked unconditionally for the same reason
-        # as delete() above. Not `_write_outcome.py`'s `_finalize_write`
+        # branch, no prior GET to gate on, so the check is unconditional. Not `_write_outcome.py`'s `_finalize_write`
         # (that shape assumes a form/validation-errors branch neither action
         # has); modeled instead on `ProjectService.set_favorite`'s no-form
         # toggle shape.

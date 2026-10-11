@@ -39,7 +39,7 @@ available it will be released to PyPI and noted in the
 This server is a guarded bridge to the OpenProject REST API. Its security posture
 depends on configuration; the most relevant controls are:
 
-- **Read tools are exposed per group via 10 individual booleans**:
+- **Read tools are exposed per group, one boolean each**:
   `OPENPROJECT_ENABLE_PROJECT_READ`, `_WORK_PACKAGE_READ`, `_MEMBERSHIP_READ`,
   `_VERSION_READ`, `_BOARD_READ`, `_MEETING_READ` (default `true`), plus the
   opt-in `_PERSONAL_READ`, `_EXTENDED_READ`, `_ADMIN_READ`, and
@@ -47,18 +47,19 @@ depends on configuration; the most relevant controls are:
   instance-wide user/group listing, which is PII with no project-scope
   boundary). Setting any leftover `OPENPROJECT_TOOLS` or
   `OPENPROJECT_ENABLE_METADATA_TOOLS` var in your config is ignored (with no
-  warning — neither was ever implemented under those names). **6 core write
-  flags default `true`** (the 5 read-default-`true` categories above plus
-  `_MEETING_WRITE`), since the real gate is the project allowlists below, not
-  the category flag — a write flag alone does nothing without a project in
-  `OPENPROJECT_WRITE_PROJECTS`, and the corresponding write tools aren't even
-  registered unless both `OPENPROJECT_READ_PROJECTS` and
-  `OPENPROJECT_WRITE_PROJECTS` are non-empty. `OPENPROJECT_ENABLE_PERSONAL_WRITE`,
-  `OPENPROJECT_ENABLE_ADMIN_WRITE`, and `OPENPROJECT_ENABLE_USER_SCHEDULE_WRITE`
-  default `false`, since none has that project-scope safety net. Every write
-  flag requires its own matching read boolean to be `true` (enforced at
-  startup); write scopes are always additionally intersected with the project
-  read scope, so a project must be readable before it can be written.
+  warning — neither was ever implemented under those names). **The
+  project-scoped write flags default `true`** (the writes of the
+  read-default-`true` groups above), since the real gate is the project
+  allowlists below, not the category flag — a write flag alone does nothing
+  without a project in `OPENPROJECT_WRITE_PROJECTS`, and the corresponding
+  write tools aren't even registered unless both `OPENPROJECT_READ_PROJECTS`
+  and `OPENPROJECT_WRITE_PROJECTS` are non-empty.
+  `OPENPROJECT_ENABLE_PERSONAL_WRITE`, `OPENPROJECT_ENABLE_ADMIN_WRITE`, and
+  `OPENPROJECT_ENABLE_USER_SCHEDULE_WRITE` default `false`, since none has
+  that project-scope safety net. Every write flag requires its own matching
+  read boolean to be `true` (enforced at startup); write scopes are always
+  additionally intersected with the project read scope, so a project must be
+  readable before it can be written.
 - **Project allowlists** (`OPENPROJECT_READ_PROJECTS` / `OPENPROJECT_WRITE_PROJECTS`)
   restrict every project-scoped operation to the named projects. Both are
   **fail-closed**: empty or unset denies all project-scoped access on that
@@ -86,7 +87,7 @@ rather than lumping them all into one "security" bucket:
    allowlists, field hiding, and the preview/confirm flow. They stop an
    agent's own mistakes and prompt-injection attempts from turning into
    writes or reads the operator didn't intend.
-2. **`OPENPROJECT_ENABLE_PERSONAL_READ`/`_EXTENDED_READ`/`_ADMIN_READ`** are
+2. **`OPENPROJECT_ENABLE_PERSONAL_READ`/`_EXTENDED_READ`/`_ADMIN_READ`/`_USER_SCHEDULE_READ`** are
    also runtime-enforced, not cosmetic — they genuinely control what data
    reaches the agent's context, `_ADMIN_READ` in particular keeping the
    instance-wide user/group list (PII) out of context by default. They are

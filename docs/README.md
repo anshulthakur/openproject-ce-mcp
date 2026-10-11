@@ -28,6 +28,7 @@ protection, reload, and verification for that specific client:
 - **[Claude / Claude Code](claude.md)**
 - **[Claude Desktop app](claude-desktop.md)**
 - **[Codex](codex.md)**
+- **[Continue](continue.md)**
 - **[Cursor](cursor.md)**
 - **[VS Code / GitHub Copilot](github.md)**
 

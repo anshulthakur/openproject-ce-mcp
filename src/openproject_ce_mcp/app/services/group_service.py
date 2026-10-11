@@ -27,7 +27,7 @@ builds the full replacement list.
 
 `create()`/`update()`/`delete()` all check `access.ensure_write_enabled(
 "admin", ...)` UNCONDITIONALLY (not gated inside the confirm branch), even
-though `update()` has a prior GET (for the member diff) it could otherwise
+though `update()` and the `delete()` preview have a prior GET (for the member diff) it could otherwise
 gate on the way `NewsService.update()` gates on its own prior GET. This means
 a caller without `OPENPROJECT_ENABLE_ADMIN_WRITE` is rejected immediately on
 `update()`, even for a pure preview, and can never see a member-diff preview
@@ -218,9 +218,11 @@ class GroupService:
         return self._to_write_result("update", outcome)
 
     async def delete(self, group_id: int, *, confirm: bool = False) -> GroupWriteResult:
-        # No detail fetched on either branch -- delete's commit callable
-        # returns None, matching the pre-existing result=None shape.
+        # Checked before the preview's lookup, so a disabled admin write never
+        # reads the group either.
+        access.ensure_write_enabled("admin", settings=self._settings)
         payload = {"id": group_id}
+        preview_detail = None if confirm else self._stamp((await self._api.get_group(group_id)).summary)
 
         async def _commit(p: dict[str, Any]) -> None:
             await self._api.commit_delete(group_id)
@@ -234,9 +236,10 @@ class GroupService:
             commit=_commit,
             committed_identity=lambda d: {"group_id": group_id},
             rejected_message="",
-            preview_message="OpenProject is ready to delete the group. Ask for confirmation, then call again with confirm=true.",
-            success_message="Group deleted successfully.",
+            preview_message="OpenProject found the group. Ask for confirmation, then call again with confirm=true to delete it.",
+            success_message="Group deletion accepted: OpenProject deletes the group in a background job.",
             gate_before_preview=True,
+            preview_detail=preview_detail,
         )
         return self._to_write_result("delete", outcome)
 

@@ -264,7 +264,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "cancel_recurring_meeting_occurrence": {
-        "description_hash": "80297fcd2c68f317d5487ab63ee869dbf92b71e7ae3f5e2ddb7c522ee136561b",
+        "description_hash": "56b3d4fa1a55c99ce2e11fe9c2091744370502b205647a0ddd09e2cc9a2ee826",
         "input_schema": {
             "properties": {
                 "recurring_meeting_id": {"title": "Recurring Meeting Id", "type": "integer"},
@@ -450,7 +450,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "create_meeting_agenda_item": {
-        "description_hash": "3acbd8a5f62308ec63f0be4caa707c7cb0e1602fada34660b1a4ca6683fdceff",
+        "description_hash": "305625a53c4a9c19141a005bc86b299aa9628ab9bafdb837e261566b72eec71f",
         "input_schema": {
             "properties": {
                 "meeting_id": {"title": "Meeting Id", "type": "integer"},
@@ -509,7 +509,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "create_meeting_section": {
-        "description_hash": "37656a5b2e098f7ca4c3129323c42d736006ee0e68fbc476322596bbce18a115",
+        "description_hash": "aeb55099ddae1bc377f76cc2f7a92aebd7f50910f2a75089ad5aaffaebbfdded",
         "input_schema": {
             "properties": {
                 "meeting_id": {"title": "Meeting Id", "type": "integer"},
@@ -652,7 +652,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "create_storage": {
-        "description_hash": "cd146fd8757369750eb173290db0870709ddb56c81deb0dd2b75b0d6fd1eabf7",
+        "description_hash": "433b30d44dfe43faea627f219f55a4e6b65e669f8d2a85fad4a639976abe7deb",
         "input_schema": {
             "properties": {
                 "name": {"title": "Name", "type": "string"},
@@ -708,9 +708,13 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "default": None,
                     "title": "Project Phase",
                 },
-                "assignee": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Assignee"},
+                "assignee": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Assignee",
+                },
                 "responsible": {
-                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
                     "title": "Responsible",
                 },
@@ -948,9 +952,13 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "default": None,
                     "title": "Project Phase",
                 },
-                "assignee": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Assignee"},
+                "assignee": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Assignee",
+                },
                 "responsible": {
-                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
                     "title": "Responsible",
                 },
@@ -961,7 +969,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "default": None,
                     "title": "Custom Fields",
                 },
-                "parent": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Parent"},
+                "parent": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Parent",
+                },
                 "start_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Start Date"},
                 "due_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Due Date"},
                 "estimated_time": {
@@ -1221,7 +1233,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "delete_meeting_agenda_item": {
-        "description_hash": "e720f38aba0b014df5bf1b4e0feb00a1da1c2aaa5f625fa432d60cb175479e4c",
+        "description_hash": "5b97876fa53fac3d84b96cd328417298aaba481dfb4d373787baa0252f109687",
         "input_schema": {
             "properties": {
                 "agenda_item_id": {"title": "Agenda Item Id", "type": "integer"},
@@ -1255,7 +1267,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "delete_meeting_section": {
-        "description_hash": "923761219593ed4e874043f680d4e53d0258560179c6fffdb7734f3ac4c665d6",
+        "description_hash": "094be266a95b1e99825d53f8576b8dda5be5ea7a36ab8a70a28ee4d4dcbc224b",
         "input_schema": {
             "properties": {
                 "section_id": {"title": "Section Id", "type": "integer"},
@@ -1391,7 +1403,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "delete_storage": {
-        "description_hash": "d0cf54241ff0840eeab1c1fd5c9dc04b22980fa7caac9ecf712f77a2f0f22093",
+        "description_hash": "4986c8f1f1dd9ec131da9c2f145f010768198c633e2c4cbe212ad92139f23b4d",
         "input_schema": {
             "properties": {
                 "storage_id": {"title": "Storage Id", "type": "integer"},
@@ -2261,7 +2273,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_READ",),
     },
     "get_meeting_agenda_item": {
-        "description_hash": "a808f54d0b3064f1ba06d39656df32c38ca587806523cdcb848bab1ee8fb3299",
+        "description_hash": "95c1791b2bc45bb81b60c996370c3a8219f42f6efdd98e788742ddb72d5e65d3",
         "input_schema": {
             "properties": {"agenda_item_id": {"title": "Agenda Item Id", "type": "integer"}},
             "required": ["agenda_item_id"],
@@ -2363,7 +2375,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_READ",),
     },
     "get_meeting_section": {
-        "description_hash": "71e6e7a57e560a646f3c90d9af5b1c7b5d745828448e6f3a33fbc62010eed308",
+        "description_hash": "bf1d8795610dadcadeac1d0e4c8a29270867ade18f9b56c9162aae818f20547a",
         "input_schema": {
             "properties": {"section_id": {"title": "Section Id", "type": "integer"}},
             "required": ["section_id"],
@@ -2643,7 +2655,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "get_project": {
-        "description_hash": "9a816b80c0ae8cb3ad4a0d3a8f9dab406d5042d5bf8b0f0f1d09f6538f429171",
+        "description_hash": "8a65646381a90cbecd6e588583b990cd7eb5d553587327c2264517c556e8a164",
         "input_schema": {
             "properties": {
                 "project": {"title": "Project", "type": "string"},
@@ -4606,7 +4618,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEMBERSHIP_READ",),
     },
     "list_sprints": {
-        "description_hash": "81fa4fd6db988a18ae95cc606a4324fcafca46ec0e93f070b614061c1fcbff5d",
+        "description_hash": "1a9a73a21f5164b0477893720f4b31ffaea0b23a5a722fdd68de8043b7b3fd2d",
         "input_schema": {
             "properties": {
                 "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"},
@@ -4877,10 +4889,12 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_work_package_file_links": {
-        "description_hash": "d5bbf90ac765df8342930ee77097661351562bb40b77442ab2524e9d80a0cbff",
+        "description_hash": "b4be7a22c94bc6da03c16b4575c2eb3d6fac5f224932c650af3d955451c05b62",
         "input_schema": {
             "properties": {
                 "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
+                "offset": {"default": 1, "title": "Offset", "type": "integer"},
+                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
@@ -4946,7 +4960,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_work_package_meeting_agenda_items": {
-        "description_hash": "083881ca5d25abac6712cc1cd1bd3725f4eda1ccf61bb17c0b8b25d6cc1de556",
+        "description_hash": "3481143ba9c35d318e0b08b29127fe8476a138072c8a01affd49882254df59dd",
         "input_schema": {
             "properties": {
                 "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
@@ -5250,7 +5264,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "set_project_favorite": {
-        "description_hash": "07c0eabee242edf43733329b0dc48464c667989399cc0531e5525acaa5bc872f",
+        "description_hash": "aca05b1c4242a395607b2c7205fad658b6ada695c2b082893293f93ca24cc5a0",
         "input_schema": {
             "properties": {
                 "project": {"title": "Project", "type": "string"},
@@ -5298,7 +5312,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_ADMIN_WRITE", "OPENPROJECT_ENABLE_ADMIN_READ"),
     },
     "set_work_package_watcher": {
-        "description_hash": "3c33c29b7adf755375d8b5536e1e7864d5abf71dd1bf3a3c9ab92f4047070ceb",
+        "description_hash": "144a000d70cfdd9b041ac6c1621df48f4a5419aa60172e0b7ab7808b7998eb7a",
         "input_schema": {
             "properties": {
                 "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
@@ -5579,7 +5593,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "update_meeting_agenda_item": {
-        "description_hash": "37908fb5909d3686c5bd37773763a95a22ff876e174cd6b8250f1a4bc4bc02cf",
+        "description_hash": "6cf4be9bd343e28190cdfedfe933426cfdcdf91973f483d1e7e61f8c198105de",
         "input_schema": {
             "properties": {
                 "agenda_item_id": {"title": "Agenda Item Id", "type": "integer"},
@@ -5638,7 +5652,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "update_meeting_section": {
-        "description_hash": "2e81f5997a4d1ebecb6510f96312ddf81d5410e49de3640b63c6869d05025547",
+        "description_hash": "95085c91abd07299049331e7f44355f25dc8dbcea46fe0f9f986842c7c57b9ed",
         "input_schema": {
             "properties": {
                 "section_id": {"title": "Section Id", "type": "integer"},
@@ -5768,7 +5782,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_WRITE", "OPENPROJECT_ENABLE_PROJECT_READ"),
     },
     "update_recurring_meeting": {
-        "description_hash": "a83e4b4c73e5db2a7a3dac501ddef2575db60bacab8b8c2e0e9484bbd7340733",
+        "description_hash": "7831e2a26212515e53f275221849d032eafa9ab07210bcabf293c27c930f0624",
         "input_schema": {
             "properties": {
                 "recurring_meeting_id": {"title": "Recurring Meeting Id", "type": "integer"},
@@ -5931,7 +5945,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_ADMIN_WRITE", "OPENPROJECT_ENABLE_ADMIN_READ"),
     },
     "update_user_non_working_time": {
-        "description_hash": "7820c6c0c86f62b3662a6b03d87945b13a37d2b4391239ebcb8a8cbe6d0a221c",
+        "description_hash": "863a1efbd489fd5a243bf1c581cf46f39fb93915d773a01d884f2f3cbbdb1e95",
         "input_schema": {
             "properties": {
                 "user_ref": {"title": "User Ref", "type": "string"},
@@ -6066,9 +6080,13 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "title": "Project Phase",
                 },
                 "status": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Status"},
-                "assignee": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Assignee"},
+                "assignee": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Assignee",
+                },
                 "responsible": {
-                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
                     "title": "Responsible",
                 },
@@ -6079,7 +6097,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "default": None,
                     "title": "Custom Fields",
                 },
-                "parent": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Parent"},
+                "parent": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Parent",
+                },
                 "start_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Start Date"},
                 "due_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Due Date"},
                 "estimated_time": {

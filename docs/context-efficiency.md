@@ -107,10 +107,10 @@ provider may transform or cache the catalog before billing it.
 | Configuration | Tools | Catalog tokens |
 | --- | ---: | ---: |
 | Fresh install, no project scope | 14 | ~3,677 |
-| Project reads, no writes | 88 | ~37,172 |
-| Work-package writes only | 152 | ~58,037 |
-| Every write scope | 173 | ~63,451 |
-| Every write scope plus extended metadata | 185 | ~65,368 |
+| Project reads, no writes | 88 | ~37,314 |
+| Work-package writes only | 113 | ~48,502 |
+| Every write scope | 184 | ~67,271 |
+| Every write scope plus extended metadata | 196 | ~69,188 |
 
 The extended metadata group adds 12 rarely used tools and is opt-in through
 `OPENPROJECT_ENABLE_EXTENDED_READ=true`; see
@@ -135,9 +135,12 @@ list_work_packages(
 )
 ```
 
-For an automation that updates work packages, add a narrow write allowlist and
-enable only `OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE`. Admin, personal-data, and
-extended metadata tools can remain disabled. Enable extended metadata only
+For an automation that updates work packages, add a narrow write allowlist,
+keep `OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE` on, and set the other
+project-scoped write flags (`OPENPROJECT_ENABLE_PROJECT_WRITE`, `_MEMBERSHIP_WRITE`,
+`_VERSION_WRITE`, `_BOARD_WRITE`, `_MEETING_WRITE`) to `false`; they default to
+on. Admin, personal-data, user-schedule, and extended metadata tools can remain
+disabled. Enable extended metadata only
 while exploring uncommon reference data, then disable it again if its tools
 are not part of the normal workflow.
 

@@ -860,6 +860,9 @@ def test_create_work_package_schema() -> None:
             "assignee": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -871,6 +874,9 @@ def test_create_work_package_schema() -> None:
             },
             "responsible": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },
@@ -920,6 +926,9 @@ def test_create_work_package_schema() -> None:
             },
             "parent": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },
@@ -1167,6 +1176,9 @@ def test_update_work_package_schema() -> None:
             "assignee": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -1178,6 +1190,9 @@ def test_update_work_package_schema() -> None:
             },
             "responsible": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },
@@ -1227,6 +1242,9 @@ def test_update_work_package_schema() -> None:
             },
             "parent": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },
@@ -1576,6 +1594,9 @@ def test_create_subtask_schema() -> None:
             "assignee": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -1587,6 +1608,9 @@ def test_create_subtask_schema() -> None:
             },
             "responsible": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },

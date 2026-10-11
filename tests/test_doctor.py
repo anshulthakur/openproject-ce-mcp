@@ -753,3 +753,34 @@ def test_doctor_never_prints_token_value(make_doctor_settings, mock_auth_failure
     assert secret_token not in captured.out
     assert secret_token not in captured.err
     assert secret_token not in captured.err
+
+
+def test_env_config_scope_summary_names_every_write_flag(capsys, monkeypatch):
+    from openproject_ce_mcp.config import TOOL_GROUPS
+    from openproject_ce_mcp.doctor import _check_env_config
+
+    for group in TOOL_GROUPS:
+        monkeypatch.delenv(group.read_env_var, raising=False)
+        if group.write is not None:
+            monkeypatch.delenv(group.write.env_var, raising=False)
+    monkeypatch.setenv("OPENPROJECT_BASE_URL", "https://test.example.com")
+    monkeypatch.setenv("OPENPROJECT_API_TOKEN", "test-token")
+    monkeypatch.setenv("OPENPROJECT_ENABLE_USER_SCHEDULE_READ", "true")
+    monkeypatch.setenv("OPENPROJECT_ENABLE_USER_SCHEDULE_WRITE", "true")
+    monkeypatch.setenv("OPENPROJECT_ENABLE_MEETING_WRITE", "false")
+
+    _check_env_config(None, {})
+
+    output = capsys.readouterr().out
+    for line in (
+        "Project writes: True",
+        "Work-package writes: True",
+        "Membership writes: True",
+        "Version writes: True",
+        "Board writes: True",
+        "Meeting writes: False",
+        "Personal-data writes: False",
+        "Admin writes: False",
+        "User-schedule writes: True",
+    ):
+        assert line in output

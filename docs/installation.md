@@ -38,12 +38,15 @@ the token immediately — it is only shown once. Format: `opapi-...`.
 
 ## Install
 
-This package ships two globally-runnable console commands (`openproject-ce-mcp`
-and `openproject-ce-mcp configure`), the kind of standalone CLI tool
-[`pipx`](https://pipx.pypa.io/) is designed for: each tool gets its own isolated
-environment while staying available on your `PATH`, without the version
-conflicts a plain `pip install` into your system Python can cause. `pipx` does
-not ship with Python — install it once per machine:
+This package ships the globally-runnable console commands `openproject-ce-mcp`
+and `openproject-ce-mcp-setup`. The subcommands `openproject-ce-mcp configure`
+and `openproject-ce-mcp doctor` set it up and check it;
+`openproject-ce-mcp-setup` is an alias for `openproject-ce-mcp configure`.
+Both commands are the kind of standalone CLI tool [`pipx`](https://pipx.pypa.io/) is designed for:
+each tool gets its own isolated environment while staying available on your
+`PATH`, without the version conflicts a plain `pip install` into your system
+Python can cause. `pipx` does not ship with Python; install it once per
+machine:
 
 ```bash
 # macOS
@@ -122,10 +125,9 @@ openproject-ce-mcp --version
 ```
 
 [PyPI](https://pypi.org/project/openproject-ce-mcp/) stays the canonical
-publication source — the tap's Formula is proposed automatically after each
-release and reviewed before merging. See the [tap
-repository](https://github.com/jtauschl/homebrew-tap) for Formula
-maintenance details and why a dedicated tap rather than Homebrew Core.
+publication source; the tap's formula follows each release. See the [tap
+repository](https://github.com/jtauschl/homebrew-tap) for formula maintenance
+details and why a dedicated tap rather than Homebrew Core.
 
 ## Update
 
@@ -189,7 +191,7 @@ up a development environment — see
 for the exact commands (`git clone` + `uv sync --dev`, or a plain `venv` + `pip
 install -e ".[dev]"` alternative). Run the setup wizard from that checkout with
 `python3 configure_mcp.py` (or `uv run python configure_mcp.py` if you used
-`uv`) instead of the installed `openproject-ce-mcp configure` command.
+`uv`) instead of the installed `openproject-ce-mcp configure`.
 
 ## Uninstall
 

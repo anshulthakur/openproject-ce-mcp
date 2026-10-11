@@ -316,9 +316,12 @@ def _validate_required_query(value: str, *, field_name: str, max_length: int) ->
     return normalized
 
 
-def _validate_optional_user_ref(value: str | None, field_name: str = "assignee") -> str | None:
+def _validate_optional_user_ref(value: int | str | None, field_name: str = "assignee") -> str | None:
     if value is None:
         return None
+    # bool is an int subclass; reject it so `true` doesn't become user id 1.
+    if isinstance(value, int) and not isinstance(value, bool):
+        value = str(value)
     if not isinstance(value, str):
         # See _validate_optional_query for why this guard exists.
         raise ValueError(f"{field_name} must be a string.")
@@ -854,16 +857,16 @@ def _clearable(value: str | None, validate: Callable[[str], Any], *, sentinel: o
 
     Returns None (leave unchanged), ``sentinel`` (clear the field, for 'none' in any
     case), or the result of ``validate(value)``. Shared by any field that supports
-    clearing via 'none' — both HAL-link associations (assignee, responsible, category,
-    project_phase, sprint, project parent) and plain scalar fields (estimated_time,
-    remaining_time, duration); ``validate`` decides what a non-'none' value means.
+    clearing via 'none' — both HAL-link associations (category, project_phase, sprint,
+    project parent) and plain scalar fields (estimated_time, remaining_time,
+    duration); ``validate`` decides what a non-'none' value means.
     ``sentinel`` has no default and must always be passed explicitly by the caller
     (e.g. the generic CLEAR, or a field-specific one like CLEAR_VERSION) — those
     sentinel objects are canonically defined at the app/ layer, which this module
     never imports from, so this presentation-layer helper only ever receives one as
     an opaque object, never defines or imports one itself. Use ``_clearable_ref``
     instead for a field whose validator genuinely accepts a numeric value too
-    (currently only work-package refs).
+    (work-package refs and the assignee/responsible user refs).
 
     ``value`` is declared str-only: every real caller's field is str-typed at the MCP
     tool boundary. A non-str scalar (e.g. a bare JSON number) can still reach here
@@ -885,9 +888,9 @@ def _clearable_ref(
 ) -> str | object | None:
     """Like ``_clearable``, but for a validator that accepts a numeric ref directly.
 
-    Only ``_validate_work_package_ref`` needs this today (parent/
-    parent_work_package_id can legitimately be a JSON int, not just a display-id
-    string) — everything else goes through the str-only ``_clearable``.
+    Used where the value can legitimately be a JSON int: work-package refs
+    (parent/parent_work_package_id) and user refs (assignee/responsible);
+    everything else goes through the str-only ``_clearable``.
     """
     if value is None:
         return None

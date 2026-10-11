@@ -129,6 +129,9 @@ development baseline.
 
 - Listed in the official MCP Registry as
   `io.github.jtauschl/openproject-ce-mcp`.
+- Installable on macOS with Homebrew from the `jtauschl/tap` tap:
+  `brew tap jtauschl/tap`, `brew trust --formula jtauschl/tap/openproject-ce-mcp`,
+  then `brew install openproject-ce-mcp`.
 
 ### Changed
 
@@ -137,11 +140,43 @@ development baseline.
   fail with a `[configuration_error]` naming both paths. Such links used to
   pass unchecked under `*`; set `OPENPROJECT_BASE_URL` to the path OpenProject
   itself uses.
+  *(On this branch: the error code is `[CONFIGURATION_ERROR]`.)*
 - A capability without a project (the global context) is now visible only
   when `OPENPROJECT_READ_PROJECTS` is `*`.
+- The server instructions name every opt-in tool group, so an agent can tell
+  that a missing personal, admin or user-schedule tool is switched off, not
+  broken.
 
 ### Fixed
 
+- `create_work_package`, `update_work_package` and `create_subtask` accept a
+  numeric `parent`, `assignee` and `responsible` (a JSON number such as `7`),
+  not only a string; `bulk_update_work_packages` items accept a numeric
+  `assignee` and `responsible` too.
+- A confirmed `delete_project`, `delete_user` or `delete_group` no longer
+  reports the deletion as done: OpenProject only schedules it and deletes in a
+  background job, and the message now says so. A confirmed `delete_project`
+  no longer returns the project as it was before the deletion.
+- The `delete_user` and `delete_group` previews look the user or group up and
+  show it, so a wrong id fails before anyone approves the deletion.
+- `list_work_package_file_links` takes `offset` and `limit`, so file links
+  beyond the first page can be listed with the `next_offset` it returns.
+- Tool descriptions no longer state wrong facts: `get_project`,
+  `set_project_favorite` and `list_sprints` accept a project name too; the
+  get, create, update and delete tools for agenda items and sections need
+  OpenProject 17.6, and `list_work_package_meeting_agenda_items` needs 17.7,
+  not 17.4; `update_recurring_meeting` changes already materialized future
+  occurrences and can delete cancelled ones; a cancelled recurring meeting
+  occurrence can be restored. `create_storage`, `delete_storage`,
+  `update_user_non_working_time` and `set_work_package_watcher` describe their
+  checks and effects correctly.
+- `OPENPROJECT_VERIFY_SSL=false` and the proxy settings now take effect while
+  retries are enabled, which is the default. They used to apply only with
+  `OPENPROJECT_MAX_RETRIES=0`. Proxies come from `HTTP_PROXY`, `HTTPS_PROXY`
+  or `ALL_PROXY`, `socks5://` URLs included, and a host listed in `NO_PROXY`
+  is reached directly. Only while none of these variables is set do the
+  system proxy settings apply on macOS and Windows, without the system's own
+  proxy exceptions.
 - Project grids, including the boards page grid of a project, are now matched
   against a restrictive `OPENPROJECT_READ_PROJECTS` and
   `OPENPROJECT_WRITE_PROJECTS` by their project. Boards page grids were
@@ -158,6 +193,10 @@ development baseline.
 - Starting `openproject-ce-mcp` with missing or invalid configuration, such
   as no `OPENPROJECT_BASE_URL`, prints a short error naming the problem and
   how to set it up, and exits with status 1 instead of a Python traceback.
+- `openproject-ce-mcp doctor` lists the meeting and user-schedule write
+  settings in its scope summary.
+- `openproject-ce-mcp configure --help` and `openproject-ce-mcp-setup --help`
+  show the command that was run.
 
 ## [0.4.2] - 2026-10-09
 

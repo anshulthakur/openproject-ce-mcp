@@ -292,9 +292,8 @@ class ProjectService:
         project = self._stamp(record.summary)
         payload = {"id": project.id, "identifier": project.identifier, "name": project.name}
 
-        async def _commit(p: dict[str, Any]) -> ProjectSummary:
+        async def _commit(p: dict[str, Any]) -> None:
             await self._api.delete(project.id)
-            return project
 
         outcome = await _finalize_write(
             confirm=confirm,
@@ -303,10 +302,12 @@ class ProjectService:
             identity={"project_id": project.id, "project": project.name},
             ensure_write_enabled=lambda: access.ensure_write_enabled("project", settings=self._settings),
             commit=_commit,
-            committed_identity=lambda d: {"project_id": d.id, "project": d.name},
+            committed_identity=lambda d: {"project_id": project.id, "project": project.name},
             rejected_message="",
             preview_message="OpenProject found the project. Ask for confirmation, then call again with confirm=true to delete it.",
-            success_message="Project deleted successfully.",
+            success_message=(
+                "Project deletion scheduled: OpenProject archived the project and deletes it in a background job."
+            ),
         )
         return ProjectWriteResult(
             action="delete",
