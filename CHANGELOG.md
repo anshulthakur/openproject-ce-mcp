@@ -19,6 +19,10 @@ development baseline.
   and `/projects/<identifier>/boards`, after the instance's root path on a
   subpath install, and rejects any other scope before a request, also under
   `*`.
+- A project renamed in OpenProject 17.3 or later could still be read and
+  written through its former identifier when only that identifier matched
+  `OPENPROJECT_READ_PROJECTS` or `OPENPROJECT_WRITE_PROJECTS`. A project now
+  matches only by its id, current identifier and name.
 
 ### Added
 
@@ -47,6 +51,10 @@ development baseline.
   configured HTTP MCP servers during that call.
 - On Python 3.10 the package depends on `tomli`, which reads Codex's
   configuration.
+- An allowlist pattern like `my-project` now also matches a project named
+  "My Project" in the project tools, such as `list_projects`, `get_project`,
+  `update_project` and `create_project`, as it already did in the checks on
+  work packages and other project content.
 
 ### Fixed
 

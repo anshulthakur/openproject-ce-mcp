@@ -140,7 +140,6 @@ class ProjectService:
         page_results, total, next_offset, truncated = await fetch_project_page(
             api=self._api,
             settings=self._settings,
-            project_id_to_identifier=self._project_id_to_identifier,
             search=search,
             offset=offset,
             limit=effective_limit,
@@ -217,7 +216,6 @@ class ProjectService:
             identifier=identifier,
             name=name,
             settings=self._settings,
-            project_id_to_identifier=self._project_id_to_identifier,
         )
         payload = await self._build_write_payload(
             name=name,
@@ -342,7 +340,6 @@ class ProjectService:
             identifier=identifier,
             name=name,
             settings=self._settings,
-            project_id_to_identifier=self._project_id_to_identifier,
         )
         project = source_record.summary
         payload = await self._build_write_payload(
@@ -549,13 +546,11 @@ class ProjectAdminService:
         *,
         api: ProjectApi,
         settings: Settings,
-        project_id_to_identifier: Mapping[int, str],
         resolver: ProjectResolver,
         base_url: str,
     ) -> None:
         self._api = api
         self._settings = settings
-        self._project_id_to_identifier = project_id_to_identifier
         self._resolver = resolver
         self._base_url = base_url
 
@@ -575,7 +570,6 @@ class ProjectAdminService:
                 lambda: project_policy_module.ensure_project_read_allowed(
                     {"id": ref.id, "identifier": ref.identifier, "name": ref.name},
                     settings=self._settings,
-                    project_id_to_identifier=self._project_id_to_identifier,
                 )
             )
 

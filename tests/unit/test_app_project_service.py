@@ -150,7 +150,7 @@ class _FakeProjectApi:
 
 
 def _resolver(api: _FakeProjectApi, *, settings=None) -> ProjectResolver:
-    return ProjectResolver(api=api, settings=settings or make_settings(), project_id_to_identifier={})
+    return ProjectResolver(api=api, settings=settings or make_settings())
 
 
 def _service(api: _FakeProjectApi | None = None, *, settings=None) -> ProjectService:
@@ -193,7 +193,6 @@ def _admin_service(api: _FakeProjectApi | None = None, *, settings=None) -> Proj
     return ProjectAdminService(
         api=api,
         settings=settings,
-        project_id_to_identifier={},
         resolver=_resolver(api, settings=settings),
         base_url=BASE_URL,
     )

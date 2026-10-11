@@ -79,13 +79,12 @@ def _resolver(records: list[ProjectRecord], *, settings=None) -> ProjectResolver
     return ProjectResolver(
         api=_FakeProjectApi(records),
         settings=settings or make_settings(),
-        project_id_to_identifier={},
     )
 
 
 def _resolver_with_api(records: list[ProjectRecord], *, settings=None) -> tuple[ProjectResolver, _FakeProjectApi]:
     api = _FakeProjectApi(records)
-    resolver = ProjectResolver(api=api, settings=settings or make_settings(), project_id_to_identifier={})
+    resolver = ProjectResolver(api=api, settings=settings or make_settings())
     return resolver, api
 
 
@@ -170,6 +169,53 @@ async def test_resolve_write_allowlist_denies() -> None:
 
     with pytest.raises(PermissionDeniedError, match="OPENPROJECT_WRITE_PROJECTS"):
         await resolver.resolve("demo", write=True)
+
+
+class _RenamedProjectApi(_FakeProjectApi):
+    """Answers GET /projects/{former identifier} with the renamed project, as
+    OpenProject 17.3+ does."""
+
+    def __init__(self, records: list[ProjectRecord], *, former_identifiers: dict[str, str]) -> None:
+        super().__init__(records)
+        self._former_identifiers = former_identifiers
+
+    async def get(self, project_ref: str, *, text_limit=None) -> ProjectRecord:
+        return await super().get(self._former_identifiers.get(project_ref, project_ref), text_limit=text_limit)
+
+
+def _renamed_resolver(settings) -> ProjectResolver:
+    api = _RenamedProjectApi([_record(42, "Fid New", identifier="fidnew")], former_identifiers={"fidold": "fidnew"})
+    return ProjectResolver(api=api, settings=settings)
+
+
+@pytest.mark.asyncio
+async def test_resolve_record_denies_a_renamed_project_read_by_its_former_identifier() -> None:
+    resolver = _renamed_resolver(dataclasses.replace(make_settings(), read_projects=("fidold",)))
+
+    with pytest.raises(PermissionDeniedError, match="OPENPROJECT_READ_PROJECTS"):
+        await resolver.resolve_record("fidold")
+
+
+@pytest.mark.asyncio
+async def test_resolve_record_denies_a_renamed_project_written_by_its_former_identifier() -> None:
+    resolver = _renamed_resolver(dataclasses.replace(make_settings(), read_projects=("*",), write_projects=("fidold",)))
+
+    with pytest.raises(PermissionDeniedError, match="OPENPROJECT_WRITE_PROJECTS"):
+        await resolver.resolve_record("fidold", write=True)
+
+
+@pytest.mark.parametrize("pattern", ["fidnew", "42", "Fid New", "fid-new"])
+@pytest.mark.asyncio
+async def test_resolve_record_allows_a_renamed_project_by_its_former_identifier_when_its_current_fields_match(
+    pattern: str,
+) -> None:
+    resolver = _renamed_resolver(
+        dataclasses.replace(make_settings(), read_projects=(pattern,), write_projects=(pattern,))
+    )
+
+    record = await resolver.resolve_record("fidold", write=True)
+
+    assert record.payload["identifier"] == "fidnew"
 
 
 @pytest.mark.asyncio

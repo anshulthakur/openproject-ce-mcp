@@ -6,53 +6,27 @@ primitives rather than duplicating candidate-matching logic here.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from typing import Any
 
 from ...config import Settings
 from ..errors import PermissionDeniedError
-from .scope import project_candidates, scope_allows_all, scope_matches_candidates
+from .scope import project_payload_candidates, project_record_candidates, scope_allows_all, scope_matches_candidates
 
 
-def ensure_project_read_allowed(
-    payload: dict[str, Any],
-    *,
-    project_ref: str | None = None,
-    settings: Settings,
-    project_id_to_identifier: Mapping[int, str],
-) -> None:
-    """Read-allowlist check on an already-resolved project payload.
-
-    project_ref (the ref the caller originally resolved by, e.g. an identifier
-    or numeric-id string) is included as its own candidate alongside the
-    payload's own fields.
-    """
+def ensure_project_read_allowed(payload: dict[str, Any], *, settings: Settings) -> None:
+    """Read-allowlist check on an already-resolved project payload."""
     if scope_allows_all(settings.read_projects):
         return
-    candidates = project_candidates(
-        project_id_to_identifier=project_id_to_identifier, settings=settings, project_ref=project_ref, payload=payload
-    )
-    if not scope_matches_candidates(settings.read_projects, candidates):
+    if not scope_matches_candidates(settings.read_projects, project_payload_candidates(payload)):
         raise PermissionDeniedError("OpenProject access to this project is disabled by OPENPROJECT_READ_PROJECTS.")
 
 
-def ensure_project_write_allowed(
-    payload: dict[str, Any],
-    *,
-    project_ref: str | None = None,
-    settings: Settings,
-    project_id_to_identifier: Mapping[int, str],
-) -> None:
+def ensure_project_write_allowed(payload: dict[str, Any], *, settings: Settings) -> None:
     """Read- AND write-allowlist check (write implies read), for update/delete/favorite."""
-    candidates = project_candidates(
-        project_id_to_identifier=project_id_to_identifier, settings=settings, project_ref=project_ref, payload=payload
-    )
-    ensure_project_read_allowed(
-        payload, project_ref=project_ref, settings=settings, project_id_to_identifier=project_id_to_identifier
-    )
+    ensure_project_read_allowed(payload, settings=settings)
     if scope_allows_all(settings.write_projects):
         return
-    if not scope_matches_candidates(settings.write_projects, candidates):
+    if not scope_matches_candidates(settings.write_projects, project_payload_candidates(payload)):
         raise PermissionDeniedError("OpenProject writes to this project are disabled by OPENPROJECT_WRITE_PROJECTS.")
 
 
@@ -61,7 +35,6 @@ def ensure_project_create_target_allowed(
     identifier: str | None,
     name: str | None,
     settings: Settings,
-    project_id_to_identifier: Mapping[int, str],
 ) -> None:
     """Read- then write-allowlist check on an intended create/copy target.
 
@@ -69,9 +42,7 @@ def ensure_project_create_target_allowed(
     the intended identifier/name directly -- read is checked first, then
     write, since a writable target must also be readable.
     """
-    candidates = project_candidates(
-        project_id_to_identifier=project_id_to_identifier, settings=settings, identifier=identifier, name=name
-    )
+    candidates = project_record_candidates(None, identifier, name)
     if not scope_allows_all(settings.read_projects) and not scope_matches_candidates(
         settings.read_projects, candidates
     ):

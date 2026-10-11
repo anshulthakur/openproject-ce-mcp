@@ -186,7 +186,6 @@ class TimeEntryService:
                 page_results, _total, next_offset, _truncated = await fetch_project_page(
                     api=self._project_api,
                     settings=self._settings,
-                    project_id_to_identifier=self._project_id_to_identifier,
                     search=None,
                     offset=offset,
                     limit=self._settings.max_page_size,

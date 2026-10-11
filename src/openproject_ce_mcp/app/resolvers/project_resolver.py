@@ -25,7 +25,6 @@ existing `context`-aware, payload-caching behavior unchanged, calling
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from typing import Any
 
 from ...config import Settings
@@ -41,10 +40,9 @@ _PROJECT_NAME_SEARCH_MAX_PAGES = 5
 
 
 class ProjectResolver:
-    def __init__(self, *, api: ProjectApi, settings: Settings, project_id_to_identifier: Mapping[int, str]) -> None:
+    def __init__(self, *, api: ProjectApi, settings: Settings) -> None:
         self._api = api
         self._settings = settings
-        self._project_id_to_identifier = project_id_to_identifier
 
     async def resolve(
         self, project_ref: str, *, write: bool = False, context: ProjectResolutionContext | None = None
@@ -82,19 +80,9 @@ class ProjectResolver:
             record = None
         if record is not None:
             if write:
-                project_policy.ensure_project_write_allowed(
-                    record.payload,
-                    project_ref=project_ref,
-                    settings=self._settings,
-                    project_id_to_identifier=self._project_id_to_identifier,
-                )
+                project_policy.ensure_project_write_allowed(record.payload, settings=self._settings)
             else:
-                project_policy.ensure_project_read_allowed(
-                    record.payload,
-                    project_ref=project_ref,
-                    settings=self._settings,
-                    project_id_to_identifier=self._project_id_to_identifier,
-                )
+                project_policy.ensure_project_read_allowed(record.payload, settings=self._settings)
             return record
         if is_numeric_ref(project_ref):
             # OpenProject never allows an all-digit identifier, so this was an id; a name
@@ -114,7 +102,6 @@ class ProjectResolver:
             page_results, _total, next_offset, truncated = await fetch_project_page(
                 api=self._api,
                 settings=self._settings,
-                project_id_to_identifier=self._project_id_to_identifier,
                 search=normalized,
                 offset=offset,
                 limit=page_size,

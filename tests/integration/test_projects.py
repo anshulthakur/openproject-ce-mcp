@@ -202,3 +202,43 @@ async def test_update_project_denies_reparent_into_write_restricted_project(
 
     with pytest.raises(PermissionDeniedError):
         await client.update_project(project_ref=test_project, parent=target_identifier, confirm=True)
+
+
+async def test_a_renamed_project_is_not_admitted_by_its_former_identifier(
+    start_scoped_client, project_refs: list[str]
+) -> None:
+    """From 17.3 OpenProject resolves a project's former identifier to the
+    renamed project; only its id, current identifier and name may match."""
+    unrestricted = await start_scoped_client(read_projects=("*",), write_projects=("*",))
+    former = disposable_project_identifier()
+    current = disposable_project_identifier()
+    # The name must not contain the former identifier, or the name fallback
+    # would find the project on versions without former-identifier lookup.
+    created = await unrestricted.project.create(
+        name="[integration-test] renamed project", identifier=former, confirm=True
+    )
+    assert created.ready, created.validation_errors
+    assert created.project_id is not None
+    project_refs.append(str(created.project_id))
+    renamed = await unrestricted.project.update(project_ref=former, identifier=current, confirm=True)
+    assert renamed.ready, renamed.validation_errors
+    try:
+        resolved = await unrestricted.project.get(former)
+    except NotFoundError:
+        pytest.skip("former project identifiers resolve only from OpenProject 17.3")
+    assert (resolved.id, resolved.identifier) == (created.project_id, current)
+
+    read_by_former = await start_scoped_client(read_projects=(former,), write_projects=(former,))
+    for project_ref in (former, current, str(created.project_id)):
+        with pytest.raises(PermissionDeniedError, match="OPENPROJECT_READ_PROJECTS"):
+            await read_by_former.project.get(project_ref)
+
+    write_by_former = await start_scoped_client(read_projects=("*",), write_projects=(former,))
+    with pytest.raises(PermissionDeniedError, match="OPENPROJECT_WRITE_PROJECTS"):
+        await write_by_former.project.update(project_ref=former, name="[integration-test] denied", confirm=False)
+
+    for pattern in (current, str(created.project_id)):
+        allowed = await start_scoped_client(read_projects=(pattern,), write_projects=(pattern,))
+        assert (await allowed.project.get(former)).id == created.project_id
+        preview = await allowed.project.update(project_ref=former, name="[integration-test] allowed", confirm=False)
+        assert preview.project_id == created.project_id

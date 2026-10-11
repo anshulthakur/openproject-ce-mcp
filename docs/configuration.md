@@ -67,6 +67,12 @@ flag skips the connection test and preview and writes directly.
 | `OPENPROJECT_READ_PROJECTS` | no | empty (nothing readable) | Readable projects; comma-separated identifiers, names, or glob patterns (e.g. `my-project,team-*`); `*` allows all visible projects; empty or unset denies all project-scoped reads |
 | `OPENPROJECT_WRITE_PROJECTS` | no | empty (nothing writable) | Writable projects; empty or unset disables all project-scoped writes; always intersected with read scope — so `*` here writes-enables every project that `OPENPROJECT_READ_PROJECTS` also allows, not every project on the instance regardless of read scope |
 
+A pattern matches a project's numeric id, its current identifier and its
+name, also with the name's spaces written as hyphens (`my-project` matches
+"My Project"). Passing a former identifier to a tool does not make a
+renamed project match: OpenProject 17.3 and later still finds the project by
+it, but the check uses the project's current values.
+
 A project created after the server started (a copy, the web UI, another
 client) is matched as soon as a response shows or links it; no restart is
 needed. `list_work_packages` without a `project` filters on the readable
