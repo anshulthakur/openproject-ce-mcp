@@ -78,9 +78,7 @@ development baseline.
   These names have had no effect on the running server since 0.3.0; use
   `OPENPROJECT_READ_PROJECTS`/`OPENPROJECT_WRITE_PROJECTS`.
 
-Thanks to our contributors:
-
-- [@feci](https://github.com/feci) ([#35](https://github.com/jtauschl/openproject-ce-mcp/pull/35), [#43](https://github.com/jtauschl/openproject-ce-mcp/pull/43), [#44](https://github.com/jtauschl/openproject-ce-mcp/pull/44))
+Thanks to our contributors: [@feci](https://github.com/feci) ([#35](https://github.com/jtauschl/openproject-ce-mcp/pull/35), [#43](https://github.com/jtauschl/openproject-ce-mcp/pull/43), [#44](https://github.com/jtauschl/openproject-ce-mcp/pull/44)).
 
 ## [0.4.3] - Unreleased
 
