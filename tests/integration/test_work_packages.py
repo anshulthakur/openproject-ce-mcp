@@ -238,6 +238,36 @@ async def test_create_and_update_work_package_accept_status_and_priority_by_name
     assert updated.priority == other_priority_name
 
 
+async def test_update_work_package_rejected_status_names_the_offered_statuses(
+    client: OpenProjectClient, test_project: str, wp_ids: list[int]
+) -> None:
+    """Compares against the instance's own update form, so this holds for any
+    workflow configuration; an instance whose workflow offers every status
+    from the initial one cannot produce the rejection and skips."""
+    created = await client.work_package.create(
+        project=test_project, type="Task", subject=f"{_SUBJECT} offered statuses", confirm=True
+    )
+    assert created.ready, created.validation_errors
+    wp_ids.append(created.work_package_id)
+    wp = await client.work_package.get(created.work_package_id)
+    form = await client._transport.post_json(
+        f"work_packages/{created.work_package_id}/form", json_body={"lockVersion": wp.lock_version}
+    )
+    offered = [value["name"] for value in form["_embedded"]["schema"]["status"]["_embedded"]["allowedValues"]]
+    statuses = await client.status_priority_type.list_statuses()
+    target = next((status.name for status in statuses.results if status.name not in offered), None)
+    if target is None:
+        pytest.skip("this instance's Task workflow offers every status from the initial one")
+
+    result = await client.work_package.update(work_package_id=created.work_package_id, status=target, confirm=False)
+
+    assert result.ready is False
+    listed = ", ".join(offered[:20]) + (f", … (+{len(offered) - 20} more)" if len(offered) > 20 else "")
+    assert result.validation_errors["status"].endswith(
+        f" Statuses OpenProject offers for this work package (including its current one): {listed}."
+    )
+
+
 async def test_get_work_package_ancestors_tolerate_missing_display_id(
     client: OpenProjectClient, test_project: str, wp_ids: list[int]
 ) -> None:

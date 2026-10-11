@@ -2,8 +2,9 @@
 
 Only the genuinely self-free pieces of WorkPackageService's write path live
 here: resolving a schema's allowed-values href for a field, normalizing a
-custom-field key, resolving a custom field's link href(s), and the cache-
-then-resolve wrapper around a name/id resolver callable. The remaining write-
+custom-field key, resolving a custom field's link href(s), naming a form's
+offered status values in its status error, and the cache-then-resolve
+wrapper around a name/id resolver callable. The remaining write-
 payload helpers (`_get_write_schema`, `_apply_custom_fields`,
 `_build_write_payload`, `_to_write_result`) stay on WorkPackageService itself
 -- they are genuinely coupled to `self._api`, five resolver methods,
@@ -22,6 +23,10 @@ from ...work_package_reference import is_numeric_ref
 from ..errors import InvalidInputError
 
 _SUBJECT_LIMIT = 255
+
+# OpenProject does not cap how many statuses a workflow offers, and the list
+# lands in an error message the client reads into its context.
+_OFFERED_VALUES_LIMIT = 20
 
 
 def _trim_text(value: Any, *, limit: int = _SUBJECT_LIMIT) -> str | None:
@@ -87,9 +92,38 @@ def _allowed_options(
         href = item.get("_links", {}).get("self", {}).get("href")
         if not href:
             continue
-        title = _trim_text(item.get("name") or item.get("_links", {}).get("self", {}).get("title"))
-        options.append((str(href), _id_from_href(href), title))
+        options.append((str(href), _id_from_href(href), _option_title(item)))
     return normalized, options
+
+
+def _option_title(item: dict[str, Any]) -> str | None:
+    return _trim_text(item.get("name") or item.get("_links", {}).get("self", {}).get("title"))
+
+
+def with_offered_status_values(validation_errors: dict[str, str], schema: dict[str, Any]) -> dict[str, str]:
+    """Append the status values the update form offers to its `status` error.
+
+    OpenProject's own message only says the transition is invalid, which
+    does not tell a workflow gap from a missing role; the same form's schema
+    carries the statuses the workflow allows for this user's roles (plus the
+    current status), which settles it."""
+    message = validation_errors.get("status")
+    if message is None:
+        return validation_errors
+    field = schema.get("status")
+    allowed_values = field.get("_embedded", {}).get("allowedValues") if isinstance(field, dict) else None
+    if not isinstance(allowed_values, list):
+        return validation_errors
+    titles = [title for title in map(_option_title, allowed_values) if title]
+    if not titles:
+        return validation_errors
+    offered = ", ".join(titles[:_OFFERED_VALUES_LIMIT])
+    if len(titles) > _OFFERED_VALUES_LIMIT:
+        offered += f", … (+{len(titles) - _OFFERED_VALUES_LIMIT} more)"
+    return {
+        **validation_errors,
+        "status": f"{message} Statuses OpenProject offers for this work package (including its current one): {offered}.",
+    }
 
 
 def _not_allowed(raw_value: Any, key: str) -> InvalidInputError:

@@ -234,6 +234,21 @@ ASSUMPTIONS: list[Assumption] = [
         subtree="modules/backlogs/lib/open_project/backlogs/patches/api/work_package_representer.rb",
         present_from="17.3",
     ),
+    # A rejected status change names the statuses the update form offers, read
+    # from the form schema's embedded allowedValues. Existence of the two
+    # pieces only: the status collection and the form-mode embedding.
+    Assumption(
+        "work-package schema status allowed collection",
+        "field",
+        "schema_with_allowed_collection :status",
+        subtree="lib/api/v3/work_packages/schema/work_package_schema_representer.rb",
+    ),
+    Assumption(
+        "form-embedded allowed values",
+        "field",
+        "representer.allowed_values = instance_exec(&values_callback)",
+        subtree="lib/api/decorators/schema_representer.rb",
+    ),
 ]
 
 

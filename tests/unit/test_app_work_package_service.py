@@ -2681,9 +2681,9 @@ async def test_update_autofills_percentage_and_remaining_when_closing_without_es
     assert second_payload["percentageDone"] == 100
     assert second_payload["remainingTime"] is None  # CLEAR-derived: no existing estimate
     # Regression guard (N+1 fix): the auto-derive probe and the final parse
-    # only ever read .schema for plain writable flags (or don't read .schema
-    # at all) -- never allowedValues -- so parse_form must never be asked to
-    # resolve links on this path. A status-close update with no
+    # only ever read .schema for plain writable flags or the status field's
+    # form-embedded allowedValues -- never a linked allowedValues href -- so
+    # parse_form must never be asked to resolve links on this path. A status-close update with no
     # responsible/priority/category/project_phase/custom_fields in the
     # payload means _get_write_schema's resolve_links=True probe is skipped
     # entirely too.
@@ -2775,6 +2775,153 @@ async def test_update_read_disabled_but_write_enabled_still_autofills() -> None:
 
     assert result.ready is True
     assert status_api.get_status_calls == [5]
+
+
+# ----------------------------------------------------------------------
+# update() rejected status: offered status values
+# ----------------------------------------------------------------------
+
+_TRANSITION_INVALID = "Status is invalid because no valid transition exists from old to new status."
+_OFFERED_PREFIX = "Statuses OpenProject offers for this work package (including its current one): "
+
+
+def _status_schema(*names: str) -> dict:
+    return {
+        "status": {
+            "_embedded": {
+                "allowedValues": [
+                    {"name": name, "_links": {"self": {"href": f"/api/v3/statuses/{i}", "title": name}}}
+                    for i, name in enumerate(names, start=1)
+                ]
+            }
+        }
+    }
+
+
+@pytest.mark.asyncio
+async def test_update_rejected_status_names_the_offered_statuses() -> None:
+    api = _FakeWorkPackageApi()
+    api.next_schema = _status_schema("New", "In progress", "Closed")
+    api.validation_errors_queue.append({"status": _TRANSITION_INVALID})
+    service, _ = _service(api)
+
+    result = await service.update(work_package_id=6, status="Developed", confirm=False)
+
+    assert result.ready is False
+    assert result.validation_errors == {
+        "status": f"{_TRANSITION_INVALID} {_OFFERED_PREFIX}New, In progress, Closed.",
+    }
+
+
+@pytest.mark.asyncio
+async def test_update_confirmed_rejected_status_names_the_offered_statuses_without_committing() -> None:
+    api = _FakeWorkPackageApi()
+    api.next_schema = _status_schema("New", "Closed")
+    api.validation_errors_queue.append({"status": _TRANSITION_INVALID})
+    service, _ = _service(api)
+
+    result = await service.update(work_package_id=6, status="Developed", confirm=True)
+
+    assert result.ready is False
+    assert result.validation_errors == {"status": f"{_TRANSITION_INVALID} {_OFFERED_PREFIX}New, Closed."}
+    assert api.commit_update_calls == []
+
+
+@pytest.mark.asyncio
+async def test_update_rejected_status_reads_the_revalidated_form_after_auto_derive() -> None:
+    api = _FakeWorkPackageApi()
+    api.next_schema = {
+        "percentageDone": {"writable": True},
+        "remainingTime": {"writable": True},
+        **_status_schema("New", "In progress"),
+    }
+    api.validation_errors_queue.extend([{}, {"status": _TRANSITION_INVALID}])
+    service, _ = _service(api, status_api=_FakeStatusApi(is_closed=True))
+
+    result = await service.update(work_package_id=6, status="Closed", confirm=False)
+
+    assert len(api.validate_update_calls) == 2
+    assert result.validation_errors == {"status": f"{_TRANSITION_INVALID} {_OFFERED_PREFIX}New, In progress."}
+
+
+@pytest.mark.asyncio
+async def test_update_rejected_status_caps_the_offered_statuses() -> None:
+    api = _FakeWorkPackageApi()
+    api.next_schema = _status_schema(*(f"S{i}" for i in range(1, 24)))
+    api.validation_errors_queue.append({"status": _TRANSITION_INVALID})
+    service, _ = _service(api)
+
+    result = await service.update(work_package_id=6, status="Developed", confirm=False)
+
+    shown = ", ".join(f"S{i}" for i in range(1, 21))
+    assert result.validation_errors["status"] == f"{_TRANSITION_INVALID} {_OFFERED_PREFIX}{shown}, … (+3 more)."
+
+
+@pytest.mark.asyncio
+async def test_update_rejected_status_without_embedded_values_keeps_the_message() -> None:
+    api = _FakeWorkPackageApi()
+    api.next_schema = {"status": {"_links": {"allowedValues": [{"href": "/api/v3/statuses/1"}]}}}
+    api.validation_errors_queue.append({"status": _TRANSITION_INVALID})
+    service, _ = _service(api)
+
+    result = await service.update(work_package_id=6, status="Developed", confirm=False)
+
+    assert result.validation_errors == {"status": _TRANSITION_INVALID}
+
+
+@pytest.mark.asyncio
+async def test_update_rejected_other_field_gets_no_status_hint() -> None:
+    api = _FakeWorkPackageApi()
+    api.next_schema = _status_schema("New", "Closed")
+    api.validation_errors_queue.append({"subject": "is too long"})
+    service, _ = _service(api)
+
+    result = await service.update(work_package_id=6, status="Closed", confirm=False)
+
+    assert result.validation_errors == {"subject": "is too long"}
+
+
+@pytest.mark.asyncio
+async def test_update_status_error_without_requested_status_keeps_the_message() -> None:
+    api = _FakeWorkPackageApi()
+    api.next_schema = _status_schema("New", "Closed")
+    api.validation_errors_queue.append({"status": _TRANSITION_INVALID})
+    service, _ = _service(api)
+
+    result = await service.update(work_package_id=6, subject="Renamed", confirm=False)
+
+    assert result.validation_errors == {"status": _TRANSITION_INVALID}
+
+
+@pytest.mark.asyncio
+async def test_update_hidden_status_is_rejected_before_the_form_is_queried() -> None:
+    settings = dataclasses.replace(make_settings(), hide_work_package_fields=("status",))
+    api = _FakeWorkPackageApi()
+    api.next_schema = _status_schema("New", "Closed")
+    service, _ = _service(api, settings=settings)
+
+    with pytest.raises(InvalidInputError) as excinfo:
+        await service.update(work_package_id=6, status="Developed", confirm=False)
+
+    assert "hidden" in str(excinfo.value)
+    assert "Closed" not in str(excinfo.value)
+    assert api.validate_update_calls == []
+
+
+@pytest.mark.asyncio
+async def test_bulk_update_rejected_status_names_the_offered_statuses() -> None:
+    api = _FakeWorkPackageApi()
+    api.next_schema = _status_schema("New", "Closed")
+    api.validation_errors_queue.append({"status": _TRANSITION_INVALID})
+    service, _ = _service(api)
+
+    result = await service.bulk_update(items=[{"work_package_id": 6, "status": "Developed"}], confirm=True)
+
+    assert result.failed == 1
+    assert api.commit_update_calls == []
+    item = result.items[0]
+    assert item.result is not None
+    assert item.result.validation_errors == {"status": f"{_TRANSITION_INVALID} {_OFFERED_PREFIX}New, Closed."}
 
 
 # ----------------------------------------------------------------------

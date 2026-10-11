@@ -159,6 +159,7 @@ from ._work_package_write_helpers import (
     resolve_custom_field_links,
     resolve_schema_option_href,
     resolve_wp_ref_id,
+    with_offered_status_values,
 )
 from ._write_outcome import _finalize_write, _WriteOutcome
 
@@ -2201,11 +2202,18 @@ class WorkPackageService:
         parsed = await self._api.parse_form(form)
         if observed_in_versions is not None:
             _ensure_observed_in_versions_offered(parsed.payload)
+        # Gated on `status`: only then has the hidden-fields check run, so a
+        # hidden status field never leaks its option names.
+        validation_errors = (
+            with_offered_status_values(parsed.validation_errors, parsed.schema)
+            if status is not None
+            else parsed.validation_errors
+        )
         project_name = _trim_text(current.get("_links", {}).get("project", {}).get("title"))
         outcome = await _finalize_write(
             confirm=confirm,
             payload=parsed.payload,
-            validation_errors=parsed.validation_errors,
+            validation_errors=validation_errors,
             identity={"work_package_id": ref, "project": project_name},
             ensure_write_enabled=lambda: access.ensure_write_enabled("work_package", settings=self._settings),
             commit=lambda p: self._api.commit_update(

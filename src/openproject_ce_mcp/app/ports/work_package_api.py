@@ -168,11 +168,13 @@ class WorkPackageApi(Protocol):
 
         `resolve_links` defaults to False: `update()`'s auto-percentage/
         auto-remaining-time probe and every call site's final parse only
-        ever read `.payload`/`.validationErrors`, or `.schema` for `writable`
-        flags -- never `allowedValues` -- so dereferencing there would be
-        pure waste. Only `_get_write_schema`'s dedicated schema probe (the
-        one call site that resolves `responsible`/`priority`/`category`/
-        `project_phase`/custom-field options) passes `resolve_links=True`.
+        ever read `.payload`/`.validationErrors`, `.schema` for `writable`
+        flags, or (`update()`'s final parse) the status field's
+        `allowedValues`, which OpenProject already embeds in a form response
+        -- so dereferencing there would be pure waste. Only
+        `_get_write_schema`'s dedicated schema probe (the one call site that
+        resolves `responsible`/`priority`/`category`/`project_phase`/
+        custom-field options) passes `resolve_links=True`.
         Never mutates the input `form`'s schema in place -- returns a new
         schema dict, so a caller holding a reference to the original `form`
         sees it unchanged.

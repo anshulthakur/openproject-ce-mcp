@@ -46,6 +46,10 @@ development baseline.
 
 ### Changed
 
+- A rejected status change on `update_work_package` and
+  `bulk_update_work_packages` now lists, in its `status` validation error, the
+  status values OpenProject's update form offers for that work package,
+  including its current status.
 - A confirmed bulk write no longer returns an item's echoed `payload` when
   `select` names it; the normalized `result` carries the same data.
 - **Breaking:** Python 3.11 or later is required; Python 3.10 is no longer
