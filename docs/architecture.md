@@ -33,7 +33,16 @@ src/openproject_ce_mcp/
 │                         modules (see "tools.py and the per-domain tool modules" below)
 ├── server.py             MCPServer bootstrap and lifecycle management
 ├── setup_cli.py          the interactive `configure` command
-├── doctor.py             the `doctor` diagnostics command
+├── doctor/               the `doctor` diagnostics command
+│   ├── run.py            orchestration, report output and exit status
+│   ├── discovery.py      which files each MCP client reads, and their OpenProject entries
+│   ├── hosts.py          how each MCP client builds the server's environment
+│   ├── codex.py          Codex's effective configuration via `codex mcp list`
+│   ├── checks.py         settings, command, connection and tool checks per entry
+│   ├── probe.py          the connection check, run in a child process per entry
+│   ├── environment.py    environment mapping and placeholder substitution
+│   ├── files.py          JSON, JSONC and envFile parsing
+│   └── report.py         findings and entry states
 └── app/                  layered architecture -- see "Layered architecture" below
     ├── errors.py         shared exception types (re-exported from client.py)
     ├── pagination.py     shared pagination-envelope helpers (re-exported from client.py)

@@ -40,6 +40,13 @@ development baseline.
 - The server instructions name every opt-in tool group, so an agent can tell
   that a missing personal, admin or user-schedule tool is switched off, not
   broken.
+- `configure` and `doctor` read Codex's configuration from `CODEX_HOME` when
+  it is set.
+- When Codex is installed, `doctor` runs `codex mcp list` twice (at most 20
+  seconds each) to see the configuration Codex applies; Codex may contact
+  configured HTTP MCP servers during that call.
+- On Python 3.10 the package depends on `tomli`, which reads Codex's
+  configuration.
 
 ### Fixed
 
@@ -102,6 +109,11 @@ development baseline.
   settings in its scope summary.
 - `openproject-ce-mcp configure --help` and `openproject-ce-mcp-setup --help`
   show the command that was run.
+- `openproject-ce-mcp doctor` checks each MCP client's OpenProject entry on
+  its own, with that client's way of passing environment variables; an
+  incomplete or broken entry is no longer hidden by another client's entry or
+  by the shell running doctor, and the connection check uses the entry's own
+  proxy and certificate settings.
 
 Thanks to our contributors: [@webadmin-stattreisen](https://github.com/webadmin-stattreisen) ([#45](https://github.com/jtauschl/openproject-ce-mcp/pull/45)).
 
@@ -135,7 +147,7 @@ Thanks to our contributors: [@webadmin-stattreisen](https://github.com/webadmin-
   `time_entries/activities` probe with HTTP 400 instead of 404; the
   per-project fallback now runs in that case too.
 - With `mcp` 2.1 or later installed, rejected input and failed OpenProject
-  calls reached the agent only as "Error executing tool <name>"; the error
+  calls reached the agent only as `Error executing tool <name>`; the error
   category and message are shown again.
 - With `mcp` 2.1 or later installed, a call with an unknown argument was
   logged as a server crash with a traceback; it is now logged as a rejected

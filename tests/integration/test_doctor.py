@@ -2,40 +2,43 @@
 
 from __future__ import annotations
 
+import sys
+
 import pytest
 
-from openproject_ce_mcp.doctor import EXIT_FAILURE, EXIT_SUCCESS, _run_doctor
+from openproject_ce_mcp.doctor.environment import EffectiveEnv, EnvMap
+from openproject_ce_mcp.doctor.hosts import ProcessEnvHost, Subject
+from openproject_ce_mcp.doctor.run import EXIT_FAILURE, EXIT_SUCCESS, _run_doctor
 
 pytestmark = pytest.mark.integration
 
 
+def _entry(base_url: str, token: str, verify_ssl: bool) -> Subject:
+    env = EnvMap(
+        {
+            "OPENPROJECT_BASE_URL": base_url,
+            "OPENPROJECT_API_TOKEN": token,
+            "OPENPROJECT_VERIFY_SSL": "true" if verify_ssl else "false",
+            "OPENPROJECT_READ_PROJECTS": "*",
+        },
+        case_insensitive=sys.platform == "win32",
+    )
+    return Subject(ProcessEnvHost(), "", effective=EffectiveEnv(env=env))
+
+
 def test_doctor_live_connection(client):
-    """Doctor should pass all checks against real instance."""
-    # Use the settings from the integration client fixture
+    """The real connection check passes against the instance."""
     settings = client.settings
 
-    exit_code = _run_doctor(settings_override=settings)
+    exit_code = _run_doctor(entries=[_entry(settings.base_url, settings.api_token, settings.verify_ssl)])
 
     assert exit_code == EXIT_SUCCESS
 
 
 def test_doctor_detects_invalid_token(client):
-    """Doctor should detect authentication failure with bad token."""
-    # Create settings with invalid token (reuse base_url from client)
-    from openproject_ce_mcp.config import Settings
+    """The real connection check fails with a bad token."""
+    settings = client.settings
 
-    bad_settings = Settings(
-        base_url=client.settings.base_url,
-        api_token="invalid-token-12345",
-        timeout=client.settings.timeout,
-        verify_ssl=client.settings.verify_ssl,
-        default_page_size=20,
-        max_page_size=50,
-        max_results=100,
-        log_level="WARNING",
-        read_projects=("*",),
-    )
-
-    exit_code = _run_doctor(settings_override=bad_settings)
+    exit_code = _run_doctor(entries=[_entry(settings.base_url, "invalid-token-12345", settings.verify_ssl)])
 
     assert exit_code == EXIT_FAILURE

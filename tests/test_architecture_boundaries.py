@@ -35,8 +35,8 @@ APP = SRC / "app"
 # now only used by its shared _get/_post/_request transport primitives and its two cross-service
 # coordinator methods (get_my_project_access, get_project_work_package_context),
 # not by any per-domain logic (every domain method delegates to a Service); retry_transport.py is
-# wrapped-not-replaced by design; doctor.py/setup_cli.py are named, pre-existing exceptions.
-_PRE_EXISTING_HTTPX_IMPORTERS = {"client.py", "retry_transport.py", "doctor.py", "setup_cli.py"}
+# wrapped-not-replaced by design; setup_cli.py is a named, pre-existing exception.
+_PRE_EXISTING_HTTPX_IMPORTERS = {"client.py", "retry_transport.py", "setup_cli.py"}
 _HTTPX_TRANSPORT_FILE = Path("transport") / "httpx_transport.py"
 
 # Layer dependency rules: which app/<layer> dirs a given layer may import
@@ -106,6 +106,48 @@ def test_httpx_confined_to_one_file_within_the_app_tree() -> None:
 def test_httpx_importers_outside_app_match_the_known_allow_list() -> None:
     offenders = {p.name for p in SRC.glob("*.py") if p.name not in _PRE_EXISTING_HTTPX_IMPORTERS and _imports_httpx(p)}
     assert offenders == set()
+
+
+DOCTOR = SRC / "doctor"
+
+
+def test_doctor_package_does_not_import_httpx() -> None:
+    # The connection check runs the client in a child process with the entry's environment.
+    assert [p.name for p in DOCTOR.glob("*.py") if _imports_httpx(p)] == []
+
+
+def _doctor_imports(path: Path) -> set[str]:
+    """Sibling modules of the doctor package that ``path`` imports, at module level or inside functions."""
+    tree = ast.parse(path.read_text(), filename=str(path))
+    siblings = {p.stem for p in DOCTOR.glob("*.py")} - {"__init__"}
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.level == 1:
+            if node.module:
+                found.add(node.module.split(".")[0])
+            else:
+                found.update(alias.name for alias in node.names)
+    return found & siblings
+
+
+def test_doctor_package_imports_form_no_cycle() -> None:
+    graph = {p.stem: _doctor_imports(p) for p in DOCTOR.glob("*.py")}
+    visiting: set[str] = set()
+    done: set[str] = set()
+
+    def visit(module: str, path: tuple[str, ...]) -> None:
+        assert module not in visiting, f"import cycle: {' -> '.join((*path, module))}"
+        if module in done:
+            return
+        visiting.add(module)
+        for imported in graph.get(module, set()):
+            visit(imported, (*path, module))
+        visiting.discard(module)
+        done.add(module)
+
+    for module in graph:
+        visit(module, ())
+    assert graph["report"] == set() and graph["probe"] == set()
 
 
 def _app_import_violations(source: str) -> list[str]:

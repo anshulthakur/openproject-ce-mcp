@@ -64,7 +64,7 @@ def test_cold_process_import_populates_the_full_registry() -> None:
     effect of an unrelated import -- which would hide a composition root that
     forgot to import a new domain module itself. A subprocess that imports
     ONLY `openproject_ce_mcp.tools` (the production composition root, exactly
-    as `server.py`/`doctor.py` import it) rules that out.
+    as `server.py` and the doctor import it) rules that out.
 
     The four classification sources unioned below (PERSONAL_MUTATION_TOOLS,
     ATTACHMENT_UPLOAD_TOOLS, READ_TOOLS_BY_SCOPE, WRITE_TOOLS_BY_SCOPE) must be

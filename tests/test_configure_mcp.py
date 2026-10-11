@@ -26,14 +26,17 @@ assert _SPEC and _SPEC.loader
 c = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(c)
 
-# tomllib is stdlib only on 3.11+. Import it optionally so the JSON/backup/flow
-# tests still run on 3.10; only the TOML round-trip assertions are guarded.
-try:
+if sys.version_info >= (3, 11):
     import tomllib
-except ModuleNotFoundError:  # Python 3.10
-    tomllib = None
+else:
+    import tomli as tomllib
 
-_needs_tomllib = pytest.mark.skipif(tomllib is None, reason="tomllib requires Python 3.11+")
+
+@pytest.fixture(autouse=True)
+def _no_codex_home(monkeypatch: pytest.MonkeyPatch) -> None:
+    # _clients() follows CODEX_HOME; the developer's own must not point a test at a real config.
+    monkeypatch.delenv("CODEX_HOME", raising=False)
+
 
 ENV = {
     "OPENPROJECT_BASE_URL": "https://op.example.com",
@@ -97,7 +100,6 @@ def test_toml_quote_escapes_specials() -> None:
 # ── Codex TOML merge (text-level, no TOML writer) ──────────────────────────────
 
 
-@_needs_tomllib
 def test_merge_codex_toml_new_file_round_trips() -> None:
     data = tomllib.loads(c._merge_codex_toml("", CMD, ENV))
     server = data["mcp_servers"]["openproject"]
@@ -106,7 +108,6 @@ def test_merge_codex_toml_new_file_round_trips() -> None:
     assert server["env"]["OPENPROJECT_API_TOKEN"] == ENV["OPENPROJECT_API_TOKEN"]
 
 
-@_needs_tomllib
 def test_merge_codex_toml_preserves_other_tables() -> None:
     existing = '[some_setting]\nkey = "value"\n\n[mcp_servers.other]\ncommand = "/bin/other"\n'
     merged = c._merge_codex_toml(existing, CMD, ENV)
@@ -116,7 +117,6 @@ def test_merge_codex_toml_preserves_other_tables() -> None:
     assert data["mcp_servers"]["openproject"]["command"] == CMD
 
 
-@_needs_tomllib
 def test_merge_codex_toml_replaces_existing_openproject() -> None:
     existing = (
         '[mcp_servers.openproject]\ncommand = "/old"\n\n'
@@ -146,6 +146,30 @@ def test_detects_claude_code_via_binary(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(c, "_home", lambda: tmp_path)
     monkeypatch.setattr(c.shutil, "which", lambda name: "/usr/bin/claude" if name == "claude" else None)
     assert c._detect_claude_code() is True
+
+
+def test_codex_paths_follow_codex_home(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(c, "_home", lambda: tmp_path / "home")
+    monkeypatch.setattr(c.shutil, "which", lambda _name: None)
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex-home"))
+    (codex,) = [client for client in c._clients() if client.key == "codex"]
+
+    assert codex.target == tmp_path / "codex-home" / "config.toml"
+    assert c._detect_codex() is False
+    (tmp_path / "codex-home").mkdir()
+    assert c._detect_codex() is True
+
+
+def test_empty_codex_home_means_the_default(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(c, "_home", lambda: tmp_path)
+    monkeypatch.setenv("CODEX_HOME", "")
+
+    assert c._codex_home() == tmp_path / ".codex"
+
+
+@pytest.mark.parametrize("data", [[], {"mcpServers": []}, {"mcpServers": {"openproject": "x"}}, {}])
+def test_openproject_server_entry_tolerates_any_shape(data) -> None:
+    assert c._openproject_server_entry(data, "mcpServers") == {}
 
 
 def test_clients_only_offers_detected(monkeypatch, tmp_path: Path) -> None:
@@ -208,7 +232,6 @@ def _json_client(target: Path, *, detect: bool = True, project_target: Path | No
     )
 
 
-@_needs_tomllib
 def test_write_client_config_creates_file(monkeypatch, tmp_path: Path) -> None:
     target = tmp_path / "nested" / "config.toml"
     assert c._write_client_config(_codex_client(target), CMD, ENV) == "changed"
@@ -602,11 +625,10 @@ def test_has_openproject_config_detects_json_entry_without_env(tmp_path: Path) -
     assert c._has_openproject_config(claude, target) is True
 
 
-def test_has_openproject_config_detects_codex_toml_without_tomllib(monkeypatch, tmp_path: Path) -> None:
+def test_has_openproject_config_detects_codex_toml_by_text(tmp_path: Path) -> None:
     target = tmp_path / "config.toml"
     target.write_text('[mcp_servers.openproject]\ncommand = "old"\n')
     codex = _codex_client(tmp_path / "global.toml", project_target=target)
-    monkeypatch.setattr(c, "_tomllib", None)
 
     assert c._has_openproject_config(codex, target) is True
 
@@ -628,7 +650,6 @@ def test_apply_global_registration_empty_is_noop(tmp_path: Path) -> None:
 # ── regression: TOML multi-line array preservation (bug #1) ─────────────────────
 
 
-@_needs_tomllib
 def test_merge_codex_toml_preserves_multiline_array_table() -> None:
     # A multi-line array value has continuation lines that start with "[". The old
     # skip logic toggled on any line starting with "[", flipping skipping off
@@ -757,7 +778,6 @@ def test_remove_json_openproject_noop_when_absent() -> None:
     assert c._remove_json_openproject(existing, "mcpServers") is None
 
 
-@_needs_tomllib
 def test_remove_codex_openproject_keeps_siblings() -> None:
     existing = (
         '[some]\nk = "v"\n\n'
@@ -3293,7 +3313,6 @@ def test_generated_json_config_orders_scope_pairs_canonically(monkeypatch, tmp_p
     _assert_scope_keys_in_canonical_order(env)
 
 
-@_needs_tomllib
 def test_generated_toml_config_orders_scope_pairs_canonically(monkeypatch, tmp_path: Path) -> None:
     codex = _codex_client(tmp_path / "config.toml", project_target=tmp_path / ".codex" / "config.toml")
     answers = {**_ALL_SCOPE_KEYS_DEVIATED_ANSWERS, "Configure Codex?": "y"}
@@ -3341,7 +3360,6 @@ def test_minimal_env_orders_keys_canonically() -> None:
 # ── Real _clients() end-to-end, not the mock Client fixtures above ─────────────
 
 
-@_needs_tomllib
 def test_configure_writes_valid_project_scoped_config_for_every_real_client(monkeypatch, tmp_path: Path) -> None:
     """Drives the actual `_clients()` definitions (not the `_json_client`/
     `_toml_client` mock fixtures every other test in this file uses) through a
