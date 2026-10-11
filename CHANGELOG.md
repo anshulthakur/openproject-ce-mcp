@@ -21,9 +21,9 @@ development baseline.
   `["work_package_id", "result.status"]`; a bare work package field name is
   rejected with the path to use.
 - `doctor` now reports the Python version and executable in use, warns when a
-  discovered client configuration file has unsafe group/other-readable
-  permissions (POSIX only), and checks in-process, with a time limit, that
-  the server builds and dispatches tool calls. API
+  client configuration file with an OpenProject entry has unsafe
+  group/other-readable permissions (POSIX only), and checks in-process, with a
+  time limit, that the server builds and dispatches tool calls. API
   connectivity failures now distinguish TLS/certificate errors from a plain
   connection failure and include actionable remediation hints.
 - Optional structured stderr logging of per-tool-call diagnostics
@@ -92,6 +92,10 @@ Thanks to our contributors: [@feci](https://github.com/feci) ([#35](https://gith
   and `/projects/<identifier>/boards`, after the instance's root path on a
   subpath install, and rejects any other scope before a request, also under
   `*`.
+- A project renamed in OpenProject 17.3 or later could still be read and
+  written through its former identifier when only that identifier matched
+  `OPENPROJECT_READ_PROJECTS` or `OPENPROJECT_WRITE_PROJECTS`. A project now
+  matches only by its id, current identifier and name.
 
 ### Added
 
@@ -114,13 +118,35 @@ Thanks to our contributors: [@feci](https://github.com/feci) ([#35](https://gith
 - The server instructions name every opt-in tool group, so an agent can tell
   that a missing personal, admin or user-schedule tool is switched off, not
   broken.
+- `configure` and `doctor` read Codex's configuration from `CODEX_HOME` when
+  it is set.
+- When Codex is installed, `doctor` runs `codex mcp list` twice (at most 20
+  seconds each) to see the configuration Codex applies; Codex may contact
+  configured HTTP MCP servers during that call.
+- On Python 3.10 the package depends on `tomli`, which reads Codex's
+  configuration.
+- An allowlist pattern like `my-project` now also matches a project named
+  "My Project" in the project tools, such as `list_projects`, `get_project`,
+  `update_project` and `create_project`, as it already did in the checks on
+  work packages and other project content.
 
 ### Fixed
 
 - `create_work_package`, `update_work_package` and `create_subtask` accept a
   numeric `parent`, `assignee` and `responsible` (a JSON number such as `7`),
   not only a string; `bulk_update_work_packages` items accept a numeric
-  `assignee` and `responsible` too.
+  `assignee` and `responsible` too, and every other tool that takes a
+  reference to a project, type, status, priority, version, category, phase,
+  sprint, activity, user, principal or role accepts the id as a JSON number
+  too. `get_user`, the user-schedule `user_ref` tools and the
+  `list_time_entries` `user` filter pass the reference to OpenProject, which
+  also matches it against the login.
+- A project given as an all-digit value is looked up by id only; a missing id
+  no longer falls back to a project whose name contains those digits.
+  Category, priority, phase and `responsible` values given as digits match by
+  id only, not by a title made of those digits.
+- In `bulk_create_work_packages` items, `project` and `type` reject a boolean
+  or a decimal number instead of using it as a name such as "True".
 - A confirmed `delete_project`, `delete_user` or `delete_group` no longer
   reports the deletion as done: OpenProject only schedules it and deletes in a
   background job, and the message now says so. A confirmed `delete_project`
@@ -165,6 +191,11 @@ Thanks to our contributors: [@feci](https://github.com/feci) ([#35](https://gith
   settings in its scope summary.
 - `openproject-ce-mcp configure --help` and `openproject-ce-mcp-setup --help`
   show the command that was run.
+- `openproject-ce-mcp doctor` checks each MCP client's OpenProject entry on
+  its own, with that client's way of passing environment variables; an
+  incomplete or broken entry is no longer hidden by another client's entry or
+  by the shell running doctor, and the connection check uses the entry's own
+  proxy and certificate settings.
 
 Thanks to our contributors: [@webadmin-stattreisen](https://github.com/webadmin-stattreisen) ([#45](https://github.com/jtauschl/openproject-ce-mcp/pull/45)).
 
@@ -198,7 +229,7 @@ Thanks to our contributors: [@webadmin-stattreisen](https://github.com/webadmin-
   `time_entries/activities` probe with HTTP 400 instead of 404; the
   per-project fallback now runs in that case too.
 - With `mcp` 2.1 or later installed, rejected input and failed OpenProject
-  calls reached the agent only as "Error executing tool <name>"; the error
+  calls reached the agent only as `Error executing tool <name>`; the error
   category and message are shown again.
 - With `mcp` 2.1 or later installed, a call with an unknown argument was
   logged as a server crash with a traceback; it is now logged as a rejected

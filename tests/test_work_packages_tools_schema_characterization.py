@@ -59,6 +59,9 @@ def test_search_work_packages_schema() -> None:
             "project": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -70,6 +73,9 @@ def test_search_work_packages_schema() -> None:
             },
             "status": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },
@@ -93,6 +99,9 @@ def test_search_work_packages_schema() -> None:
             "assignee": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -104,6 +113,9 @@ def test_search_work_packages_schema() -> None:
             },
             "priority": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },
@@ -337,6 +349,9 @@ def test_list_work_packages_schema() -> None:
             "project": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -349,6 +364,9 @@ def test_list_work_packages_schema() -> None:
             "type": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -360,6 +378,9 @@ def test_list_work_packages_schema() -> None:
             },
             "version": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },
@@ -385,6 +406,9 @@ def test_list_work_packages_schema() -> None:
             "observed_in_version": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -407,6 +431,9 @@ def test_list_work_packages_schema() -> None:
             "assignee": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -419,6 +446,9 @@ def test_list_work_packages_schema() -> None:
             "status": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -430,6 +460,9 @@ def test_list_work_packages_schema() -> None:
             },
             "priority": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },
@@ -780,12 +813,26 @@ def test_create_work_package_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "project": {
+                "anyOf": [
+                    {
+                        "type": "integer",
+                    },
+                    {
+                        "type": "string",
+                    },
+                ],
                 "title": "Project",
-                "type": "string",
             },
             "type": {
+                "anyOf": [
+                    {
+                        "type": "integer",
+                    },
+                    {
+                        "type": "string",
+                    },
+                ],
                 "title": "Type",
-                "type": "string",
             },
             "subject": {
                 "title": "Subject",
@@ -806,6 +853,9 @@ def test_create_work_package_schema() -> None:
             "version": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -819,7 +869,14 @@ def test_create_work_package_schema() -> None:
                 "anyOf": [
                     {
                         "items": {
-                            "type": "string",
+                            "anyOf": [
+                                {
+                                    "type": "integer",
+                                },
+                                {
+                                    "type": "string",
+                                },
+                            ],
                         },
                         "type": "array",
                     },
@@ -834,7 +891,14 @@ def test_create_work_package_schema() -> None:
                 "anyOf": [
                     {
                         "items": {
-                            "type": "string",
+                            "anyOf": [
+                                {
+                                    "type": "integer",
+                                },
+                                {
+                                    "type": "string",
+                                },
+                            ],
                         },
                         "type": "array",
                     },
@@ -847,6 +911,9 @@ def test_create_work_package_schema() -> None:
             },
             "project_phase": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },
@@ -890,6 +957,9 @@ def test_create_work_package_schema() -> None:
             "priority": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -901,6 +971,9 @@ def test_create_work_package_schema() -> None:
             },
             "category": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },
@@ -1086,6 +1159,9 @@ def test_update_work_package_schema() -> None:
             "type": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -1097,6 +1173,9 @@ def test_update_work_package_schema() -> None:
             },
             "version": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },
@@ -1111,7 +1190,14 @@ def test_update_work_package_schema() -> None:
                 "anyOf": [
                     {
                         "items": {
-                            "type": "string",
+                            "anyOf": [
+                                {
+                                    "type": "integer",
+                                },
+                                {
+                                    "type": "string",
+                                },
+                            ],
                         },
                         "type": "array",
                     },
@@ -1126,7 +1212,14 @@ def test_update_work_package_schema() -> None:
                 "anyOf": [
                     {
                         "items": {
-                            "type": "string",
+                            "anyOf": [
+                                {
+                                    "type": "integer",
+                                },
+                                {
+                                    "type": "string",
+                                },
+                            ],
                         },
                         "type": "array",
                     },
@@ -1140,6 +1233,9 @@ def test_update_work_package_schema() -> None:
             "sprint": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -1152,6 +1248,9 @@ def test_update_work_package_schema() -> None:
             "project_phase": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -1163,6 +1262,9 @@ def test_update_work_package_schema() -> None:
             },
             "status": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },
@@ -1206,6 +1308,9 @@ def test_update_work_package_schema() -> None:
             "priority": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -1217,6 +1322,9 @@ def test_update_work_package_schema() -> None:
             },
             "category": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },
@@ -1518,8 +1626,15 @@ def test_create_subtask_schema() -> None:
                 "title": "Parent Work Package Id",
             },
             "type": {
+                "anyOf": [
+                    {
+                        "type": "integer",
+                    },
+                    {
+                        "type": "string",
+                    },
+                ],
                 "title": "Type",
-                "type": "string",
             },
             "subject": {
                 "title": "Subject",
@@ -1540,6 +1655,9 @@ def test_create_subtask_schema() -> None:
             "version": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -1553,7 +1671,14 @@ def test_create_subtask_schema() -> None:
                 "anyOf": [
                     {
                         "items": {
-                            "type": "string",
+                            "anyOf": [
+                                {
+                                    "type": "integer",
+                                },
+                                {
+                                    "type": "string",
+                                },
+                            ],
                         },
                         "type": "array",
                     },
@@ -1568,7 +1693,14 @@ def test_create_subtask_schema() -> None:
                 "anyOf": [
                     {
                         "items": {
-                            "type": "string",
+                            "anyOf": [
+                                {
+                                    "type": "integer",
+                                },
+                                {
+                                    "type": "string",
+                                },
+                            ],
                         },
                         "type": "array",
                     },
@@ -1581,6 +1713,9 @@ def test_create_subtask_schema() -> None:
             },
             "project_phase": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },
@@ -1624,6 +1759,9 @@ def test_create_subtask_schema() -> None:
             "priority": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -1635,6 +1773,9 @@ def test_create_subtask_schema() -> None:
             },
             "category": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },

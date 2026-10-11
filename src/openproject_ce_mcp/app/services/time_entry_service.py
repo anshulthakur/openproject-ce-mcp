@@ -62,6 +62,7 @@ from ...models import (
     TimeEntrySummary,
     TimeEntryWriteResult,
 )
+from ...work_package_reference import is_numeric_ref
 from ..api_href import api_href as _api_href
 from ..errors import InvalidInputError, NotFoundError, OpenProjectServerError, PermissionDeniedError
 from ..pagination import effective_limit, fetch_bounded_and_paginate
@@ -185,7 +186,6 @@ class TimeEntryService:
                 page_results, _total, next_offset, _truncated = await fetch_project_page(
                     api=self._project_api,
                     settings=self._settings,
-                    project_id_to_identifier=self._project_id_to_identifier,
                     search=None,
                     offset=offset,
                     limit=self._settings.max_page_size,
@@ -251,7 +251,7 @@ class TimeEntryService:
             if user.casefold() == "me":
                 current_user: CurrentUser = await self._get_current_user()
                 user_name = current_user.name
-            elif user.isdigit():
+            elif is_numeric_ref(user):
                 user_record = await self._user_api.get_user(user)
                 user_name = user_record.summary.name
             else:
@@ -445,7 +445,7 @@ class TimeEntryService:
     async def _resolve_activity_id(
         self, activity_ref: str, *, project_id: int | None = None, work_package_id: int | None = None
     ) -> str:
-        if activity_ref.isdigit():
+        if is_numeric_ref(activity_ref):
             return activity_ref
         if project_id is not None:
             form = await self._api.fetch_activities_for_entity(project_id=project_id, work_package_id=work_package_id)

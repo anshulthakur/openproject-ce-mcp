@@ -1196,27 +1196,90 @@ async def test_bulk_update_work_packages_tool_invalid_parent_alias_reports_own_f
         )
 
 
+class _BulkEchoClient:
+    @property
+    def work_package(self):
+        return self
+
+    async def bulk_create(self, **kwargs):
+        return kwargs
+
+    async def bulk_update(self, **kwargs):
+        return kwargs
+
+
+_BULK_CREATE_REFERENCE_FIELDS = ["project", "type", "version", "project_phase", "priority", "category"]
+_BULK_UPDATE_REFERENCE_FIELDS = ["type", "version", "sprint", "project_phase", "status", "priority", "category"]
+
+
 @pytest.mark.asyncio
-@pytest.mark.parametrize("field", ["category", "project_phase", "version"])
-async def test_bulk_update_work_packages_tool_rejects_non_string_scalar_cleanly(field) -> None:
-    # Regression guard: a bare JSON number/bool for a field that expects a string
-    # (e.g. an LLM caller sending assignee=42 instead of assignee="42") must raise
-    # a clean [VALIDATION_FAILED] ValueError, not an unhandled AttributeError from
-    # .split()/.strip() deep inside a validator.
-    class StubClient:
-        @property
-        def work_package(self):
-            return self
+@pytest.mark.parametrize("field", _BULK_CREATE_REFERENCE_FIELDS)
+async def test_bulk_create_work_packages_tool_accepts_a_numeric_reference(field) -> None:
+    item = {"project": "demo", "type": "Task", "subject": "X", field: 7}
 
-        async def bulk_update(self, **kwargs):
-            return kwargs
+    result = await bulk_create_work_packages(FakeContext(_BulkEchoClient()), items=[item])  # type: ignore[arg-type]
 
-    with pytest.raises(ValueError, match="must be a string"):
-        await bulk_update_work_packages(
-            FakeContext(StubClient()),  # type: ignore[arg-type]
-            items=[{"work_package_id": 10, field: 42}],
-            confirm=True,
-        )
+    assert result["items"][0][field] == "7"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("field", _BULK_UPDATE_REFERENCE_FIELDS)
+async def test_bulk_update_work_packages_tool_accepts_a_numeric_reference(field) -> None:
+    result = await bulk_update_work_packages(
+        FakeContext(_BulkEchoClient()),  # type: ignore[arg-type]
+        items=[{"work_package_id": 10, field: 7}],
+    )
+
+    assert result["items"][0][field] == "7"
+
+
+_BULK_VERSION_LIST_FIELDS = ["target_versions", "observed_in_versions"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("field", _BULK_VERSION_LIST_FIELDS)
+async def test_bulk_work_package_tools_accept_numeric_version_lists(field) -> None:
+    created = await bulk_create_work_packages(
+        FakeContext(_BulkEchoClient()),  # type: ignore[arg-type]
+        items=[{"project": "demo", "type": "Task", "subject": "X", field: [7, "8"]}],
+    )
+    updated = await bulk_update_work_packages(
+        FakeContext(_BulkEchoClient()),  # type: ignore[arg-type]
+        items=[{"work_package_id": 10, field: [7, "8"]}],
+    )
+
+    assert created["items"][0][field] == ["7", "8"]
+    assert updated["items"][0][field] == ["7", "8"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", [True, False, 4.0, 4.2])
+@pytest.mark.parametrize(
+    "field", [*_BULK_CREATE_REFERENCE_FIELDS, *_BULK_VERSION_LIST_FIELDS, "assignee", "responsible", "parent"]
+)
+async def test_bulk_create_work_packages_tool_rejects_a_boolean_or_fraction_reference(field, value) -> None:
+    item = {
+        "project": "demo",
+        "type": "Task",
+        "subject": "X",
+        field: [value] if field in _BULK_VERSION_LIST_FIELDS else value,
+    }
+
+    with pytest.raises(ValueError, match=rf"items\[0\]\.{field}(\[0\])? must be a string or an integer"):
+        await bulk_create_work_packages(FakeContext(_BulkEchoClient()), items=[item])  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", [True, False, 4.0, 4.2])
+@pytest.mark.parametrize(
+    "field", [*_BULK_UPDATE_REFERENCE_FIELDS, *_BULK_VERSION_LIST_FIELDS, "assignee", "responsible", "parent"]
+)
+async def test_bulk_update_work_packages_tool_rejects_a_boolean_or_fraction_reference(field, value) -> None:
+    # A clean [VALIDATION_FAILED], not an AttributeError from .split() deep inside a validator.
+    item = {"work_package_id": 10, field: [value] if field in _BULK_VERSION_LIST_FIELDS else value}
+
+    with pytest.raises(ValueError, match=rf"items\[0\]\.{field}(\[0\])? must be a string or an integer"):
+        await bulk_update_work_packages(FakeContext(_BulkEchoClient()), items=[item])  # type: ignore[arg-type]
 
 
 @pytest.mark.asyncio

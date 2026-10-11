@@ -16,6 +16,7 @@ from __future__ import annotations
 from mcp.server.mcpserver import Context
 
 from .models import CategoryListResult, CategorySummary
+from .tool_types import IdOrName
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
     _validate_optional_project_ref,
@@ -28,7 +29,7 @@ from .tools_validation import (
 @register_tool
 async def list_categories(
     ctx: Context,
-    project: str,
+    project: IdOrName,
     select: list[str] | None = None,
 ) -> CategoryListResult:
     """List work-package categories configured for a project.
@@ -45,7 +46,7 @@ async def list_categories(
 async def get_category(
     ctx: Context,
     category_id: int,
-    project: str | None = None,
+    project: IdOrName | None = None,
 ) -> CategorySummary:
     """Get a single category by id.
 

@@ -22,6 +22,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from ...config import Settings
+from ...work_package_reference import is_numeric_ref
 from ..errors import InvalidInputError
 from ..policies import scope as scope_policy
 from ..ports.project_ref import ProjectRefResolver
@@ -49,7 +50,7 @@ class VersionResolver:
     ) -> str:
         if project is not None:
             project_ref = project
-            if project_ref.isdigit():
+            if is_numeric_ref(project_ref):
                 # Must use resolve_project_ref, not a raw port call. The project
                 # fetch itself is unavoidable either way (the payload's id/identifier/
                 # name are what the allowlist check matches against) — the point is
@@ -59,7 +60,7 @@ class VersionResolver:
                 project_payload = await self._resolve_project_ref(project_ref, write=False, context=context)
                 project_ref = project_payload.get("identifier") or project_ref
 
-            wanted_id = int(version_ref) if version_ref.isdigit() else None
+            wanted_id = int(version_ref) if is_numeric_ref(version_ref) else None
             records = await fetch_visible_version_records(
                 api=self._api,
                 resolve_project_ref=self._resolve_project_ref,
@@ -85,7 +86,7 @@ class VersionResolver:
                 )
             return str(name_matches[0].summary.id)
 
-        if version_ref.isdigit():
+        if is_numeric_ref(version_ref):
             # No target project to check availability against — reached via a global,
             # unscoped `version` filter on list_work_packages/search_work_packages
             # (project is optional there). This path is intentionally fail-closed,

@@ -57,7 +57,11 @@ def test_list_available_assignees_schema() -> None:
                 "default": None,
                 "title": "Work Package Id",
             },
-            "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"},
+            "project": {
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                "default": None,
+                "title": "Project",
+            },
             "select": {
                 "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,

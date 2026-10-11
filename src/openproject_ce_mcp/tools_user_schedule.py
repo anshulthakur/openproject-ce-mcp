@@ -25,6 +25,7 @@ from .models import (
     UserWorkingHoursSummary,
     UserWorkingHoursWriteResult,
 )
+from .tool_types import IdOrName
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
     _validate_limit,
@@ -32,15 +33,15 @@ from .tools_validation import (
     _validate_optional_date,
     _validate_optional_non_negative_int,
     _validate_positive_int,
+    _validate_ref,
     _validate_required_date,
-    _validate_required_query,
 )
 
 
 @register_tool
 async def list_user_non_working_times(
     ctx: Context,
-    user_ref: str,
+    user_ref: IdOrName,
     year: int | None = None,
     offset: int = 1,
     limit: int | None = None,
@@ -64,7 +65,7 @@ async def list_user_non_working_times(
     OPENPROJECT_MAX_PAGE_SIZE (default 50).
     """
     client = _client_from_context(ctx)
-    safe_user = _validate_required_query(user_ref, field_name="user_ref", max_length=100)
+    safe_user = _validate_ref(user_ref, field_name="user_ref", max_length=100)
     safe_year = _validate_optional_non_negative_int(year, field_name="year")
     safe_offset = _validate_offset(offset)
     safe_limit = _validate_limit(limit)
@@ -76,7 +77,7 @@ async def list_user_non_working_times(
 @register_tool
 async def create_user_non_working_time(
     ctx: Context,
-    user_ref: str,
+    user_ref: IdOrName,
     start_date: str,
     end_date: str,
     confirm: bool = False,
@@ -91,7 +92,7 @@ async def create_user_non_working_time(
     start_date/end_date: ISO 8601 dates (YYYY-MM-DD).
     """
     client = _client_from_context(ctx)
-    safe_user = _validate_required_query(user_ref, field_name="user_ref", max_length=100)
+    safe_user = _validate_ref(user_ref, field_name="user_ref", max_length=100)
     safe_start = _validate_required_date(start_date, field_name="start_date")
     safe_end = _validate_required_date(end_date, field_name="end_date")
     return await _run_tool(
@@ -102,7 +103,7 @@ async def create_user_non_working_time(
 @register_tool
 async def update_user_non_working_time(
     ctx: Context,
-    user_ref: str,
+    user_ref: IdOrName,
     non_working_time_id: int,
     start_date: str | None = None,
     end_date: str | None = None,
@@ -118,7 +119,7 @@ async def update_user_non_working_time(
     with a not-found error on confirm; the preview does not look it up.
     """
     client = _client_from_context(ctx)
-    safe_user = _validate_required_query(user_ref, field_name="user_ref", max_length=100)
+    safe_user = _validate_ref(user_ref, field_name="user_ref", max_length=100)
     safe_id = _validate_positive_int(non_working_time_id, field_name="non_working_time_id")
     safe_start = _validate_optional_date(start_date, field_name="start_date")
     safe_end = _validate_optional_date(end_date, field_name="end_date")
@@ -132,7 +133,7 @@ async def update_user_non_working_time(
 @register_tool
 async def delete_user_non_working_time(
     ctx: Context,
-    user_ref: str,
+    user_ref: IdOrName,
     non_working_time_id: int,
     confirm: bool = False,
 ) -> UserNonWorkingTimeWriteResult:
@@ -143,7 +144,7 @@ async def delete_user_non_working_time(
     list_user_non_working_times.
     """
     client = _client_from_context(ctx)
-    safe_user = _validate_required_query(user_ref, field_name="user_ref", max_length=100)
+    safe_user = _validate_ref(user_ref, field_name="user_ref", max_length=100)
     safe_id = _validate_positive_int(non_working_time_id, field_name="non_working_time_id")
     return await _run_tool(client.user_non_working_time.delete(safe_user, safe_id, confirm=confirm))
 
@@ -151,7 +152,7 @@ async def delete_user_non_working_time(
 @register_tool
 async def list_user_working_hours(
     ctx: Context,
-    user_ref: str,
+    user_ref: IdOrName,
     offset: int = 1,
     limit: int | None = None,
 ) -> UserWorkingHoursListResult:
@@ -171,7 +172,7 @@ async def list_user_working_hours(
     OPENPROJECT_MAX_PAGE_SIZE (default 50).
     """
     client = _client_from_context(ctx)
-    safe_user = _validate_required_query(user_ref, field_name="user_ref", max_length=100)
+    safe_user = _validate_ref(user_ref, field_name="user_ref", max_length=100)
     safe_offset = _validate_offset(offset)
     safe_limit = _validate_limit(limit)
     return await _run_tool(client.user_working_hours.list_for_user(safe_user, offset=safe_offset, limit=safe_limit))
@@ -180,7 +181,7 @@ async def list_user_working_hours(
 @register_tool
 async def get_user_working_hours(
     ctx: Context,
-    user_ref: str,
+    user_ref: IdOrName,
     working_hours_id: int,
 ) -> UserWorkingHoursSummary:
     """Get a single working-hours schedule entry for a user.
@@ -189,7 +190,7 @@ async def get_user_working_hours(
     list_user_working_hours.
     """
     client = _client_from_context(ctx)
-    safe_user = _validate_required_query(user_ref, field_name="user_ref", max_length=100)
+    safe_user = _validate_ref(user_ref, field_name="user_ref", max_length=100)
     safe_id = _validate_positive_int(working_hours_id, field_name="working_hours_id")
     return await _run_tool(client.user_working_hours.get(safe_user, safe_id))
 
@@ -197,7 +198,7 @@ async def get_user_working_hours(
 @register_tool
 async def create_user_working_hours(
     ctx: Context,
-    user_ref: str,
+    user_ref: IdOrName,
     valid_from: str,
     monday_hours: float | None = None,
     tuesday_hours: float | None = None,
@@ -226,7 +227,7 @@ async def create_user_working_hours(
     half-time), independent of the per-day hour values.
     """
     client = _client_from_context(ctx)
-    safe_user = _validate_required_query(user_ref, field_name="user_ref", max_length=100)
+    safe_user = _validate_ref(user_ref, field_name="user_ref", max_length=100)
     safe_valid_from = _validate_required_date(valid_from, field_name="valid_from")
     return await _run_tool(
         client.user_working_hours.create(
@@ -248,7 +249,7 @@ async def create_user_working_hours(
 @register_tool
 async def update_user_working_hours(
     ctx: Context,
-    user_ref: str,
+    user_ref: IdOrName,
     working_hours_id: int,
     valid_from: str | None = None,
     monday_hours: float | None = None,
@@ -267,7 +268,7 @@ async def update_user_working_hours(
     Requires OpenProject 17.3+. Same authorization as list_user_working_hours.
     """
     client = _client_from_context(ctx)
-    safe_user = _validate_required_query(user_ref, field_name="user_ref", max_length=100)
+    safe_user = _validate_ref(user_ref, field_name="user_ref", max_length=100)
     safe_id = _validate_positive_int(working_hours_id, field_name="working_hours_id")
     safe_valid_from = _validate_optional_date(valid_from, field_name="valid_from")
     return await _run_tool(
@@ -291,7 +292,7 @@ async def update_user_working_hours(
 @register_tool
 async def delete_user_working_hours(
     ctx: Context,
-    user_ref: str,
+    user_ref: IdOrName,
     working_hours_id: int,
     confirm: bool = False,
 ) -> UserWorkingHoursWriteResult:
@@ -301,6 +302,6 @@ async def delete_user_working_hours(
     Requires OpenProject 17.3+. Same authorization as list_user_working_hours.
     """
     client = _client_from_context(ctx)
-    safe_user = _validate_required_query(user_ref, field_name="user_ref", max_length=100)
+    safe_user = _validate_ref(user_ref, field_name="user_ref", max_length=100)
     safe_id = _validate_positive_int(working_hours_id, field_name="working_hours_id")
     return await _run_tool(client.user_working_hours.delete(safe_user, safe_id, confirm=confirm))

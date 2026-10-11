@@ -25,26 +25,26 @@ def test_scope_matches_candidates_glob_and_case_insensitive() -> None:
     assert scope.scope_matches_candidates(("*",), set()) is False
 
 
-def test_project_candidates_from_link_recovers_identifier_via_cache() -> None:
+def test_project_link_candidates_recovers_identifier_via_cache() -> None:
     link = {"href": "/api/v3/projects/7", "title": "Demo Project"}
-    candidates = scope.project_candidates(settings=make_settings(), project_id_to_identifier={7: "DEMO"}, link=link)
+    candidates = scope.project_link_candidates(link, settings=make_settings(), project_id_to_identifier={7: "DEMO"})
     assert "demo" in candidates
     assert "7" in candidates
     assert "demo project" in candidates
     assert "demo-project" in candidates
 
 
-def test_project_candidates_from_link_without_cache_entry_lacks_identifier() -> None:
+def test_project_link_candidates_without_cache_entry_lacks_identifier() -> None:
     link = {"href": "/api/v3/projects/7", "title": "Demo Project"}
-    candidates = scope.project_candidates(settings=make_settings(), project_id_to_identifier={}, link=link)
+    candidates = scope.project_link_candidates(link, settings=make_settings(), project_id_to_identifier={})
     assert "demo" not in candidates
     assert "7" in candidates
 
 
-def test_project_candidates_from_payload_uses_identifier_and_name() -> None:
-    payload = {"id": 1, "identifier": "demo", "name": "Demo Project"}
-    candidates = scope.project_candidates(settings=make_settings(), project_id_to_identifier={}, payload=payload)
-    assert candidates == {"1", "demo", "demo project"}
+def test_project_payload_candidates_are_id_identifier_and_name() -> None:
+    payload = {"id": 1, "identifier": "demo", "name": "Demo  Project"}
+    candidates = scope.project_payload_candidates(payload)
+    assert candidates == {"1", "demo", "demo project", "demo-project"}
 
 
 def test_ensure_project_link_allowed_raises_when_no_candidate_matches() -> None:
@@ -429,9 +429,9 @@ def test_payload_allowed_lets_a_configuration_error_through() -> None:
         )
 
 
-def test_project_candidates_take_the_id_from_the_parser_only() -> None:
-    candidates = scope.project_candidates(
-        settings=_instance(), project_id_to_identifier={}, link={"href": "https://evil.example.com/api/v3/users/7"}
+def test_project_link_candidates_take_the_id_from_the_parser_only() -> None:
+    candidates = scope.project_link_candidates(
+        {"href": "https://evil.example.com/api/v3/users/7"}, settings=_instance(), project_id_to_identifier={}
     )
 
     assert candidates == set()

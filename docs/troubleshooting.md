@@ -13,21 +13,91 @@ installation and configuration, run the built-in diagnostic command:
 openproject-ce-mcp doctor
 ```
 
-The `doctor` command checks your complete MCP setup and reports what's working
-and what needs fixing:
+The `doctor` command checks every OpenProject entry in every MCP client
+configuration on its own, the way that client starts the server. One client's
+broken entry is never hidden by another client's entry or by the shell you run
+`doctor` from.
 
-1. **Binary and version** — verifies the installed package and resolved binary
-   path
-2. **Client configs** — discovers MCP client configurations (Claude Code, Claude
-   Desktop, VS Code, Codex, Cursor)
-3. **Config parsing** — validates that your client configs are readable and
-   contain a valid `openproject` entry
-4. **Environment** — loads and validates `OPENPROJECT_*` environment variables
-   from your client config or shell
-5. **API connectivity** — tests your base URL and API token with a live
-   connection to OpenProject
-6. **Tool registration** — previews which MCP tools will be registered based on
-   your read/write permissions
+1. **Binary and version**: the installed package, the resolved binary path,
+   and the Python version and executable running it; a Python older than 3.11
+   fails.
+2. **Config files**: the client configurations it found (Claude Code, Claude
+   Desktop, VS Code and its Agent Host, Codex, Cursor) and how many OpenProject
+   entries each holds. An entry is a server named `openproject` or
+   `openproject-*`, or any server whose command or arguments name
+   `openproject-ce-mcp`. On macOS and Linux, a file with an entry that group or
+   others may read or write is a warning, since it usually holds the API token.
+3. **Environment per entry**: the variables the client would pass to the
+   server, built with that client's rules. Claude Code and VS Code pass their own
+   environment plus the entry's `env` (Claude Code also the `env` blocks of its
+   settings files, VS Code also `envFile` from `.vscode/mcp.json` and its user
+   `mcp.json`); Claude Desktop and Codex pass only a fixed set of variables plus
+   what the entry names. Placeholders are resolved the way each client does:
+   `${env:NAME}` in VS Code's own files, `${NAME}` and `${NAME:-default}` in
+   Claude Code and in the `.mcp.json` and Copilot CLI files VS Code reads.
+   VS Code takes the Claude Desktop, Cursor and Windsurf files it discovers
+   literally.
+   A missing `OPENPROJECT_BASE_URL` or `OPENPROJECT_API_TOKEN` fails only when the
+   client cannot get it from anywhere else; when it could come from the client's
+   own environment, which this shell only approximates, the entry is reported as
+   not fully verified.
+4. **Settings**: the same validation the server runs at startup, plus
+   warnings for insecure settings, and a summary of the project scopes and
+   write groups.
+5. **Command**: an absolute command that does not exist or is not executable
+   fails; a command that is not on `PATH` here is a warning. For Claude Desktop
+   on macOS, a command found only outside `/usr/bin:/bin:/usr/sbin:/sbin` is a
+   warning: the app starts with that `PATH`. For `uvx`, `uv` and `pipx` the
+   package and version spec are shown.
+6. **API connectivity**: a live connection test, run in a separate process
+   with the entry's environment, so the entry's proxy and certificate settings
+   apply. The process also gets `HOME`, `USER`, `PATH`, `LOGNAME`, `SHELL`,
+   `TMPDIR` and `LANG` from your shell (on Windows also the variables a process
+   needs to open network connections), plus `OPENPROJECT_MAX_RETRIES=0` and
+   `OPENPROJECT_TIMEOUT=5` so the test fails fast. Entries with the same
+   connection settings are tested once. A failure names its kind, for example
+   a TLS/certificate error apart from an unreachable server or a timeout.
+7. **Tool registration**: which MCP tools would register with the entry's
+   settings.
+8. **MCP dispatch**: that the server builds with the entry's settings and its
+   tool-call dispatch rejects unknown arguments, checked in memory with a time
+   limit, without starting the server or connecting. Like the tool preview, it
+   runs only for entries without a `[FAIL]` so far.
+
+Every line names the client, the server name and the file; entries whose
+results differ only in the client share one block that names all of them. A
+disabled entry (for example in Claude Code's `disabledMcpServers` or
+`disabledMcpjsonServers`, or a Codex server with `enabled = false`) is checked
+but does not count. A Codex entry in a project file that Codex does not load
+here is reported as inactive. A Claude Code entry that a more specific scope
+overrides is still checked and counted, because it applies elsewhere.
+
+When no client configures an OpenProject server, `doctor` checks the process
+environment instead.
+
+### Codex
+
+When Codex is installed, `doctor` runs `codex mcp list --json` twice: in the
+current directory and in an empty temporary directory, which shows the
+user-level configuration that applies everywhere else. Codex merges up to eight
+configuration layers, and some of them (enterprise cloud configuration, macOS
+managed preferences) cannot be read from files, so only Codex itself can say
+what applies. `codex mcp list` reads Codex's credential store and contacts
+configured HTTP MCP servers for OAuth discovery (at most 5 seconds each). Its
+output contains tokens; `doctor` never prints it, only server names, key names
+and Codex's own reason for a disabled server.
+
+`doctor` also checks the Codex configuration files it can read (the system and
+user `config.toml`, the project `.codex/config.toml` files Codex would consider,
+and on Linux and macOS `/etc/codex/managed_config.toml`) for what each of them
+sets.
+
+A Codex server can run on a remote environment (`environment_id`). `doctor`
+resolves that setting from the files it can read and treats a server those
+files leave local as local, and says so for each entry. Managed configuration
+that `doctor` cannot read could still move the server to a remote environment.
+Flags passed to a particular Codex launch, such as `--config` or `--profile`,
+are not covered.
 
 Example output:
 
@@ -35,30 +105,46 @@ Example output:
 Running OpenProject MCP diagnostics...
 
 [OK] Binary: /usr/local/bin/openproject-ce-mcp (v<version>)
-  - Claude Code (global, detected): ~/.claude.json
-  - Claude Desktop (global, detected): ~/Library/.../claude_desktop_config.json
-[OK] Clients: 2 config(s) found
-[OK] Claude Code: openproject entry valid (.claude.json)
-[OK] Claude Desktop: openproject entry valid (claude_desktop_config.json)
-  Environment from: Claude Code (.claude.json), Claude Desktop (claude_desktop_config.json)
-[OK] Environment: loaded from client configs
-  Read projects: OPM, TST
-  Write projects: TST
-  Project writes: True
-  ...
-[OK] API: connected (Your Name)
-[OK] Tools: <N> would register (based on settings)
-  list_projects, get_project, ...
+[OK] Python: 3.13.1 (/usr/local/opt/python@3.13/bin/python3.13)
+Config files:
+  - Claude Code (user scope): ~/.claude.json, 1 OpenProject entry
+  - Claude Desktop (user): ~/Library/Application Support/Claude/claude_desktop_config.json, 1 OpenProject entry
+  - Codex (user layer): ~/.codex/config.toml
+
+Connection checks run with each entry's environment plus this shell's HOME, USER, PATH, LOGNAME, SHELL, TMPDIR, LANG (platform minimum), with OPENPROJECT_MAX_RETRIES=0 and OPENPROJECT_TIMEOUT=5.
+[INFO] Claude Code: Claude Code can add its agent proxy settings, which this doctor cannot see
+
+[OK] Claude Code openproject (~/.claude.json, user scope): settings valid
+    Read projects: OPM, TST
+    Write projects: TST
+    ...
+[OK] Claude Code openproject (~/.claude.json, user scope): command: /usr/local/bin/openproject-ce-mcp
+[OK] Claude Code openproject (~/.claude.json, user scope): API: connected (Your Name)
+[OK] Claude Code openproject (~/.claude.json, user scope): Tools: <N> would register (based on settings): list_projects, ...
+[OK] Claude Code openproject (~/.claude.json, user scope): MCP: dispatch rejects unknown arguments (checked in process)
+
+[FAIL] Claude Desktop openproject (~/Library/Application Support/Claude/claude_desktop_config.json, user): OPENPROJECT_API_TOKEN is not set, and Claude Desktop cannot get it from anywhere else
+...
+
+[INFO] Codex openproject (this directory and user level): assuming Codex runs it locally; managed configuration this doctor cannot read could change that
+[OK] Codex openproject (this directory and user level): settings valid
+...
+[OK] Codex openproject (this directory and user level): API: connected (Your Name)
 
 Restart needed for:
-  - Claude Desktop: quit and reopen (window reload not enough)
+  - Claude Code (CLI + IDE extension): run /mcp in Claude Code, or start a new session
+  - Claude Desktop app: quit Claude Desktop completely and reopen it (a window reload is not enough)
+  - Codex (CLI + IDE extension): reload the editor window or restart Codex
 
-All checks passed.
+1 entry failed; see the [FAIL] lines above:
+  - Claude Desktop openproject (~/Library/Application Support/Claude/claude_desktop_config.json, user)
 ```
 
-If a check fails, doctor prints a `[FAIL]` message with details and suggestions.
-
-**Exit codes**: `0` = all checks passed, `1` = one or more checks failed
+**Exit codes**: `1` when an entry that counts has a `[FAIL]` or the Python
+running `doctor` is too old, otherwise `0`.
+The output ends with `All checks passed.` only when everything could be
+verified; otherwise it lists the entries that failed or could not be fully
+verified, or says that there is no active OpenProject entry.
 
 ## Common issues
 

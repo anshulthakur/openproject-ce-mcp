@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
@@ -12,6 +12,18 @@ from .logging_support import build_formatter
 
 class ConfigError(ValueError):
     """Raised when environment configuration is missing or invalid."""
+
+
+class ConfigConsistencyError(ConfigError):
+    """Raised when individually valid values contradict each other.
+
+    ``violations`` lists every broken rule with the variables it relates, so a caller
+    that knows only some of the values can tell which contradictions are certain.
+    """
+
+    def __init__(self, violations: Sequence[tuple[str, tuple[str, ...]]]) -> None:
+        super().__init__(violations[0][0])
+        self.violations = tuple(violations)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -375,7 +387,7 @@ class Settings:
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> Settings:
-        env = environ or os.environ
+        env = os.environ if environ is None else environ
         base_url = _parse_base_url(env.get("OPENPROJECT_BASE_URL"))
         api_token = _require_non_empty(env.get("OPENPROJECT_API_TOKEN"), "OPENPROJECT_API_TOKEN")
         read_projects = _parse_csv(env.get("OPENPROJECT_READ_PROJECTS"))
@@ -435,20 +447,39 @@ class Settings:
             raise ConfigError("OPENPROJECT_MAX_RETRIES must not exceed 10.")
         retry_base_delay = _float_env(env, "OPENPROJECT_RETRY_BASE_DELAY", default=1.0, minimum=0.0)
         retry_max_delay = _float_env(env, "OPENPROJECT_RETRY_MAX_DELAY", default=60.0, minimum=0.0)
+
+        # Every single-value check above runs before these cross-value checks, so a
+        # ConfigConsistencyError means each value parsed on its own.
+        violations: list[tuple[str, tuple[str, ...]]] = []
         if retry_max_delay < retry_base_delay:
-            raise ConfigError("OPENPROJECT_RETRY_MAX_DELAY must be >= OPENPROJECT_RETRY_BASE_DELAY.")
-
+            violations.append(
+                (
+                    "OPENPROJECT_RETRY_MAX_DELAY must be >= OPENPROJECT_RETRY_BASE_DELAY.",
+                    ("OPENPROJECT_RETRY_MAX_DELAY", "OPENPROJECT_RETRY_BASE_DELAY"),
+                )
+            )
         if default_page_size > max_page_size:
-            raise ConfigError("OPENPROJECT_DEFAULT_PAGE_SIZE must not exceed OPENPROJECT_MAX_PAGE_SIZE.")
+            violations.append(
+                (
+                    "OPENPROJECT_DEFAULT_PAGE_SIZE must not exceed OPENPROJECT_MAX_PAGE_SIZE.",
+                    ("OPENPROJECT_DEFAULT_PAGE_SIZE", "OPENPROJECT_MAX_PAGE_SIZE"),
+                )
+            )
         if max_page_size > max_results:
-            raise ConfigError("OPENPROJECT_MAX_PAGE_SIZE must not exceed OPENPROJECT_MAX_RESULTS.")
-
+            violations.append(
+                (
+                    "OPENPROJECT_MAX_PAGE_SIZE must not exceed OPENPROJECT_MAX_RESULTS.",
+                    ("OPENPROJECT_MAX_PAGE_SIZE", "OPENPROJECT_MAX_RESULTS"),
+                )
+            )
         read_flags = {f"{g.key}_read": group_flags[g.read_attr] for g in TOOL_GROUPS}
         write_flags = {f"{g.key}_write": group_flags[g.write.attr] for g in TOOL_GROUPS if g.write is not None}
-        violations = tool_exposure_violations(read_flags, write_flags)
+        violations += [
+            (f"{write_env_var}=true requires {read_env_var}=true.", (write_env_var, read_env_var))
+            for _, _, write_env_var, read_env_var in tool_exposure_violations(read_flags, write_flags)
+        ]
         if violations:
-            _, _, write_env_var, read_env_var = violations[0]
-            raise ConfigError(f"{write_env_var}=true requires {read_env_var}=true.")
+            raise ConfigConsistencyError(violations)
 
         return cls(
             base_url=base_url,

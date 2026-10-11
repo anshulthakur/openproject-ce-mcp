@@ -13,7 +13,7 @@ the workspace-allowlist check has TWO branches, not one.
 The link branch maps 1:1 onto `scope.ensure_project_link_allowed`. The
 embedded-object branch first requires the object's own self link to name
 its id (`scope.ensure_embedded_project_consistent`), then is composed from
-`scope.project_candidates(payload=...)` + `scope.scope_matches_candidates(...)`.
+`scope.project_payload_candidates(...)` + `scope.scope_matches_candidates(...)`.
 
 Takes `SprintRecord.defining_workspace_payload`/`.defining_workspace_link`
 directly (not a raw HAL payload) -- the Service only ever has the normalized
@@ -62,9 +62,7 @@ def ensure_sprint_workspace_allowed(
         if scope.scope_allows_all(settings.read_projects):
             policy_observation.record_policy_decision("project_scope_read_allowed")
             return
-        candidates = scope.project_candidates(
-            project_id_to_identifier=project_id_to_identifier, settings=settings, payload=defining_workspace_payload
-        )
+        candidates = scope.project_payload_candidates(defining_workspace_payload)
         if not scope.scope_matches_candidates(settings.read_projects, candidates):
             policy_observation.record_policy_decision("project_scope_read_denied")
             raise ProjectScopeDeniedError(

@@ -39,6 +39,7 @@ from typing import Any
 
 from ...config import Settings
 from ...models import MembershipListResult, MembershipSummary, MembershipWriteResult
+from ...work_package_reference import is_numeric_ref
 from ..api_href import api_href as _api_href
 from ..errors import InvalidInputError
 from ..pagination import clamp_limit, paginate_server
@@ -237,7 +238,7 @@ class MembershipService:
         # entirely, since the common case (all-numeric role ids) never uses
         # its result at all.
         available_roles: list[RoleRecord] = []
-        if any(not ref.isdigit() for ref in normalized_refs):
+        if any(not is_numeric_ref(ref) for ref in normalized_refs):
             # A single direct call, NOT paginate_all: /api/v3/roles'
             # RoleCollectionRepresenter is a real UnpaginatedCollection
             # (verified against OpenProject's own API implementation),
@@ -255,7 +256,7 @@ class MembershipService:
             )
         hrefs: list[str] = []
         for normalized in normalized_refs:
-            if normalized.isdigit():
+            if is_numeric_ref(normalized):
                 hrefs.append(_api_href(f"roles/{normalized}", api_prefix=self._api_prefix))
                 continue
             matches = [

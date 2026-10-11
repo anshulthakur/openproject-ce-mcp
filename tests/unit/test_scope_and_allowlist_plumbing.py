@@ -244,10 +244,7 @@ async def test_write_scope_is_intersection_of_read_scope() -> None:
     "check",
     [
         lambda client: project_policy.ensure_project_write_allowed(
-            {"id": "other", "identifier": "other"},
-            project_ref="other",
-            settings=client.settings,
-            project_id_to_identifier=client._project_id_to_identifier,
+            {"id": "other", "identifier": "other"}, settings=client.settings
         ),
         lambda client: scope.ensure_project_write_link_allowed(
             {"href": "/api/v3/projects/other"},
@@ -307,7 +304,7 @@ async def test_initialize_populates_identifier_cache_for_restricted_write_scope_
     # initialize() must populate the id->identifier cache whenever
     # write_projects is restricted, regardless of whether read_projects
     # allows all -- link-based matching needs the cache
-    # (_project_candidates only has the numeric id + display name from an
+    # (scope.project_link_candidates only has the numeric id + display name from an
     # embedded HAL link, never the identifier itself, unless this cache fills
     # it in). READ="*" + WRITE="DEMO" exercises this case.
     async def handler(request: httpx.Request) -> httpx.Response:

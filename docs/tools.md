@@ -14,6 +14,9 @@ All mutating tools follow the same guarded write pattern by default:
 Every mutation requires explicit `confirm=true` — there is no way to skip the
 preview step.
 
+Parameters documented as accepting a numeric resource id accept it as either a
+JSON number or a decimal string.
+
 Clearing a field: on `update_work_package` and `update_project`, pass the string
 `"none"` to unassign a nullable association instead of changing it —
 work-package `assignee`, `responsible`, `version`, `sprint`, `parent`,

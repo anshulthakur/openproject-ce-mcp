@@ -26,6 +26,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from ...config import Settings
+from ...work_package_reference import is_numeric_ref
 from ..errors import InvalidInputError, NotFoundError
 from ..pagination import paginate_server
 from ..policies import access, sprint_policy
@@ -51,7 +52,7 @@ class SprintResolver:
     async def resolve_id(
         self, sprint_ref: str, *, project: str, context: ProjectResolutionContext | None = None
     ) -> str:
-        if sprint_ref.isdigit():
+        if is_numeric_ref(sprint_ref):
             try:
                 record = await self._api.get(int(sprint_ref))
             except NotFoundError as exc:

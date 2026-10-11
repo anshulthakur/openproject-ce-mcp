@@ -41,3 +41,11 @@ async def test_resolve_id_rejects_a_name() -> None:
     resolver = AssigneeResolver(current_user=_current_user)
     with pytest.raises(InvalidInputError, match="assignee must be a positive integer user id or 'me'"):
         await resolver.resolve_id("Alice")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", ["²", "٣"])
+async def test_resolve_id_rejects_non_ascii_digits(value: str) -> None:
+    resolver = AssigneeResolver(current_user=_current_user)
+    with pytest.raises(InvalidInputError, match="assignee must be a positive integer user id or 'me'"):
+        await resolver.resolve_id(value)

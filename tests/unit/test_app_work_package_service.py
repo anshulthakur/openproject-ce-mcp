@@ -3411,3 +3411,85 @@ async def test_update_reports_a_project_link_under_another_root_path() -> None:
 
     with pytest.raises(ProjectLinkPrefixError, match="/openproject/api/v3/"):
         await service.update(work_package_id=6, subject="Renamed", confirm=False)
+
+
+def _allowed(*options: tuple[int, str], resource: str) -> dict:
+    return {
+        "_embedded": {
+            "allowedValues": [
+                {"_links": {"self": {"href": f"/api/v3/{resource}/{option_id}", "title": title}}}
+                for option_id, title in options
+            ]
+        }
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("field", "link_key", "resource"),
+    [
+        ("priority", "priority", "priorities"),
+        ("category", "category", "categories"),
+        ("project_phase", "projectPhase", "project_phases"),
+        ("responsible", "responsible", "users"),
+    ],
+)
+async def test_create_matches_a_digit_built_in_value_by_id_only(field: str, link_key: str, resource: str) -> None:
+    api = _FakeWorkPackageApi()
+    api.next_schema = {link_key: _allowed((3, "7"), (7, "Seven"), resource=resource)}
+    service, _ = _service(api)
+
+    await service.create(project="demo", type="Task", subject="X", confirm=False, **{field: "7"})
+
+    _project, payload = api.validate_create_calls[-1]
+    assert payload["_links"][link_key] == {"href": f"/api/v3/{resource}/7"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name", ["²", "٣"])
+async def test_create_matches_a_non_ascii_digit_built_in_value_by_title(name: str) -> None:
+    api = _FakeWorkPackageApi()
+    api.next_schema = {"priority": _allowed((2, "Low"), (3, "High"), (9, name), resource="priorities")}
+    service, _ = _service(api)
+
+    await service.create(project="demo", type="Task", subject="X", priority=name, confirm=False)
+
+    _project, payload = api.validate_create_calls[-1]
+    assert payload["_links"]["priority"] == {"href": "/api/v3/priorities/9"}
+
+
+@pytest.mark.asyncio
+async def test_create_matches_a_digit_custom_field_option_by_title_when_no_option_has_that_id() -> None:
+    api = _FakeWorkPackageApi()
+    api.next_schema = {
+        "customField10": {
+            "name": "Story points",
+            "location": "_links",
+            **_allowed((101, "3"), (102, "5"), (103, "8"), resource="custom_options"),
+        }
+    }
+    service, _ = _service(api)
+
+    await service.create(project="demo", type="Task", subject="X", custom_fields={"customField10": "5"}, confirm=False)
+
+    _project, payload = api.validate_create_calls[-1]
+    assert payload["_links"]["customField10"] == {"href": "/api/v3/custom_options/102"}
+
+
+@pytest.mark.asyncio
+async def test_create_matches_a_digit_custom_field_option_by_title_before_a_later_option_with_that_id() -> None:
+    # Option ids are global, so the option titled "8" can have id 5.
+    api = _FakeWorkPackageApi()
+    api.next_schema = {
+        "customField10": {
+            "name": "Story points",
+            "location": "_links",
+            **_allowed((4, "5"), (5, "8"), resource="custom_options"),
+        }
+    }
+    service, _ = _service(api)
+
+    await service.create(project="demo", type="Task", subject="X", custom_fields={"customField10": "5"}, confirm=False)
+
+    _project, payload = api.validate_create_calls[-1]
+    assert payload["_links"]["customField10"] == {"href": "/api/v3/custom_options/4"}

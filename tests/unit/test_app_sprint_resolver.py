@@ -162,3 +162,13 @@ async def test_resolve_id_terminates_when_server_ignores_offset_and_repeats_the_
         await resolver.resolve_id("Ghost", project="demo")
     # Must have stopped after detecting the repeated page, not looped forever.
     assert len(api.calls) == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name", ["²", "٣"])
+async def test_resolve_id_reads_non_ascii_digits_as_a_name(name: str) -> None:
+    api = _FakeSprintApi(pages=[([_record(11, name)], 1)])
+    resolver = SprintResolver(
+        api=api, resolve_project_ref=_resolve_project_ref, settings=make_settings(), project_id_to_identifier={}
+    )
+    assert await resolver.resolve_id(name, project="demo") == "11"

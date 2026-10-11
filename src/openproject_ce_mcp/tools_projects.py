@@ -49,9 +49,10 @@ from .models import (
     ProjectWorkPackageContext,
     ProjectWriteResult,
 )
+from .tool_types import IdOrName
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
-    _clearable,
+    _clearable_ref,
     _require_at_least_one,
     _validate_limit,
     _validate_list_query_params,
@@ -59,6 +60,7 @@ from .tools_validation import (
     _validate_optional_project_identifier,
     _validate_optional_project_ref,
     _validate_optional_query,
+    _validate_optional_ref,
     _validate_optional_text,
     _validate_optional_text_limit,
     _validate_optional_update_text,
@@ -100,7 +102,7 @@ async def list_projects(
 @register_tool
 async def get_project(
     ctx: Context,
-    project: str,
+    project: IdOrName,
     text_limit: int | None = None,
 ) -> ProjectDetail:
     """Get a project by id, identifier or name, including its ancestor chain.
@@ -122,7 +124,7 @@ async def get_project(
 @register_tool
 async def get_project_admin_context(
     ctx: Context,
-    project: str,
+    project: IdOrName,
 ) -> ProjectAdminContext:
     """Return project admin metadata such as lifecycle statuses, parent options, and writable fields."""
     client = _client_from_context(ctx)
@@ -133,7 +135,7 @@ async def get_project_admin_context(
 @register_tool
 async def get_project_configuration(
     ctx: Context,
-    project: str,
+    project: IdOrName,
 ) -> ProjectConfiguration:
     """Return project-scoped configuration such as internal comment support."""
     client = _client_from_context(ctx)
@@ -146,7 +148,7 @@ def _validate_project_descriptive_fields(
     description: str | None,
     status: str | None,
     status_explanation: str | None,
-    parent: str | None,
+    parent: int | str | None,
 ) -> dict[str, Any]:
     """Shared field validation for create_project/copy_project -- byte-identical
     in both (plain, non-clearable validators). update_project uses different
@@ -158,7 +160,7 @@ def _validate_project_descriptive_fields(
         "status_explanation": _validate_optional_text(
             status_explanation, field_name="status_explanation", max_length=None
         ),
-        "parent": _validate_optional_project_ref(parent),
+        "parent": _validate_optional_project_ref(parent, field_name="parent"),
     }
 
 
@@ -172,7 +174,7 @@ async def create_project(
     active: bool | None = None,
     status: str | None = None,
     status_explanation: str | None = None,
-    parent: str | None = None,
+    parent: IdOrName | None = None,
     confirm: bool = False,
 ) -> ProjectWriteResult:
     """Prepare or create a project.
@@ -204,7 +206,7 @@ async def create_project(
 @register_tool
 async def copy_project(
     ctx: Context,
-    source_project: str,
+    source_project: IdOrName,
     name: str,
     identifier: str,
     description: str | None = None,
@@ -212,7 +214,7 @@ async def copy_project(
     active: bool | None = None,
     status: str | None = None,
     status_explanation: str | None = None,
-    parent: str | None = None,
+    parent: IdOrName | None = None,
     confirm: bool = False,
 ) -> ProjectCopyResult:
     """Prepare or copy an existing project into a new project.
@@ -221,7 +223,7 @@ async def copy_project(
     `validation_errors` in the result rather than the MCP error envelope.
     """
     client = _client_from_context(ctx)
-    safe_source_project = _validate_project_ref(source_project)
+    safe_source_project = _validate_project_ref(source_project, field_name="source_project")
     safe_name = _validate_required_query(name, field_name="name", max_length=255)
     safe_identifier = _validate_project_identifier(identifier)
     common = _validate_project_descriptive_fields(
@@ -259,7 +261,7 @@ async def get_job_status(
 @register_tool
 async def update_project(
     ctx: Context,
-    project: str,
+    project: IdOrName,
     name: str | None = None,
     identifier: str | None = None,
     description: str | None = None,
@@ -267,7 +269,7 @@ async def update_project(
     active: bool | None = None,
     status: str | None = None,
     status_explanation: str | None = None,
-    parent: str | None = None,
+    parent: IdOrName | None = None,
     confirm: bool = False,
 ) -> ProjectWriteResult:
     """Prepare or update a project.
@@ -286,7 +288,7 @@ async def update_project(
         status_explanation, field_name="status_explanation", max_length=None
     )
     # parent: 'none' (any case) makes the project top-level; otherwise a project ref.
-    safe_parent = _clearable(parent, lambda v: _validate_optional_project_ref(v), sentinel=CLEAR)
+    safe_parent = _clearable_ref(parent, lambda v: _validate_project_ref(v, field_name="parent"), sentinel=CLEAR)
     _require_at_least_one(
         safe_name,
         safe_identifier,
@@ -317,7 +319,7 @@ async def update_project(
 @register_tool
 async def delete_project(
     ctx: Context,
-    project: str,
+    project: IdOrName,
     confirm: bool = False,
 ) -> ProjectWriteResult:
     """Prepare or delete a project."""
@@ -329,7 +331,7 @@ async def delete_project(
 @register_tool
 async def get_my_project_access(
     ctx: Context,
-    project: str,
+    project: IdOrName,
 ) -> ProjectAccessSummary:
     """Return the current user's membership and inferred access hints for a project."""
     client = _client_from_context(ctx)
@@ -376,7 +378,7 @@ async def get_project_phase(
 @register_tool
 async def list_project_storages(
     ctx: Context,
-    project: str | None = None,
+    project: IdOrName | None = None,
     offset: int = 1,
     limit: int | None = None,
     select: list[str] | None = None,
@@ -417,20 +419,20 @@ async def get_project_storage(
 @register_tool
 async def get_project_work_package_context(
     ctx: Context,
-    project: str,
-    type: str | None = None,
+    project: IdOrName,
+    type: IdOrName | None = None,
 ) -> ProjectWorkPackageContext:
     """Return project metadata and, optionally, the writable work-package schema for a given type."""
     client = _client_from_context(ctx)
     safe_project = _validate_project_ref(project)
-    safe_type = _validate_optional_query(type, field_name="type", max_length=100)
+    safe_type = _validate_optional_ref(type, field_name="type", max_length=100)
     return await _run_tool(client.get_project_work_package_context(project=safe_project, type=safe_type))
 
 
 @register_tool
 async def set_project_favorite(
     ctx: Context,
-    project: str,
+    project: IdOrName,
     favorite: bool,
     confirm: bool = False,
 ) -> FavoriteWriteResult:

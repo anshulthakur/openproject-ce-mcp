@@ -6,7 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from openproject_ce_mcp.config import READ_SCOPE_ENV_VAR, TOOL_GROUPS, ConfigError, Settings
+from openproject_ce_mcp.config import (
+    READ_SCOPE_ENV_VAR,
+    TOOL_GROUPS,
+    ConfigConsistencyError,
+    ConfigError,
+    Settings,
+)
 
 # A real absolute path in native format for whichever OS runs the tests
 # (e.g. /tmp/uploads on Linux/macOS, C:\Users\...\Temp\uploads on Windows) —
@@ -660,3 +666,53 @@ def test_membership_scope_aliases_share_the_membership_read_flag() -> None:
 
     assert [settings.read_enabled(scope) for scope in ("membership", "role", "principal")] == [False, False, False]
     assert READ_SCOPE_ENV_VAR["principal"] == "OPENPROJECT_ENABLE_MEMBERSHIP_READ"
+
+
+def test_settings_from_an_empty_mapping_does_not_read_the_process_environment(monkeypatch) -> None:
+    monkeypatch.setenv("OPENPROJECT_BASE_URL", "https://op.example.com")
+    monkeypatch.setenv("OPENPROJECT_API_TOKEN", "token-value")
+
+    with pytest.raises(ConfigError, match="OPENPROJECT_BASE_URL is required"):
+        Settings.from_env({})
+
+
+_VALID = {"OPENPROJECT_BASE_URL": "https://op.example.com", "OPENPROJECT_API_TOKEN": "token-value"}
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        {"OPENPROJECT_DEFAULT_PAGE_SIZE": "60"},
+        {"OPENPROJECT_MAX_PAGE_SIZE": "200"},
+        {"OPENPROJECT_RETRY_BASE_DELAY": "90"},
+        {"OPENPROJECT_ENABLE_ADMIN_WRITE": "true"},
+    ],
+)
+def test_contradicting_values_raise_the_consistency_error(values) -> None:
+    with pytest.raises(ConfigConsistencyError):
+        Settings.from_env({**_VALID, **values})
+
+
+def test_an_invalid_single_value_is_reported_before_any_consistency_rule() -> None:
+    with pytest.raises(ConfigError, match="OPENPROJECT_VERIFY_SSL must be a boolean value") as raised:
+        Settings.from_env({**_VALID, "OPENPROJECT_DEFAULT_PAGE_SIZE": "60", "OPENPROJECT_VERIFY_SSL": "maybe"})
+
+    assert not isinstance(raised.value, ConfigConsistencyError)
+
+
+def test_consistency_error_lists_every_broken_rule_with_its_variables() -> None:
+    values = {
+        **_VALID,
+        "OPENPROJECT_RETRY_BASE_DELAY": "90",
+        "OPENPROJECT_DEFAULT_PAGE_SIZE": "60",
+        "OPENPROJECT_ENABLE_ADMIN_WRITE": "true",
+    }
+    with pytest.raises(ConfigConsistencyError) as raised:
+        Settings.from_env(values)
+
+    assert [keys for _, keys in raised.value.violations] == [
+        ("OPENPROJECT_RETRY_MAX_DELAY", "OPENPROJECT_RETRY_BASE_DELAY"),
+        ("OPENPROJECT_DEFAULT_PAGE_SIZE", "OPENPROJECT_MAX_PAGE_SIZE"),
+        ("OPENPROJECT_ENABLE_ADMIN_WRITE", "OPENPROJECT_ENABLE_ADMIN_READ"),
+    ]
+    assert str(raised.value) == "OPENPROJECT_RETRY_MAX_DELAY must be >= OPENPROJECT_RETRY_BASE_DELAY."

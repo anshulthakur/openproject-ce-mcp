@@ -43,6 +43,7 @@ from .models import (
     WikiPageLinkListResult,
     WikiPageLinkWriteResult,
 )
+from .tool_types import IdOrName
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
     _require_at_least_one,
@@ -65,7 +66,7 @@ from .tools_validation import (
 @register_tool
 async def list_documents(
     ctx: Context,
-    project: str | None = None,
+    project: IdOrName | None = None,
     search: str | None = None,
     offset: int = 1,
     limit: int | None = None,
@@ -146,7 +147,7 @@ async def update_document(
 @register_tool
 async def list_news(
     ctx: Context,
-    project: str | None = None,
+    project: IdOrName | None = None,
     search: str | None = None,
     offset: int = 1,
     limit: int | None = None,
@@ -208,7 +209,7 @@ async def get_news(
 @register_tool
 async def create_news(
     ctx: Context,
-    project: str,
+    project: IdOrName,
     title: str,
     summary: str | None = None,
     description: str | None = None,

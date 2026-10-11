@@ -285,7 +285,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "87f62e2006e78c3f3ad2f24169012e96627fab7231088200303cc905c093dad7",
         "input_schema": {
             "properties": {
-                "source_project": {"title": "Source Project", "type": "string"},
+                "source_project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Source Project"},
                 "name": {"title": "Name", "type": "string"},
                 "identifier": {"title": "Identifier", "type": "string"},
                 "description": {
@@ -301,7 +301,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "default": None,
                     "title": "Status Explanation",
                 },
-                "parent": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Parent"},
+                "parent": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Parent",
+                },
                 "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
             },
             "required": ["source_project", "name", "identifier"],
@@ -319,7 +323,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "input_schema": {
             "properties": {
                 "name": {"title": "Name", "type": "string"},
-                "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Project",
+                },
                 "public": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Public"},
                 "starred": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Starred"},
                 "hidden": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Hidden"},
@@ -424,7 +432,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "300a863034d4f3a0f5d0e923b99d46f15587fbdd0ffeb6a7b2c932980457b7ec",
         "input_schema": {
             "properties": {
-                "project": {"title": "Project", "type": "string"},
+                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
                 "title": {"title": "Title", "type": "string"},
                 "location": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Location"},
                 "start_time": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Start Time"},
@@ -433,7 +441,10 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "sharing": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Sharing"},
                 "notify": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Notify"},
                 "participant_user_refs": {
-                    "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
+                    "anyOf": [
+                        {"items": {"anyOf": [{"type": "integer"}, {"type": "string"}]}, "type": "array"},
+                        {"type": "null"},
+                    ],
                     "default": None,
                     "title": "Participant User Refs",
                 },
@@ -532,9 +543,13 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "7e16b4580a50fd39ef23238ec1af14eeae93f99c61361c40144fe2718f1811cd",
         "input_schema": {
             "properties": {
-                "project": {"title": "Project", "type": "string"},
-                "principal": {"title": "Principal", "type": "string"},
-                "roles": {"items": {"type": "string"}, "title": "Roles", "type": "array"},
+                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
+                "principal": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Principal"},
+                "roles": {
+                    "items": {"anyOf": [{"type": "integer"}, {"type": "string"}]},
+                    "title": "Roles",
+                    "type": "array",
+                },
                 "notification_message": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
@@ -556,7 +571,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "52796c0098278a3719974e8db86917173d7c4b4243f6dc657ba596075e8d97db",
         "input_schema": {
             "properties": {
-                "project": {"title": "Project", "type": "string"},
+                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
                 "title": {"title": "Title", "type": "string"},
                 "summary": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Summary"},
                 "description": {
@@ -595,7 +610,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "default": None,
                     "title": "Status Explanation",
                 },
-                "parent": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Parent"},
+                "parent": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Parent",
+                },
                 "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
             },
             "required": ["name", "identifier"],
@@ -612,7 +631,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "c000259df9edd401570ddc4ab9926dbe716917efc075441bcb59df168ce561ce",
         "input_schema": {
             "properties": {
-                "project": {"title": "Project", "type": "string"},
+                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
                 "title": {"title": "Title", "type": "string"},
                 "frequency": {"title": "Frequency", "type": "string"},
                 "start_time": {"title": "Start Time", "type": "string"},
@@ -685,26 +704,36 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "anyOf": [{"type": "integer"}, {"type": "string"}],
                     "title": "Parent Work Package Id",
                 },
-                "type": {"title": "Type", "type": "string"},
+                "type": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Type"},
                 "subject": {"title": "Subject", "type": "string"},
                 "description": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
                     "title": "Description",
                 },
-                "version": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Version"},
+                "version": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Version",
+                },
                 "target_versions": {
-                    "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
+                    "anyOf": [
+                        {"items": {"anyOf": [{"type": "integer"}, {"type": "string"}]}, "type": "array"},
+                        {"type": "null"},
+                    ],
                     "default": None,
                     "title": "Target Versions",
                 },
                 "observed_in_versions": {
-                    "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
+                    "anyOf": [
+                        {"items": {"anyOf": [{"type": "integer"}, {"type": "string"}]}, "type": "array"},
+                        {"type": "null"},
+                    ],
                     "default": None,
                     "title": "Observed In Versions",
                 },
                 "project_phase": {
-                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
                     "title": "Project Phase",
                 },
@@ -718,8 +747,16 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "default": None,
                     "title": "Responsible",
                 },
-                "priority": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Priority"},
-                "category": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Category"},
+                "priority": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Priority",
+                },
+                "category": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Category",
+                },
                 "custom_fields": {
                     "anyOf": [{"additionalProperties": True, "type": "object"}, {"type": "null"}],
                     "default": None,
@@ -743,16 +780,24 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "cb7d094a4d57bce51be6e51fd25b0ca5ce8edb7e0a1f50adb78ddc03d52a8934",
         "input_schema": {
             "properties": {
-                "activity": {"title": "Activity", "type": "string"},
+                "activity": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Activity"},
                 "hours": {"title": "Hours", "type": "string"},
                 "spent_on": {"title": "Spent On", "type": "string"},
-                "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Project",
+                },
                 "work_package_id": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
                     "title": "Work Package Id",
                 },
-                "user": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "User"},
+                "user": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "User",
+                },
                 "start_time": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Start Time"},
                 "comment": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Comment"},
                 "ongoing": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Ongoing"},
@@ -772,17 +817,25 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "cef14465b5cd8dc9104c3258f4d249a635585ed60dbd9dcb4a617346c3212d92",
         "input_schema": {
             "properties": {
-                "activity": {"title": "Activity", "type": "string"},
+                "activity": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Activity"},
                 "start_time": {"title": "Start Time", "type": "string"},
                 "end_time": {"title": "End Time", "type": "string"},
                 "spent_on": {"title": "Spent On", "type": "string"},
-                "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Project",
+                },
                 "work_package_id": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
                     "title": "Work Package Id",
                 },
-                "user": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "User"},
+                "user": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "User",
+                },
                 "comment": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Comment"},
                 "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
             },
@@ -824,7 +877,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "6d3e6785338c17c49023a78be8243012e15df84f17056bbb40e6edb5e83c6538",
         "input_schema": {
             "properties": {
-                "user_ref": {"title": "User Ref", "type": "string"},
+                "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
                 "start_date": {"title": "Start Date", "type": "string"},
                 "end_date": {"title": "End Date", "type": "string"},
                 "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
@@ -843,7 +896,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "c3699f8e1c3f4afe4ce3e37c90032e3f26674219e48bb9349723f8e58ee590fd",
         "input_schema": {
             "properties": {
-                "user_ref": {"title": "User Ref", "type": "string"},
+                "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
                 "valid_from": {"title": "Valid From", "type": "string"},
                 "monday_hours": {
                     "anyOf": [{"type": "number"}, {"type": "null"}],
@@ -901,7 +954,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "91f57521a717a5716a7bbde090ac3101362bb6776358178f06e360f58ffc5fd6",
         "input_schema": {
             "properties": {
-                "project": {"title": "Project", "type": "string"},
+                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
                 "name": {"title": "Name", "type": "string"},
                 "description": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
@@ -928,27 +981,37 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "51c706fe38e0a9aaf9ecf360f36f73ace7e36103af0e080c3e42c138bc101ec1",
         "input_schema": {
             "properties": {
-                "project": {"title": "Project", "type": "string"},
-                "type": {"title": "Type", "type": "string"},
+                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
+                "type": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Type"},
                 "subject": {"title": "Subject", "type": "string"},
                 "description": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
                     "title": "Description",
                 },
-                "version": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Version"},
+                "version": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Version",
+                },
                 "target_versions": {
-                    "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
+                    "anyOf": [
+                        {"items": {"anyOf": [{"type": "integer"}, {"type": "string"}]}, "type": "array"},
+                        {"type": "null"},
+                    ],
                     "default": None,
                     "title": "Target Versions",
                 },
                 "observed_in_versions": {
-                    "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
+                    "anyOf": [
+                        {"items": {"anyOf": [{"type": "integer"}, {"type": "string"}]}, "type": "array"},
+                        {"type": "null"},
+                    ],
                     "default": None,
                     "title": "Observed In Versions",
                 },
                 "project_phase": {
-                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
                     "title": "Project Phase",
                 },
@@ -962,8 +1025,16 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "default": None,
                     "title": "Responsible",
                 },
-                "priority": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Priority"},
-                "category": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Category"},
+                "priority": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Priority",
+                },
+                "category": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Category",
+                },
                 "custom_fields": {
                     "anyOf": [{"additionalProperties": True, "type": "object"}, {"type": "null"}],
                     "default": None,
@@ -1321,7 +1392,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "08b0389aa495e2849eff6da31502e15bad06733144dfcd8101c7fea9f67122f2",
         "input_schema": {
             "properties": {
-                "project": {"title": "Project", "type": "string"},
+                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
                 "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
             },
             "required": ["project"],
@@ -1457,7 +1528,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "6f954170770ccef383c8d9bfe21d98517c91ce2265119d6608f7df414eab4770",
         "input_schema": {
             "properties": {
-                "user_ref": {"title": "User Ref", "type": "string"},
+                "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
                 "non_working_time_id": {"title": "Non Working Time Id", "type": "integer"},
                 "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
             },
@@ -1475,7 +1546,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "809d94bc9bad678189cbdafea84dc87eb645f0baa95f5773205d579d553b3246",
         "input_schema": {
             "properties": {
-                "user_ref": {"title": "User Ref", "type": "string"},
+                "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
                 "working_hours_id": {"title": "Working Hours Id", "type": "integer"},
                 "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
             },
@@ -1740,7 +1811,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "input_schema": {
             "properties": {
                 "category_id": {"title": "Category Id", "type": "integer"},
-                "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Project",
+                },
             },
             "required": ["category_id"],
             "title": "get_categoryArguments",
@@ -2474,7 +2549,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
     "get_my_project_access": {
         "description_hash": "562b7637e0a6f0040695a6c911a8e6b7eb2310fc691f7cae4d79e50ef2673649",
         "input_schema": {
-            "properties": {"project": {"title": "Project", "type": "string"}},
+            "properties": {"project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"}},
             "required": ["project"],
             "title": "get_my_project_accessArguments",
             "type": "object",
@@ -2658,7 +2733,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "8a65646381a90cbecd6e588583b990cd7eb5d553587327c2264517c556e8a164",
         "input_schema": {
             "properties": {
-                "project": {"title": "Project", "type": "string"},
+                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
                 "text_limit": {
                     "anyOf": [{"type": "integer"}, {"type": "null"}],
                     "default": None,
@@ -2738,7 +2813,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
     "get_project_admin_context": {
         "description_hash": "4127a624d6382ea9926c26f672ff2388a778dbacd1a238625e3196d6713b273e",
         "input_schema": {
-            "properties": {"project": {"title": "Project", "type": "string"}},
+            "properties": {"project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"}},
             "required": ["project"],
             "title": "get_project_admin_contextArguments",
             "type": "object",
@@ -2890,7 +2965,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
     "get_project_configuration": {
         "description_hash": "d4909956e1887e415b437099ad1e353ec7f45828ed32a0b6e26b0d2bbd450a40",
         "input_schema": {
-            "properties": {"project": {"title": "Project", "type": "string"}},
+            "properties": {"project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"}},
             "required": ["project"],
             "title": "get_project_configurationArguments",
             "type": "object",
@@ -3065,8 +3140,12 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "ca8ea86d81d370740ea93ec2eb35525f140130613edd81c21d387f32daeed507",
         "input_schema": {
             "properties": {
-                "project": {"title": "Project", "type": "string"},
-                "type": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Type"},
+                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
+                "type": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Type",
+                },
             },
             "required": ["project"],
             "title": "get_project_work_package_contextArguments",
@@ -3654,7 +3733,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
     "get_user": {
         "description_hash": "c4d85fce0066778a85160d84939ca7ee66978d33b20b40fd906b4134a384c867",
         "input_schema": {
-            "properties": {"user": {"title": "User", "type": "string"}},
+            "properties": {"user": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User"}},
             "required": ["user"],
             "title": "get_userArguments",
             "type": "object",
@@ -3704,7 +3783,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "7cc2d6b231b73805ce32455b06e3aff39e0d3ce0546ea572c9ae1eb21a7d38f0",
         "input_schema": {
             "properties": {
-                "user_ref": {"title": "User Ref", "type": "string"},
+                "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
                 "working_hours_id": {"title": "Working Hours Id", "type": "integer"},
             },
             "required": ["user_ref", "working_hours_id"],
@@ -4033,7 +4112,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "080add4781d9746b589239e78c75c2b5883c1e489183cf8550061852d74e64f4",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Project",
+                },
                 "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
                 "offset": {"default": 1, "title": "Offset", "type": "integer"},
                 "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
@@ -4056,7 +4139,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "81f5708ab44a6e8ef6c898fa1cee5d0409c9cb00186cf2a37cc4a810ca4a8600",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Project",
+                },
                 "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
                 "offset": {"default": 1, "title": "Offset", "type": "integer"},
                 "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
@@ -4079,7 +4166,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "a58b18affe9decc40c7243285b6cce6cc4638f8f20e5cff89df6735d9ca27a95",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Project",
+                },
                 "capability_id": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
@@ -4106,7 +4197,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "106de69b69aeeab5b5e97569bf2bb33eb363a092bd2af5347155984738f53ab2",
         "input_schema": {
             "properties": {
-                "project": {"title": "Project", "type": "string"},
+                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
@@ -4127,7 +4218,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "f15f200e5938f1d20b0e522c2c15dd6cc72c558bcd90e71ad2a35921247e4cf9",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Project",
+                },
                 "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
                 "offset": {"default": 1, "title": "Offset", "type": "integer"},
                 "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
@@ -4286,7 +4381,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "748152d62287b7adacb4f13e1f500d7b44440b2dd02b3edda66123df11fdbe92",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Project",
+                },
                 "title": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Title"},
                 "offset": {"default": 1, "title": "Offset", "type": "integer"},
                 "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
@@ -4325,7 +4424,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "e623d4436c3ed4b069321f890b769bbe54d8d87862c04dd60a754c062b55daf1",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Project",
+                },
                 "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
                 "offset": {"default": 1, "title": "Offset", "type": "integer"},
                 "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
@@ -4425,7 +4528,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "89e11f4e0067afba850efacd0e50ab148e904a3c7ee86bead775e453b57d3cb5",
         "input_schema": {
             "properties": {
-                "project": {"title": "Project", "type": "string"},
+                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
                 "offset": {"default": 1, "title": "Offset", "type": "integer"},
                 "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
                 "select": {
@@ -4461,7 +4564,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "18febe2a4314471de7f34c4b136cfb384235482b41d54db24fcc1cb63721a910",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Project",
+                },
                 "offset": {"default": 1, "title": "Offset", "type": "integer"},
                 "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
                 "select": {
@@ -4505,7 +4612,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "9dc8fca94ecfacb7e2268f9cfff99f1380171db467c31be78b5bf379c82b80e5",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"}
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Project",
+                }
             },
             "title": "list_query_filter_instance_schemasArguments",
             "type": "object",
@@ -4538,7 +4649,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "6c7c5c4a7328fc2aefa73df0ebda3369121bee6807b1b55fa18abf9aec17e10f",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Project",
+                },
                 "offset": {"default": 1, "title": "Offset", "type": "integer"},
                 "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
             },
@@ -4621,7 +4736,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "1a9a73a21f5164b0477893720f4b31ffaea0b23a5a722fdd68de8043b7b3fd2d",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Project",
+                },
                 "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
                 "offset": {"default": 1, "title": "Offset", "type": "integer"},
                 "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
@@ -4678,13 +4797,21 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "63cce6ac1e34a5329ebc4cf722b8a52a8ab94c63d76945da157dbd25006fb684",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Project",
+                },
                 "work_package_id": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
                     "title": "Work Package Id",
                 },
-                "user": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "User"},
+                "user": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "User",
+                },
                 "spent_on_from": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
@@ -4730,7 +4857,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "7df6a0130050c0af7f642b0482f45fe27291985c8fa6712f75e9bcfcb2bace36",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"}
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Project",
+                }
             },
             "title": "list_typesArguments",
             "type": "object",
@@ -4745,7 +4876,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "3f129c450eb3efaba268d22759f0293720ab332396ce6ef47fc3969fe2dd4ab4",
         "input_schema": {
             "properties": {
-                "user_ref": {"title": "User Ref", "type": "string"},
+                "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
                 "year": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Year"},
                 "offset": {"default": 1, "title": "Offset", "type": "integer"},
                 "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
@@ -4764,7 +4895,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "7fbacd8ba39eb1363feeeff2e1f9d01294f56641216c32e287269e52b4cc446e",
         "input_schema": {
             "properties": {
-                "user_ref": {"title": "User Ref", "type": "string"},
+                "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
                 "offset": {"default": 1, "title": "Offset", "type": "integer"},
                 "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
             },
@@ -4804,7 +4935,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "a76b2a4ddc5d42b0d959f0621c53a9975885b3dbcf8d8233f861b6d02b5957b0",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Project",
+                },
                 "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
                 "offset": {"default": 1, "title": "Offset", "type": "integer"},
                 "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
@@ -4827,7 +4962,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "460d0a4036c24d2497b6ca8c94dcc42487788879a952edd82eacb618c30f6eaf",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Project",
+                },
                 "type": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Type"},
                 "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
                 "offset": {"default": 1, "title": "Offset", "type": "integer"},
@@ -5051,24 +5190,48 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "5203b45d05e03ccfabdb3aee2212d5c45ed0c8c9a2a2ec747c6f63bf90c6fbf0",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"},
-                "type": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Type"},
-                "version": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Version"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Project",
+                },
+                "type": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Type",
+                },
+                "version": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Version",
+                },
                 "version_status": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
                     "title": "Version Status",
                 },
                 "observed_in_version": {
-                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
                     "title": "Observed In Version",
                 },
                 "open_only": {"default": False, "title": "Open Only", "type": "boolean"},
                 "assignee_me": {"default": False, "title": "Assignee Me", "type": "boolean"},
-                "assignee": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Assignee"},
-                "status": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Status"},
-                "priority": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Priority"},
+                "assignee": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Assignee",
+                },
+                "status": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Status",
+                },
+                "priority": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Priority",
+                },
                 "created_on": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Created On"},
                 "created_between": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
@@ -5200,12 +5363,28 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "input_schema": {
             "properties": {
                 "search": {"title": "Search", "type": "string"},
-                "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"},
-                "status": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Status"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Project",
+                },
+                "status": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Status",
+                },
                 "open_only": {"default": False, "title": "Open Only", "type": "boolean"},
                 "assignee_me": {"default": False, "title": "Assignee Me", "type": "boolean"},
-                "assignee": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Assignee"},
-                "priority": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Priority"},
+                "assignee": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Assignee",
+                },
+                "priority": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Priority",
+                },
                 "created_on": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Created On"},
                 "created_between": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
@@ -5267,7 +5446,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "aca05b1c4242a395607b2c7205fad658b6ada695c2b082893293f93ca24cc5a0",
         "input_schema": {
             "properties": {
-                "project": {"title": "Project", "type": "string"},
+                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
                 "favorite": {"title": "Favorite", "type": "boolean"},
                 "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
             },
@@ -5428,7 +5607,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "properties": {
                 "board_id": {"title": "Board Id", "type": "integer"},
                 "name": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Name"},
-                "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Project",
+                },
                 "public": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Public"},
                 "starred": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Starred"},
                 "hidden": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Hidden"},
@@ -5571,7 +5754,10 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "sharing": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Sharing"},
                 "notify": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Notify"},
                 "participant_user_refs": {
-                    "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
+                    "anyOf": [
+                        {"items": {"anyOf": [{"type": "integer"}, {"type": "string"}]}, "type": "array"},
+                        {"type": "null"},
+                    ],
                     "default": None,
                     "title": "Participant User Refs",
                 },
@@ -5675,7 +5861,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "input_schema": {
             "properties": {
                 "membership_id": {"title": "Membership Id", "type": "integer"},
-                "roles": {"items": {"type": "string"}, "title": "Roles", "type": "array"},
+                "roles": {
+                    "items": {"anyOf": [{"type": "integer"}, {"type": "string"}]},
+                    "title": "Roles",
+                    "type": "array",
+                },
                 "notification_message": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
@@ -5752,7 +5942,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "c92511efc652b34be9bf2e708abbb087a5cbe6c49344b038562943d96809bac5",
         "input_schema": {
             "properties": {
-                "project": {"title": "Project", "type": "string"},
+                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
                 "name": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Name"},
                 "identifier": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Identifier"},
                 "description": {
@@ -5768,7 +5958,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "default": None,
                     "title": "Status Explanation",
                 },
-                "parent": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Parent"},
+                "parent": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Parent",
+                },
                 "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
             },
             "required": ["project"],
@@ -5879,8 +6073,16 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "input_schema": {
             "properties": {
                 "time_entry_id": {"title": "Time Entry Id", "type": "integer"},
-                "user": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "User"},
-                "activity": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Activity"},
+                "user": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "User",
+                },
+                "activity": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Activity",
+                },
                 "hours": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Hours"},
                 "spent_on": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Spent On"},
                 "start_time": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Start Time"},
@@ -5905,8 +6107,16 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "time_entry_id": {"title": "Time Entry Id", "type": "integer"},
                 "start_time": {"title": "Start Time", "type": "string"},
                 "end_time": {"title": "End Time", "type": "string"},
-                "user": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "User"},
-                "activity": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Activity"},
+                "user": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "User",
+                },
+                "activity": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Activity",
+                },
                 "spent_on": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Spent On"},
                 "comment": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Comment"},
                 "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
@@ -5948,7 +6158,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "863a1efbd489fd5a243bf1c581cf46f39fb93915d773a01d884f2f3cbbdb1e95",
         "input_schema": {
             "properties": {
-                "user_ref": {"title": "User Ref", "type": "string"},
+                "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
                 "non_working_time_id": {"title": "Non Working Time Id", "type": "integer"},
                 "start_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Start Date"},
                 "end_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "End Date"},
@@ -5968,7 +6178,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "7558a0eb746392a89e3a05d4db5f463c2cc4b581124ece22a5d064017126821f",
         "input_schema": {
             "properties": {
-                "user_ref": {"title": "User Ref", "type": "string"},
+                "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
                 "working_hours_id": {"title": "Working Hours Id", "type": "integer"},
                 "valid_from": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Valid From"},
                 "monday_hours": {
@@ -6061,25 +6271,47 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "default": None,
                     "title": "Description",
                 },
-                "type": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Type"},
-                "version": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Version"},
+                "type": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Type",
+                },
+                "version": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Version",
+                },
                 "target_versions": {
-                    "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
+                    "anyOf": [
+                        {"items": {"anyOf": [{"type": "integer"}, {"type": "string"}]}, "type": "array"},
+                        {"type": "null"},
+                    ],
                     "default": None,
                     "title": "Target Versions",
                 },
                 "observed_in_versions": {
-                    "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
+                    "anyOf": [
+                        {"items": {"anyOf": [{"type": "integer"}, {"type": "string"}]}, "type": "array"},
+                        {"type": "null"},
+                    ],
                     "default": None,
                     "title": "Observed In Versions",
                 },
-                "sprint": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Sprint"},
+                "sprint": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Sprint",
+                },
                 "project_phase": {
-                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
                     "title": "Project Phase",
                 },
-                "status": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Status"},
+                "status": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Status",
+                },
                 "assignee": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
@@ -6090,8 +6322,16 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "default": None,
                     "title": "Responsible",
                 },
-                "priority": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Priority"},
-                "category": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Category"},
+                "priority": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Priority",
+                },
+                "category": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Category",
+                },
                 "custom_fields": {
                     "anyOf": [{"additionalProperties": True, "type": "object"}, {"type": "null"}],
                     "default": None,
@@ -6211,7 +6451,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "default": None,
                     "title": "Work Package Id",
                 },
-                "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Project",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,

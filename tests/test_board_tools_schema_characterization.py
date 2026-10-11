@@ -51,7 +51,7 @@ def test_list_boards_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "project": {
-                "anyOf": [{"type": "string"}, {"type": "null"}],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
                 "title": "Project",
             },
@@ -167,7 +167,7 @@ def test_create_board_schema() -> None:
         "properties": {
             "name": {"title": "Name", "type": "string"},
             "project": {
-                "anyOf": [{"type": "string"}, {"type": "null"}],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
                 "title": "Project",
             },
@@ -268,7 +268,7 @@ def test_update_board_schema() -> None:
                 "title": "Name",
             },
             "project": {
-                "anyOf": [{"type": "string"}, {"type": "null"}],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
                 "title": "Project",
             },

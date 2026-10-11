@@ -212,6 +212,12 @@ def _vscode_user_mcp_path() -> Path:
     return _platform_config_root() / "Code" / "User" / "mcp.json"
 
 
+def _codex_home() -> Path:
+    """Codex's configuration directory; an empty ``CODEX_HOME`` means the default, as in Codex."""
+    configured = os.environ.get("CODEX_HOME")
+    return Path(configured) if configured else _home() / ".codex"
+
+
 def _claude_desktop_path() -> Path:
     """User-wide MCP config for the standalone Claude Desktop app."""
     return _platform_config_root() / "Claude" / "claude_desktop_config.json"
@@ -327,11 +333,13 @@ def _strip_codex_openproject(existing: str) -> str:
     return "\n".join(out)
 
 
-def _openproject_server_entry(data: dict, root_key: str) -> dict:
+def _openproject_server_entry(data: object, root_key: str) -> dict:
     """Navigate to the ``openproject`` server entry under ``root_key`` in a parsed
-    JSON/TOML client config, tolerating a missing root key or entry (returns {}).
+    JSON/TOML client config; {} when any level is missing or not a mapping.
     """
-    return data.get(root_key, {}).get("openproject", {})
+    servers = data.get(root_key) if isinstance(data, dict) else None
+    entry = servers.get("openproject") if isinstance(servers, dict) else None
+    return entry if isinstance(entry, dict) else {}
 
 
 def _merge_codex_toml(existing: str, command: str, env: dict[str, str]) -> str:
@@ -434,7 +442,7 @@ def _detect_claude_desktop() -> bool:
 
 
 def _detect_codex() -> bool:
-    return bool(shutil.which("codex")) or (_home() / ".codex").exists()
+    return bool(shutil.which("codex")) or _codex_home().exists()
 
 
 def _detect_vscode() -> bool:
@@ -479,7 +487,7 @@ def _clients() -> list[Client]:
         Client(
             "codex",
             "Codex (CLI + IDE extension)",
-            _home() / ".codex" / "config.toml",
+            _codex_home() / "config.toml",
             "toml",
             _detect_codex,
             "docs/codex.md",
@@ -1183,7 +1191,7 @@ async def _test_connection_async(
     except ConfigError as exc:
         return ConnectionCheck("config_error", str(exc), None)
 
-    # Shorter timeout, no retries — same reasoning as doctor.py's diagnostic
+    # Shorter timeout, no retries — same reasoning as the doctor's connection
     # check: a connection TEST should fail fast, not wait through the user's
     # configured full retry/backoff policy (which could take tens of seconds
     # for a genuinely down host).

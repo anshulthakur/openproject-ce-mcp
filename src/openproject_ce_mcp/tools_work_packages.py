@@ -46,11 +46,11 @@ from .models import (
     WorkPackageSummary,
     WorkPackageWriteResult,
 )
+from .tool_types import IdOrName
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
     BATCH_READ_ITEM_WRAPPER_FIELDS,
     BULK_ITEM_WRAPPER_FIELDS,
-    _clearable,
     _clearable_duration,
     _clearable_ref,
     _require_at_least_one,
@@ -67,6 +67,7 @@ from .tools_validation import (
     _validate_optional_percentage_done,
     _validate_optional_project_ref,
     _validate_optional_query,
+    _validate_optional_ref,
     _validate_optional_target_versions,
     _validate_optional_text,
     _validate_optional_text_limit,
@@ -77,6 +78,7 @@ from .tools_validation import (
     _validate_optional_work_package_ref,
     _validate_positive_int,
     _validate_project_ref,
+    _validate_ref,
     _validate_required_query,
     _validate_required_text,
     _validate_select,
@@ -89,12 +91,12 @@ from .tools_validation import (
 async def search_work_packages(
     ctx: Context,
     search: str,
-    project: str | None = None,
-    status: str | None = None,
+    project: IdOrName | None = None,
+    status: IdOrName | None = None,
     open_only: bool = False,
     assignee_me: bool = False,
-    assignee: str | None = None,
-    priority: str | None = None,
+    assignee: IdOrName | None = None,
+    priority: IdOrName | None = None,
     created_on: str | None = None,
     created_between: list[str] | None = None,
     updated_on: str | None = None,
@@ -164,9 +166,9 @@ async def search_work_packages(
     client = _client_from_context(ctx)
     safe_search = _validate_required_query(search, field_name="search", max_length=120)
     safe_project = _validate_optional_project_ref(project)
-    safe_status = _validate_optional_query(status, field_name="status", max_length=100)
-    safe_assignee = _validate_optional_user_or_principal_ref(assignee)
-    safe_priority = _validate_optional_query(priority, field_name="priority", max_length=100)
+    safe_status = _validate_optional_ref(status, field_name="status", max_length=100)
+    safe_assignee = _validate_optional_user_or_principal_ref(assignee, field_name="assignee")
+    safe_priority = _validate_optional_ref(priority, field_name="priority", max_length=100)
     safe_created_on = _validate_optional_date(created_on, "created_on")
     safe_created_between = _validate_optional_date_range(created_between, "created_between")
     safe_updated_on = _validate_optional_date(updated_on, "updated_on")
@@ -210,16 +212,16 @@ async def search_work_packages(
 @register_tool
 async def list_work_packages(
     ctx: Context,
-    project: str | None = None,
-    type: str | None = None,
-    version: str | None = None,
+    project: IdOrName | None = None,
+    type: IdOrName | None = None,
+    version: IdOrName | None = None,
     version_status: str | None = None,
-    observed_in_version: str | None = None,
+    observed_in_version: IdOrName | None = None,
     open_only: bool = False,
     assignee_me: bool = False,
-    assignee: str | None = None,
-    status: str | None = None,
-    priority: str | None = None,
+    assignee: IdOrName | None = None,
+    status: IdOrName | None = None,
+    priority: IdOrName | None = None,
     created_on: str | None = None,
     created_between: list[str] | None = None,
     updated_on: str | None = None,
@@ -391,17 +393,17 @@ async def list_work_packages(
     """
     client = _client_from_context(ctx)
     safe_project = _validate_optional_project_ref(project)
-    safe_type = _validate_optional_query(type, field_name="type", max_length=100)
-    safe_version = _validate_optional_query(version, field_name="version", max_length=100)
-    safe_observed_in_version = _validate_optional_query(
+    safe_type = _validate_optional_ref(type, field_name="type", max_length=100)
+    safe_version = _validate_optional_ref(version, field_name="version", max_length=100)
+    safe_observed_in_version = _validate_optional_ref(
         observed_in_version, field_name="observed_in_version", max_length=100
     )
     safe_version_status = _validate_optional_choice(
         version_status, field_name="version_status", allowed_values={"open", "closed", "locked"}
     )
-    safe_assignee = _validate_optional_user_or_principal_ref(assignee)
-    safe_status = _validate_optional_query(status, field_name="status", max_length=100)
-    safe_priority = _validate_optional_query(priority, field_name="priority", max_length=100)
+    safe_assignee = _validate_optional_user_or_principal_ref(assignee, field_name="assignee")
+    safe_status = _validate_optional_ref(status, field_name="status", max_length=100)
+    safe_priority = _validate_optional_ref(priority, field_name="priority", max_length=100)
     safe_created_on = _validate_optional_date(created_on, "created_on")
     safe_created_between = _validate_optional_date_range(created_between, "created_between")
     safe_updated_on = _validate_optional_date(updated_on, "updated_on")
@@ -542,14 +544,14 @@ async def get_work_packages(
 def _validate_work_package_create_fields(
     *,
     description: str | None,
-    version: str | None,
-    target_versions: list[str] | None,
-    observed_in_versions: list[str] | None,
-    project_phase: str | None,
+    version: int | str | None,
+    target_versions: list[int | str] | None,
+    observed_in_versions: list[int | str] | None,
+    project_phase: int | str | None,
     assignee: int | str | None,
     responsible: int | str | None,
-    priority: str | None,
-    category: str | None,
+    priority: int | str | None,
+    category: int | str | None,
     custom_fields: dict[str, Any] | None,
     start_date: str | None,
     due_date: str | None,
@@ -564,20 +566,20 @@ def _validate_work_package_create_fields(
     """
     return {
         "description": _validate_optional_text(description, field_name=f"{field_prefix}description", max_length=None),
-        "version": _validate_optional_query(version, field_name=f"{field_prefix}version", max_length=100),
+        "version": _validate_optional_ref(version, field_name=f"{field_prefix}version", max_length=100),
         "target_versions": _validate_optional_target_versions(
             target_versions, field_name=f"{field_prefix}target_versions"
         ),
         "observed_in_versions": _validate_optional_target_versions(
             observed_in_versions, field_name=f"{field_prefix}observed_in_versions"
         ),
-        "project_phase": _validate_optional_query(
+        "project_phase": _validate_optional_ref(
             project_phase, field_name=f"{field_prefix}project_phase", max_length=100
         ),
         "assignee": _validate_optional_user_ref(assignee, field_name=f"{field_prefix}assignee"),
         "responsible": _validate_optional_user_ref(responsible, field_name=f"{field_prefix}responsible"),
-        "priority": _validate_optional_query(priority, field_name=f"{field_prefix}priority", max_length=100),
-        "category": _validate_optional_query(category, field_name=f"{field_prefix}category", max_length=100),
+        "priority": _validate_optional_ref(priority, field_name=f"{field_prefix}priority", max_length=100),
+        "category": _validate_optional_ref(category, field_name=f"{field_prefix}category", max_length=100),
         "custom_fields": _validate_optional_custom_fields(custom_fields),
         "start_date": _validate_optional_date(start_date, field_name=f"{field_prefix}start_date"),
         "due_date": _validate_optional_date(due_date, field_name=f"{field_prefix}due_date"),
@@ -590,20 +592,20 @@ def _validate_work_package_create_fields(
 @register_tool
 async def create_work_package(
     ctx: Context,
-    project: str,
-    type: str,
+    project: IdOrName,
+    type: IdOrName,
     subject: str,
     description: str | None = None,
-    version: str | None = None,
-    target_versions: list[str] | None = None,
-    observed_in_versions: list[str] | None = None,
-    project_phase: str | None = None,
-    assignee: int | str | None = None,
-    responsible: int | str | None = None,
-    priority: str | None = None,
-    category: str | None = None,
+    version: IdOrName | None = None,
+    target_versions: list[IdOrName] | None = None,
+    observed_in_versions: list[IdOrName] | None = None,
+    project_phase: IdOrName | None = None,
+    assignee: IdOrName | None = None,
+    responsible: IdOrName | None = None,
+    priority: IdOrName | None = None,
+    category: IdOrName | None = None,
     custom_fields: dict[str, Any] | None = None,
-    parent: int | str | None = None,
+    parent: IdOrName | None = None,
     start_date: str | None = None,
     due_date: str | None = None,
     estimated_time: str | None = None,
@@ -634,7 +636,7 @@ async def create_work_package(
     """
     client = _client_from_context(ctx)
     safe_project = _validate_project_ref(project)
-    safe_type = _validate_required_query(type, field_name="type", max_length=100)
+    safe_type = _validate_ref(type, field_name="type", max_length=100)
     safe_subject = _validate_required_query(subject, field_name="subject", max_length=255)
     common = _validate_work_package_create_fields(
         description=description,
@@ -684,17 +686,17 @@ def _validate_work_package_update_fields(
     *,
     subject: str | None,
     description: str | None,
-    type: str | None,
-    version: str | None,
-    target_versions: list[str] | None,
-    observed_in_versions: list[str] | None,
-    sprint: str | None,
-    project_phase: str | None,
-    status: str | None,
+    type: int | str | None,
+    version: int | str | None,
+    target_versions: list[int | str] | None,
+    observed_in_versions: list[int | str] | None,
+    sprint: int | str | None,
+    project_phase: int | str | None,
+    status: int | str | None,
     assignee: int | str | None,
     responsible: int | str | None,
-    priority: str | None,
-    category: str | None,
+    priority: int | str | None,
+    category: int | str | None,
     custom_fields: dict[str, Any] | None,
     parent: int | str | None,
     start_date: str | None,
@@ -716,7 +718,7 @@ def _validate_work_package_update_fields(
         "description": _validate_optional_update_text(
             description, field_name=f"{field_prefix}description", max_length=None
         ),
-        "type": _validate_optional_query(type, field_name=f"{field_prefix}type", max_length=100),
+        "type": _validate_optional_ref(type, field_name=f"{field_prefix}type", max_length=100),
         "version": _validate_optional_version(version, field_name=f"{field_prefix}version", sentinel=CLEAR_VERSION),
         "target_versions": _validate_optional_target_versions(
             target_versions, field_name=f"{field_prefix}target_versions"
@@ -724,17 +726,17 @@ def _validate_work_package_update_fields(
         "observed_in_versions": _validate_optional_target_versions(
             observed_in_versions, field_name=f"{field_prefix}observed_in_versions"
         ),
-        "sprint": _clearable(
+        "sprint": _clearable_ref(
             sprint,
-            lambda v: _validate_optional_query(v, field_name=f"{field_prefix}sprint", max_length=100),
+            lambda v: _validate_optional_ref(v, field_name=f"{field_prefix}sprint", max_length=100),
             sentinel=CLEAR,
         ),
-        "project_phase": _clearable(
+        "project_phase": _clearable_ref(
             project_phase,
-            lambda v: _validate_optional_query(v, field_name=f"{field_prefix}project_phase", max_length=100),
+            lambda v: _validate_optional_ref(v, field_name=f"{field_prefix}project_phase", max_length=100),
             sentinel=CLEAR,
         ),
-        "status": _validate_optional_query(status, field_name=f"{field_prefix}status", max_length=100),
+        "status": _validate_optional_ref(status, field_name=f"{field_prefix}status", max_length=100),
         "assignee": _clearable_ref(
             assignee,
             lambda v: _validate_optional_user_ref(v, field_name=f"{field_prefix}assignee"),
@@ -745,10 +747,10 @@ def _validate_work_package_update_fields(
             lambda v: _validate_optional_user_ref(v, field_name=f"{field_prefix}responsible"),
             sentinel=CLEAR,
         ),
-        "priority": _validate_optional_query(priority, field_name=f"{field_prefix}priority", max_length=100),
-        "category": _clearable(
+        "priority": _validate_optional_ref(priority, field_name=f"{field_prefix}priority", max_length=100),
+        "category": _clearable_ref(
             category,
-            lambda v: _validate_optional_query(v, field_name=f"{field_prefix}category", max_length=100),
+            lambda v: _validate_optional_ref(v, field_name=f"{field_prefix}category", max_length=100),
             sentinel=CLEAR,
         ),
         "custom_fields": _validate_optional_custom_fields(custom_fields),
@@ -776,19 +778,19 @@ async def update_work_package(
     work_package_id: int | str,
     subject: str | None = None,
     description: str | None = None,
-    type: str | None = None,
-    version: str | None = None,
-    target_versions: list[str] | None = None,
-    observed_in_versions: list[str] | None = None,
-    sprint: str | None = None,
-    project_phase: str | None = None,
-    status: str | None = None,
-    assignee: int | str | None = None,
-    responsible: int | str | None = None,
-    priority: str | None = None,
-    category: str | None = None,
+    type: IdOrName | None = None,
+    version: IdOrName | None = None,
+    target_versions: list[IdOrName] | None = None,
+    observed_in_versions: list[IdOrName] | None = None,
+    sprint: IdOrName | None = None,
+    project_phase: IdOrName | None = None,
+    status: IdOrName | None = None,
+    assignee: IdOrName | None = None,
+    responsible: IdOrName | None = None,
+    priority: IdOrName | None = None,
+    category: IdOrName | None = None,
     custom_fields: dict[str, Any] | None = None,
-    parent: int | str | None = None,
+    parent: IdOrName | None = None,
     start_date: str | None = None,
     due_date: str | None = None,
     estimated_time: str | None = None,
@@ -991,9 +993,9 @@ async def bulk_create_work_packages(
         subject = item.get("subject")
         parent_value, parent_field_name = _resolve_bulk_parent_field(item, i)
         safe_parent_work_package_id = _validate_optional_work_package_ref(parent_value, field_name=parent_field_name)
-        if not project:
+        if project is None:
             raise ValueError(f"items[{i}].project is required.")
-        if not type_:
+        if type_ is None:
             raise ValueError(f"items[{i}].type is required.")
         if not subject:
             raise ValueError(f"items[{i}].subject is required.")
@@ -1017,8 +1019,8 @@ async def bulk_create_work_packages(
         )
         safe_items.append(
             {
-                "project": _validate_project_ref(str(project)),
-                "type": _validate_required_query(str(type_), field_name=f"items[{i}].type", max_length=100),
+                "project": _validate_project_ref(project, field_name=f"items[{i}].project"),
+                "type": _validate_ref(type_, field_name=f"items[{i}].type", max_length=100),
                 "subject": _validate_required_query(str(subject), field_name=f"items[{i}].subject", max_length=255),
                 "description": common["description"],
                 "version": common["version"],
@@ -1207,17 +1209,17 @@ async def delete_work_package(
 async def create_subtask(
     ctx: Context,
     parent_work_package_id: int | str,
-    type: str,
+    type: IdOrName,
     subject: str,
     description: str | None = None,
-    version: str | None = None,
-    target_versions: list[str] | None = None,
-    observed_in_versions: list[str] | None = None,
-    project_phase: str | None = None,
-    assignee: int | str | None = None,
-    responsible: int | str | None = None,
-    priority: str | None = None,
-    category: str | None = None,
+    version: IdOrName | None = None,
+    target_versions: list[IdOrName] | None = None,
+    observed_in_versions: list[IdOrName] | None = None,
+    project_phase: IdOrName | None = None,
+    assignee: IdOrName | None = None,
+    responsible: IdOrName | None = None,
+    priority: IdOrName | None = None,
+    category: IdOrName | None = None,
     custom_fields: dict[str, Any] | None = None,
     start_date: str | None = None,
     due_date: str | None = None,
@@ -1240,7 +1242,7 @@ async def create_subtask(
     """
     client = _client_from_context(ctx)
     safe_parent_id = _validate_work_package_ref(parent_work_package_id, field_name="parent_work_package_id")
-    safe_type = _validate_required_query(type, field_name="type", max_length=100)
+    safe_type = _validate_ref(type, field_name="type", max_length=100)
     safe_subject = _validate_required_query(subject, field_name="subject", max_length=255)
     common = _validate_work_package_create_fields(
         description=description,

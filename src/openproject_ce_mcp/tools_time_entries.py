@@ -31,6 +31,7 @@ from .models import (
     TimeEntrySummary,
     TimeEntryWriteResult,
 )
+from .tool_types import IdOrName
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
     _require_at_least_one,
@@ -40,17 +41,17 @@ from .tools_validation import (
     _validate_optional_datetime,
     _validate_optional_duration,
     _validate_optional_project_ref,
-    _validate_optional_query,
+    _validate_optional_ref,
     _validate_optional_text,
     _validate_optional_text_limit,
     _validate_optional_update_text,
     _validate_optional_user_or_principal_ref,
     _validate_optional_work_package_ref,
     _validate_positive_int,
+    _validate_ref,
     _validate_required_date,
     _validate_required_datetime,
     _validate_required_duration,
-    _validate_required_query,
     _validate_select,
 )
 
@@ -65,9 +66,9 @@ async def list_time_entry_activities(ctx: Context) -> TimeEntryActivityListResul
 @register_tool
 async def list_time_entries(
     ctx: Context,
-    project: str | None = None,
+    project: IdOrName | None = None,
     work_package_id: int | str | None = None,
-    user: str | None = None,
+    user: IdOrName | None = None,
     spent_on_from: str | None = None,
     spent_on_to: str | None = None,
     offset: int = 1,
@@ -100,7 +101,7 @@ async def list_time_entries(
     client = _client_from_context(ctx)
     safe_project = _validate_optional_project_ref(project)
     safe_work_package_id = _validate_optional_work_package_ref(work_package_id)
-    safe_user = _validate_optional_user_or_principal_ref(user)
+    safe_user = _validate_optional_user_or_principal_ref(user, field_name="user")
     safe_spent_on_from = _validate_optional_date(spent_on_from, field_name="spent_on_from")
     safe_spent_on_to = _validate_optional_date(spent_on_to, field_name="spent_on_to")
     safe_offset = _validate_offset(offset)
@@ -142,12 +143,12 @@ async def get_time_entry(
 @register_tool
 async def create_time_entry(
     ctx: Context,
-    activity: str,
+    activity: IdOrName,
     hours: str,
     spent_on: str,
-    project: str | None = None,
+    project: IdOrName | None = None,
     work_package_id: int | str | None = None,
-    user: str | None = None,
+    user: IdOrName | None = None,
     start_time: str | None = None,
     comment: str | None = None,
     ongoing: bool | None = None,
@@ -163,12 +164,12 @@ async def create_time_entry(
     create_time_entry_until to specify an end time instead of hours directly.
     """
     client = _client_from_context(ctx)
-    safe_activity = _validate_required_query(activity, field_name="activity", max_length=100)
+    safe_activity = _validate_ref(activity, field_name="activity", max_length=100)
     safe_hours = _validate_required_duration(hours, field_name="hours")
     safe_spent_on = _validate_required_date(spent_on, field_name="spent_on")
     safe_project = _validate_optional_project_ref(project)
     safe_work_package_id = _validate_optional_work_package_ref(work_package_id)
-    safe_user = _validate_optional_user_or_principal_ref(user)
+    safe_user = _validate_optional_user_or_principal_ref(user, field_name="user")
     safe_start_time = _validate_optional_datetime(start_time, field_name="start_time")
     safe_comment = _validate_optional_text(comment, field_name="comment", max_length=None)
     if safe_project is None and safe_work_package_id is None:
@@ -193,8 +194,8 @@ async def create_time_entry(
 async def update_time_entry(
     ctx: Context,
     time_entry_id: int,
-    user: str | None = None,
-    activity: str | None = None,
+    user: IdOrName | None = None,
+    activity: IdOrName | None = None,
     hours: str | None = None,
     spent_on: str | None = None,
     start_time: str | None = None,
@@ -211,8 +212,8 @@ async def update_time_entry(
     """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(time_entry_id, field_name="time_entry_id")
-    safe_user = _validate_optional_user_or_principal_ref(user)
-    safe_activity = _validate_optional_query(activity, field_name="activity", max_length=100)
+    safe_user = _validate_optional_user_or_principal_ref(user, field_name="user")
+    safe_activity = _validate_optional_ref(activity, field_name="activity", max_length=100)
     safe_hours = _validate_optional_duration(hours, field_name="hours")
     safe_spent_on = _validate_optional_date(spent_on, field_name="spent_on")
     safe_start_time = _validate_optional_datetime(start_time, field_name="start_time")
@@ -245,13 +246,13 @@ async def update_time_entry(
 @register_tool
 async def create_time_entry_until(
     ctx: Context,
-    activity: str,
+    activity: IdOrName,
     start_time: str,
     end_time: str,
     spent_on: str,
-    project: str | None = None,
+    project: IdOrName | None = None,
     work_package_id: int | str | None = None,
-    user: str | None = None,
+    user: IdOrName | None = None,
     comment: str | None = None,
     confirm: bool = False,
 ) -> TimeEntryWriteResult:
@@ -265,14 +266,14 @@ async def create_time_entry_until(
     an ongoing entry.
     """
     client = _client_from_context(ctx)
-    safe_activity = _validate_required_query(activity, field_name="activity", max_length=100)
+    safe_activity = _validate_ref(activity, field_name="activity", max_length=100)
     safe_start_time = _validate_required_datetime(start_time, field_name="start_time")
     safe_end_time = _validate_required_datetime(end_time, field_name="end_time")
     safe_hours = _validate_required_duration(_duration_between(safe_start_time, safe_end_time), field_name="hours")
     safe_spent_on = _validate_required_date(spent_on, field_name="spent_on")
     safe_project = _validate_optional_project_ref(project)
     safe_work_package_id = _validate_optional_work_package_ref(work_package_id)
-    safe_user = _validate_optional_user_or_principal_ref(user)
+    safe_user = _validate_optional_user_or_principal_ref(user, field_name="user")
     safe_comment = _validate_optional_text(comment, field_name="comment", max_length=None)
     if safe_project is None and safe_work_package_id is None:
         raise ValueError("Either project or work_package_id is required.")
@@ -297,8 +298,8 @@ async def update_time_entry_until(
     time_entry_id: int,
     start_time: str,
     end_time: str,
-    user: str | None = None,
-    activity: str | None = None,
+    user: IdOrName | None = None,
+    activity: IdOrName | None = None,
     spent_on: str | None = None,
     comment: str | None = None,
     confirm: bool = False,
@@ -316,8 +317,8 @@ async def update_time_entry_until(
     safe_start_time = _validate_required_datetime(start_time, field_name="start_time")
     safe_end_time = _validate_required_datetime(end_time, field_name="end_time")
     safe_hours = _validate_required_duration(_duration_between(safe_start_time, safe_end_time), field_name="hours")
-    safe_user = _validate_optional_user_or_principal_ref(user)
-    safe_activity = _validate_optional_query(activity, field_name="activity", max_length=100)
+    safe_user = _validate_optional_user_or_principal_ref(user, field_name="user")
+    safe_activity = _validate_optional_ref(activity, field_name="activity", max_length=100)
     safe_spent_on = _validate_optional_date(spent_on, field_name="spent_on")
     safe_comment = _validate_optional_update_text(comment, field_name="comment", max_length=None)
     return await _run_tool(

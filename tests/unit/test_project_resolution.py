@@ -14,6 +14,8 @@ from _client_test_helpers import (
     make_settings,
     started_client,
 )
+from _tools_test_helpers import FakeContext
+from mcp.server.mcpserver.exceptions import ToolError
 
 from openproject_ce_mcp.client import (
     InvalidInputError,
@@ -21,6 +23,7 @@ from openproject_ce_mcp.client import (
     OpenProjectClient,
     PermissionDeniedError,
 )
+from openproject_ce_mcp.server import create_app
 
 
 @pytest.mark.asyncio
@@ -947,4 +950,72 @@ async def test_get_project_ambiguous_when_search_capped_before_exhaustion() -> N
     client = OpenProjectClient(_base_settings(), transport=httpx.MockTransport(handler))
     with pytest.raises(InvalidInputError, match="ambiguous"):
         await client.project.get("Website")
+    await client.aclose()
+
+
+_RENAMED_PROJECT = {
+    "_type": "Project",
+    "id": 42,
+    "identifier": "FIDNEW",
+    "name": "Fid New",
+    "active": True,
+    "_links": {"self": {"href": "/api/v3/projects/42", "title": "Fid New"}},
+}
+
+
+def _former_identifier_handler(seen: list[str]):
+    """OpenProject 17.3+ answers GET /projects/{former identifier} with the renamed project."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(f"{request.method} {request.url.path}")
+        if request.method == "GET" and request.url.path in ("/api/v3/projects/FIDOLD", "/api/v3/projects/42"):
+            return httpx.Response(200, json=_RENAMED_PROJECT, request=request)
+        raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+
+    return handler
+
+
+@pytest.mark.parametrize(
+    ("tool_name", "arguments", "scope", "denied_by"),
+    [
+        ("get_project", {"project": "FIDOLD"}, {"read_projects": ("FIDOLD",)}, "OPENPROJECT_READ_PROJECTS"),
+        (
+            "update_project",
+            {"project": "FIDOLD", "name": "Renamed again"},
+            {"read_projects": ("*",), "write_projects": ("FIDOLD",)},
+            "OPENPROJECT_WRITE_PROJECTS",
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_project_tools_deny_a_renamed_project_by_its_former_identifier(
+    tool_name: str, arguments: dict, scope: dict, denied_by: str
+) -> None:
+    settings = _base_settings(enable_project_write=True, **scope)
+    seen: list[str] = []
+    client = await started_client(settings, _former_identifier_handler(seen), [(42, "FIDNEW", "Fid New")])
+    tool = create_app(settings)._tool_manager.get_tool(tool_name)
+    assert tool is not None
+
+    with pytest.raises(ToolError, match=rf"\[PROJECT_SCOPE_DENIED\].*{denied_by}"):
+        await tool.run(arguments, context=FakeContext(client))
+
+    assert seen == ["GET /api/v3/projects/FIDOLD"]
+    await client.aclose()
+
+
+@pytest.mark.parametrize("pattern", ["FIDNEW", "42", "Fid New"])
+@pytest.mark.asyncio
+async def test_get_project_tool_reads_a_renamed_project_by_its_former_identifier_when_its_current_fields_match(
+    pattern: str,
+) -> None:
+    settings = _base_settings(read_projects=(pattern,))
+    seen: list[str] = []
+    client = await started_client(settings, _former_identifier_handler(seen), [(42, "FIDNEW", "Fid New")])
+    tool = create_app(settings)._tool_manager.get_tool("get_project")
+    assert tool is not None
+
+    result = await tool.run({"project": "FIDOLD"}, context=FakeContext(client))
+
+    assert (result.id, result.identifier) == (42, "FIDNEW")
     await client.aclose()

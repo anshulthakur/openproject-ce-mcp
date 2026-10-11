@@ -393,9 +393,7 @@ class OpenProjectClient:
         self._project_api: ProjectApi = HttpxProjectApi(
             self._transport, base_url=settings.base_url, api_prefix=self._api_prefix
         )
-        self._project_resolver = ProjectResolver(
-            api=self._project_api, settings=settings, project_id_to_identifier=self._project_id_to_identifier
-        )
+        self._project_resolver = ProjectResolver(api=self._project_api, settings=settings)
         self._project_service = ProjectService(
             api=self._project_api,
             settings=settings,
@@ -407,7 +405,6 @@ class OpenProjectClient:
         self._project_admin_service = ProjectAdminService(
             api=self._project_api,
             settings=settings,
-            project_id_to_identifier=self._project_id_to_identifier,
             resolver=self._project_resolver,
             base_url=settings.base_url,
         )

@@ -195,3 +195,11 @@ async def test_resolve_status_id_does_not_match_a_blank_name_against_the_synthet
     with pytest.raises(InvalidInputError, match="was not found"):
         await resolver.resolve_status_id("Status 7")
     await http.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name", ["²", "٣"])
+async def test_resolve_status_and_priority_read_non_ascii_digits_as_a_name(name: str) -> None:
+    resolver = _resolver(_FakeApi(statuses=[_status(4, name)], priorities=[_priority(5, name)]))
+    assert await resolver.resolve_status_id(name) == "4"
+    assert await resolver.resolve_priority_id(name) == "5"

@@ -31,6 +31,7 @@ from .models import (
     TypeListResult,
     TypeSummary,
 )
+from .tool_types import IdOrName
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import _validate_optional_project_ref, _validate_positive_int
 
@@ -72,7 +73,7 @@ async def get_priority(ctx: Context, priority_id: int) -> PrioritySummary:
 @register_tool
 async def list_types(
     ctx: Context,
-    project: str | None = None,
+    project: IdOrName | None = None,
 ) -> TypeListResult:
     """List all available work package types, optionally filtered by project.
 

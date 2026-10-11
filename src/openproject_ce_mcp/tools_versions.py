@@ -15,6 +15,7 @@ from typing import Any
 from mcp.server.mcpserver import Context
 
 from .models import VersionDetail, VersionListResult, VersionSummary, VersionWriteResult
+from .tool_types import IdOrName
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
     _require_at_least_one,
@@ -36,7 +37,7 @@ from .tools_validation import (
 @register_tool
 async def list_versions(
     ctx: Context,
-    project: str | None = None,
+    project: IdOrName | None = None,
     search: str | None = None,
     offset: int = 1,
     limit: int | None = None,
@@ -108,7 +109,7 @@ def _validate_version_schedule_fields(
 @register_tool
 async def create_version(
     ctx: Context,
-    project: str,
+    project: IdOrName,
     name: str,
     description: str | None = None,
     start_date: str | None = None,

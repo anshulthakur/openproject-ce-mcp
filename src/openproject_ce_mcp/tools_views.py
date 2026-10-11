@@ -12,6 +12,7 @@ from __future__ import annotations
 from mcp.server.mcpserver import Context
 
 from .models import ViewDetail, ViewListResult, ViewSummary
+from .tool_types import IdOrName
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
     _validate_list_query_params,
@@ -25,7 +26,7 @@ from .tools_validation import (
 @register_tool
 async def list_views(
     ctx: Context,
-    project: str | None = None,
+    project: IdOrName | None = None,
     type: str | None = None,
     search: str | None = None,
     offset: int = 1,

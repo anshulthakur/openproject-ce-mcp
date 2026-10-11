@@ -151,7 +151,7 @@ def test_get_user_schema() -> None:
         "type": "object",
     }
     assert tool.parameters == {
-        "properties": {"user": {"title": "User", "type": "string"}},
+        "properties": {"user": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User"}},
         "required": ["user"],
         "title": "get_userArguments",
         "type": "object",

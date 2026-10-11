@@ -67,7 +67,7 @@ async def test_single_page_returns_all_records_and_reports_exhaustion() -> None:
     api = _FakeProjectApi([page])
 
     results, total, next_offset, truncated = await fetch_project_page(
-        api=api, settings=make_settings(), project_id_to_identifier={}, search=None, offset=1, limit=10
+        api=api, settings=make_settings(), search=None, offset=1, limit=10
     )
 
     assert [r.id for r in results] == [1, 2]
@@ -84,7 +84,7 @@ async def test_skips_already_seen_results_for_offset_greater_than_one() -> None:
     api = _FakeProjectApi([page])
 
     results, total, next_offset, truncated = await fetch_project_page(
-        api=api, settings=make_settings(), project_id_to_identifier={}, search=None, offset=2, limit=1
+        api=api, settings=make_settings(), search=None, offset=2, limit=1
     )
 
     # offset=2, limit=1 -> skip the first 1 already-seen result, return the 2nd
@@ -100,7 +100,7 @@ async def test_stops_mid_page_when_limit_reached_without_checking_exhaustion() -
     api = _FakeProjectApi([page])
 
     results, total, next_offset, truncated = await fetch_project_page(
-        api=api, settings=make_settings(), project_id_to_identifier={}, search=None, offset=1, limit=1
+        api=api, settings=make_settings(), search=None, offset=1, limit=1
     )
 
     assert [r.id for r in results] == [1]
@@ -118,7 +118,7 @@ async def test_advances_to_next_server_page_when_not_yet_exhausted() -> None:
     settings = make_settings()
 
     results, total, next_offset, truncated = await fetch_project_page(
-        api=api, settings=settings, project_id_to_identifier={}, search=None, offset=1, limit=settings.max_page_size
+        api=api, settings=settings, search=None, offset=1, limit=settings.max_page_size
     )
 
     assert [r.id for r in results] == [1, 2]
@@ -137,7 +137,7 @@ async def test_does_not_report_truncated_when_limit_lands_exactly_on_the_last_re
     api = _FakeProjectApi([page])
 
     results, total, next_offset, truncated = await fetch_project_page(
-        api=api, settings=make_settings(), project_id_to_identifier={}, search=None, offset=1, limit=2
+        api=api, settings=make_settings(), search=None, offset=1, limit=2
     )
 
     assert [r.id for r in results] == [1, 2]
@@ -150,9 +150,7 @@ async def test_passes_search_through_to_the_port() -> None:
     page = ProjectPage(records=[], server_total=0, exhausted=True)
     api = _FakeProjectApi([page])
 
-    await fetch_project_page(
-        api=api, settings=make_settings(), project_id_to_identifier={}, search="demo", offset=1, limit=10
-    )
+    await fetch_project_page(api=api, settings=make_settings(), search="demo", offset=1, limit=10)
 
     assert api.list_calls[0][2] == "demo"
 
@@ -170,7 +168,7 @@ async def test_filters_out_records_outside_the_read_allowlist() -> None:
     settings = dataclasses.replace(make_settings(), read_projects=("allowed",))
 
     results, total, next_offset, truncated = await fetch_project_page(
-        api=api, settings=settings, project_id_to_identifier={}, search=None, offset=1, limit=10
+        api=api, settings=settings, search=None, offset=1, limit=10
     )
 
     assert [r.id for r in results] == [1]
@@ -183,6 +181,4 @@ async def test_read_gate_enforced() -> None:
     settings = dataclasses.replace(make_settings(), enable_project_read=False)
 
     with pytest.raises(PermissionDeniedError, match="OPENPROJECT_ENABLE_PROJECT_READ"):
-        await fetch_project_page(
-            api=api, settings=settings, project_id_to_identifier={}, search=None, offset=1, limit=10
-        )
+        await fetch_project_page(api=api, settings=settings, search=None, offset=1, limit=10)

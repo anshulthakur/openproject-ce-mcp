@@ -53,7 +53,7 @@ def test_list_versions_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "project": {
-                "anyOf": [{"type": "string"}, {"type": "null"}],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
                 "title": "Project",
             },
@@ -123,7 +123,7 @@ def test_create_version_schema() -> None:
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "project": {"title": "Project", "type": "string"},
+            "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
             "name": {"title": "Name", "type": "string"},
             "description": {
                 "anyOf": [{"type": "string"}, {"type": "null"}],

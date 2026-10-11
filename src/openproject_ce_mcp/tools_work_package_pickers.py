@@ -22,13 +22,14 @@ from .models import (
     RelationCandidateListResult,
     RelationCandidateSummary,
 )
+from .tool_types import IdOrName
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
     _validate_limit,
     _validate_optional_choice,
+    _validate_optional_project_ref,
     _validate_optional_query,
     _validate_optional_work_package_ref,
-    _validate_project_ref,
     _validate_select,
     _validate_work_package_ref,
 )
@@ -55,7 +56,7 @@ RELATION_CANDIDATE_TYPES = {
 async def list_available_assignees(
     ctx: Context,
     work_package_id: int | str | None = None,
-    project: str | None = None,
+    project: IdOrName | None = None,
     select: list[str] | None = None,
 ) -> PrincipalCollectionResult:
     """List the users and groups OpenProject accepts as assignee.
@@ -70,7 +71,7 @@ async def list_available_assignees(
     """
     client = _client_from_context(ctx)
     safe_wp = _validate_optional_work_package_ref(work_package_id)
-    safe_project = _validate_project_ref(project) if project is not None else None
+    safe_project = _validate_optional_project_ref(project)
     _validate_select(select, row_type=PrincipalSummary)
     return await _run_tool(
         client.work_package_picker.available_assignees(work_package_id=safe_wp, project_ref=safe_project)

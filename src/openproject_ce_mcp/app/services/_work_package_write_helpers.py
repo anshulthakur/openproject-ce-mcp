@@ -18,6 +18,7 @@ from __future__ import annotations
 import builtins
 from typing import Any
 
+from ...work_package_reference import is_numeric_ref
 from ..errors import InvalidInputError
 
 _SUBJECT_LIMIT = 255
@@ -66,7 +67,10 @@ async def resolve_wp_ref_id(
     return resolved
 
 
-def resolve_schema_option_href(schema: dict[str, Any], key: str, raw_value: Any) -> str:
+def _allowed_options(
+    schema: dict[str, Any], key: str, raw_value: Any
+) -> tuple[str, list[tuple[str, int | None, str | None]]]:
+    """The normalized reference and each allowed value's (href, id, title)."""
     field = schema.get(key)
     if not isinstance(field, dict):
         raise InvalidInputError(f"OpenProject schema does not expose field '{key}' for this work package.")
@@ -78,17 +82,43 @@ def resolve_schema_option_href(schema: dict[str, Any], key: str, raw_value: Any)
     if not normalized:
         raise InvalidInputError(f"{key} must not be empty.")
 
+    options = []
     for item in allowed_values:
         href = item.get("_links", {}).get("self", {}).get("href")
         if not href:
             continue
-        item_id = _id_from_href(href)
         title = _trim_text(item.get("name") or item.get("_links", {}).get("self", {}).get("title"))
-        if normalized.isdigit() and item_id is not None and int(normalized) == item_id:
-            return str(href)
+        options.append((str(href), _id_from_href(href), title))
+    return normalized, options
+
+
+def _not_allowed(raw_value: Any, key: str) -> InvalidInputError:
+    return InvalidInputError(f"OpenProject value '{raw_value}' is not allowed for field '{key}'.")
+
+
+def resolve_schema_option_href(schema: dict[str, Any], key: str, raw_value: Any) -> str:
+    """A built-in field's allowed value: digits are its id, anything else its title."""
+    normalized, options = _allowed_options(schema, key, raw_value)
+    if is_numeric_ref(normalized):
+        matches = [href for href, item_id, _title in options if item_id == int(normalized)]
+    else:
+        matches = [href for href, _item_id, title in options if title and title.casefold() == normalized.casefold()]
+    if not matches:
+        raise _not_allowed(raw_value, key)
+    return matches[0]
+
+
+def _resolve_custom_field_option_href(field: dict[str, Any], key: str, raw_value: Any) -> str:
+    """A custom field's allowed value, matched by id or title in option order:
+    an option list such as story points has titles made of digits."""
+    normalized, options = _allowed_options({key: field}, key, raw_value)
+    numeric = is_numeric_ref(normalized)
+    for href, item_id, title in options:
+        if numeric and item_id == int(normalized):
+            return href
         if title and title.casefold() == normalized.casefold():
-            return str(href)
-    raise InvalidInputError(f"OpenProject value '{raw_value}' is not allowed for field '{key}'.")
+            return href
+    raise _not_allowed(raw_value, key)
 
 
 def resolve_custom_field_key(schema: dict[str, Any], raw_key: str) -> str:
@@ -112,7 +142,7 @@ def resolve_custom_field_key(schema: dict[str, Any], raw_key: str) -> str:
 
 def resolve_custom_field_links(field: dict[str, Any], raw_value: Any, key: str) -> builtins.list[str]:
     values = raw_value if isinstance(raw_value, list) else [raw_value]
-    hrefs = [resolve_schema_option_href({key: field}, key, value) for value in values]
+    hrefs = [_resolve_custom_field_option_href(field, key, value) for value in values]
     if not hrefs:
         raise InvalidInputError(f"OpenProject custom field '{key}' requires at least one value.")
     return hrefs

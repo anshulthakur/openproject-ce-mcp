@@ -21,11 +21,16 @@ from openproject_ce_mcp.tools_validation import (
     _validate_optional_duration,
     _validate_optional_non_negative_int,
     _validate_optional_percentage_done,
+    _validate_optional_ref,
     _validate_optional_target_versions,
     _validate_optional_text,
     _validate_optional_update_text,
+    _validate_optional_user_or_principal_ref,
     _validate_optional_user_ref,
     _validate_optional_work_package_ref,
+    _validate_project_ref,
+    _validate_ref,
+    _validate_required_ref_list,
     _validate_required_text,
     _validate_sort_by,
     _validate_work_package_ref,
@@ -58,7 +63,7 @@ def test_validate_optional_target_versions_empty_list_passes_through() -> None:
 
 
 def test_validate_optional_target_versions_rejects_non_list() -> None:
-    with pytest.raises(ValueError, match="must be a list of strings"):
+    with pytest.raises(ValueError, match="must be a list"):
         _validate_optional_target_versions("1.0")  # type: ignore[arg-type]
 
 
@@ -73,7 +78,7 @@ def test_validate_optional_target_versions_rejects_over_length_cap() -> None:
 
 
 def test_validate_optional_target_versions_uses_given_field_name() -> None:
-    with pytest.raises(ValueError, match="items\\[0\\].target_versions must be a list of strings"):
+    with pytest.raises(ValueError, match="items\\[0\\].target_versions must be a list"):
         _validate_optional_target_versions("1.0", field_name="items[0].target_versions")  # type: ignore[arg-type]
 
 
@@ -293,7 +298,7 @@ async def test_bulk_update_work_packages_tool_validates_required_fields() -> Non
     with pytest.raises(ValueError, match=r"items\[0\]: at least one field to update is required"):
         await bulk_update_work_packages(FakeContext(StubClient()), items=[{"work_package_id": 1}])  # type: ignore[arg-type]
 
-    with pytest.raises(ValueError, match="use internal id.*or display_id"):
+    with pytest.raises(ValueError, match=r"items\[0\]\.parent_work_package_id must be at least 1"):
         await bulk_update_work_packages(  # type: ignore[arg-type]
             FakeContext(StubClient()),
             items=[{"work_package_id": 1, "parent_work_package_id": -1}],
@@ -1029,3 +1034,56 @@ def test_validate_select_without_nested_entities_rejects_paths(name: str) -> Non
 
     with pytest.raises(ValueError, match=f"'{name}' is not a valid WorkPackageDetail field"):
         _validate_select([name], row_type=WorkPackageDetail, wrapper_fields=BATCH_READ_ITEM_WRAPPER_FIELDS)
+
+
+@pytest.mark.parametrize("value", [7, "7", " 7 "])
+def test_reference_validators_turn_an_id_into_its_decimal_string(value) -> None:
+    assert _validate_ref(value, field_name="type", max_length=100) == "7"
+    assert _validate_optional_ref(value, field_name="type", max_length=100) == "7"
+    assert _validate_project_ref(value) == "7"
+    assert _validate_optional_user_or_principal_ref(value, field_name="user") == "7"
+    assert _validate_optional_user_ref(value) == "7"
+    assert _validate_required_ref_list([value], field_name="roles", max_items=20, item_max_length=100) == ["7"]
+    assert _validate_optional_target_versions([value]) == ["7"]
+
+
+@pytest.mark.parametrize("value", [True, 7.0, ["7"]])
+def test_reference_validators_reject_a_value_that_is_neither_string_nor_integer(value) -> None:
+    with pytest.raises(ValueError, match="type must be a string or an integer"):
+        _validate_ref(value, field_name="type", max_length=100)
+    with pytest.raises(ValueError, match=r"roles\[0\] must be a string or an integer"):
+        _validate_required_ref_list([value], field_name="roles", max_items=20, item_max_length=100)
+
+
+@pytest.mark.parametrize("value", [0, -1, "0"])
+def test_reference_validators_reject_an_id_below_one_with_the_field_name(value) -> None:
+    with pytest.raises(ValueError, match="parent must be at least 1"):
+        _validate_project_ref(value, field_name="parent")
+    with pytest.raises(ValueError, match="assignee must be at least 1"):
+        _validate_optional_user_or_principal_ref(value, field_name="assignee")
+
+
+@pytest.mark.parametrize("value", [0, -1])
+def test_name_capable_reference_validators_reject_a_number_below_one(value) -> None:
+    with pytest.raises(ValueError, match="version must be at least 1"):
+        _validate_optional_ref(value, field_name="version", max_length=100)
+
+
+@pytest.mark.parametrize("value", ["²", "٣"])
+def test_non_ascii_digits_are_a_name_where_a_name_is_allowed(value) -> None:
+    assert _validate_project_ref(value) == value
+    assert _validate_optional_user_or_principal_ref(value, field_name="user") == value
+    assert _validate_optional_ref(value, field_name="type", max_length=100) == value
+
+
+@pytest.mark.parametrize("value", ["²", "٣"])
+def test_non_ascii_digits_are_rejected_where_only_an_id_or_me_is_allowed(value) -> None:
+    with pytest.raises(ValueError, match="responsible: 'me' or numeric user id"):
+        _validate_optional_user_ref(value, field_name="responsible")
+
+
+def test_required_ref_list_rejects_an_empty_list_and_a_blank_item() -> None:
+    with pytest.raises(ValueError, match="roles must contain at least one value"):
+        _validate_required_ref_list([], field_name="roles", max_items=20, item_max_length=100)
+    with pytest.raises(ValueError, match=r"roles\[1\] is required"):
+        _validate_required_ref_list(["1", " "], field_name="roles", max_items=20, item_max_length=100)

@@ -27,6 +27,13 @@ assert _SPEC and _SPEC.loader
 c = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(c)
 
+
+@pytest.fixture(autouse=True)
+def _no_codex_home(monkeypatch: pytest.MonkeyPatch) -> None:
+    # _clients() follows CODEX_HOME; the developer's own must not point a test at a real config.
+    monkeypatch.delenv("CODEX_HOME", raising=False)
+
+
 ENV = {
     "OPENPROJECT_BASE_URL": "https://op.example.com",
     "OPENPROJECT_API_TOKEN": 'opapi-with"quote\\and-backslash',
@@ -135,6 +142,30 @@ def test_detects_claude_code_via_binary(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(c, "_home", lambda: tmp_path)
     monkeypatch.setattr(c.shutil, "which", lambda name: "/usr/bin/claude" if name == "claude" else None)
     assert c._detect_claude_code() is True
+
+
+def test_codex_paths_follow_codex_home(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(c, "_home", lambda: tmp_path / "home")
+    monkeypatch.setattr(c.shutil, "which", lambda _name: None)
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex-home"))
+    (codex,) = [client for client in c._clients() if client.key == "codex"]
+
+    assert codex.target == tmp_path / "codex-home" / "config.toml"
+    assert c._detect_codex() is False
+    (tmp_path / "codex-home").mkdir()
+    assert c._detect_codex() is True
+
+
+def test_empty_codex_home_means_the_default(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(c, "_home", lambda: tmp_path)
+    monkeypatch.setenv("CODEX_HOME", "")
+
+    assert c._codex_home() == tmp_path / ".codex"
+
+
+@pytest.mark.parametrize("data", [[], {"mcpServers": []}, {"mcpServers": {"openproject": "x"}}, {}])
+def test_openproject_server_entry_tolerates_any_shape(data) -> None:
+    assert c._openproject_server_entry(data, "mcpServers") == {}
 
 
 def test_clients_only_offers_detected(monkeypatch, tmp_path: Path) -> None:
@@ -590,10 +621,7 @@ def test_has_openproject_config_detects_json_entry_without_env(tmp_path: Path) -
     assert c._has_openproject_config(claude, target) is True
 
 
-def test_has_openproject_config_detects_codex_toml_via_text_scan(tmp_path: Path) -> None:
-    # _has_openproject_config never uses tomllib for the "toml" format --
-    # always a line-by-line text/regex scan, regardless of tomllib's
-    # availability -- so this only exercises that text-scan path directly.
+def test_has_openproject_config_detects_codex_toml_by_text(tmp_path: Path) -> None:
     target = tmp_path / "config.toml"
     target.write_text('[mcp_servers.openproject]\ncommand = "old"\n')
     codex = _codex_client(tmp_path / "global.toml", project_target=target)

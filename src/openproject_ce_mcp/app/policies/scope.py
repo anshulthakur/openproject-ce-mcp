@@ -225,7 +225,7 @@ def _project_scope_display(link: Any, *, settings: Settings, project_id_to_ident
     log field -- the project's own known identifier if this server has
     already learned it, else its numeric id from the link's own href. Never
     the link's `title` (a display name, not stable/unique) and never derived
-    from `project_candidates`' full candidate set (that set exists for
+    from `project_link_candidates`' candidate set (that set exists for
     allowlist MATCHING, where over-including aliases is safe; a log field
     wants exactly one value, not a set)."""
     parsed = parse_project_href(link.get("href") if isinstance(link, dict) else None, settings=settings)
@@ -255,57 +255,54 @@ def scope_matches_candidates(scope: tuple[str, ...], candidates: set[str]) -> bo
     return False
 
 
-def project_record_candidates(project_id: int, identifier: str, name: str | None) -> set[str]:
+def project_record_candidates(project_id: int | None, identifier: str | None, name: str | None) -> set[str]:
     """Candidates of a project known by id, identifier and name, as a scope pattern may name it."""
     name_cf = (name or "").casefold()
     return {
         candidate
-        for candidate in (identifier.casefold(), str(project_id), name_cf, name_cf.replace(" ", "-"))
+        for candidate in (
+            (identifier or "").casefold(),
+            "" if project_id is None else str(project_id),
+            name_cf,
+            name_cf.replace(" ", "-"),
+        )
         if candidate
     }
 
 
-def project_candidates(
-    *,
-    project_id_to_identifier: Mapping[int, str],
-    settings: Settings,
-    project_ref: str | None = None,
-    payload: dict[str, Any] | None = None,
-    link: Any = None,
-    identifier: str | None = None,
-    name: str | None = None,
-) -> set[str]:
+def project_payload_candidates(payload: Mapping[str, Any]) -> set[str]:
+    """Candidates of a project payload OpenProject returned.
+
+    Never the reference it was requested by: from 17.3 OpenProject resolves a
+    former identifier to the renamed project, which no longer carries it.
+    """
+    return project_record_candidates(
+        payload.get("id"),
+        _trim_text(payload.get("identifier"), limit=SUBJECT_LIMIT),
+        _trim_text(payload.get("name"), limit=SUBJECT_LIMIT),
+    )
+
+
+def project_link_candidates(link: Any, *, settings: Settings, project_id_to_identifier: Mapping[int, str]) -> set[str]:
+    if not isinstance(link, dict):
+        return set()
     candidates: set[str] = set()
-    for value in (project_ref, identifier, name):
-        if value:
-            candidates.add(str(value).casefold())
-    if payload is not None:
-        identifier_value = _trim_text(payload.get("identifier"), limit=SUBJECT_LIMIT)
-        name_value = _trim_text(payload.get("name"), limit=SUBJECT_LIMIT)
-        if identifier_value:
-            candidates.add(identifier_value.casefold())
-        if name_value:
-            candidates.add(name_value.casefold())
-        project_id = payload.get("id")
+    href = link.get("href")
+    title = link.get("title")
+    if href:
+        project_id = project_id_from_href(href, settings=settings)
         if project_id is not None:
-            candidates.add(str(project_id).casefold())
-    if isinstance(link, dict):
-        href = link.get("href")
-        title = link.get("title")
-        if href:
-            project_id = project_id_from_href(href, settings=settings)
-            if project_id is not None:
-                candidates.add(str(project_id).casefold())
-                known_identifier = project_id_to_identifier.get(project_id)
-                if known_identifier:
-                    candidates.add(known_identifier.casefold())
-        if title:
-            title_cf = str(title).casefold()
-            candidates.add(title_cf)
-            # Also add an identifier-style variant (spaces → hyphens) so that a project
-            # named "My Project" matches the pattern "my-project" (its likely identifier).
-            candidates.add(title_cf.replace(" ", "-"))
-    return {candidate for candidate in candidates if candidate}
+            candidates.add(str(project_id))
+            known_identifier = project_id_to_identifier.get(project_id)
+            if known_identifier:
+                candidates.add(known_identifier.casefold())
+    if title:
+        title_cf = str(title).casefold()
+        candidates.add(title_cf)
+        # Also add an identifier-style variant (spaces → hyphens) so that a project
+        # named "My Project" matches the pattern "my-project" (its likely identifier).
+        candidates.add(title_cf.replace(" ", "-"))
+    return candidates
 
 
 def payload_allowed(ensure: Callable[[], None]) -> bool:
@@ -382,7 +379,7 @@ def ensure_project_link_allowed(link: Any, *, settings: Settings, project_id_to_
         raise ProjectScopeDeniedError("OpenProject access to this project is disabled by OPENPROJECT_READ_PROJECTS.")
     if scope_allows_all(settings.read_projects):
         return
-    candidates = project_candidates(project_id_to_identifier=project_id_to_identifier, settings=settings, link=link)
+    candidates = project_link_candidates(link, settings=settings, project_id_to_identifier=project_id_to_identifier)
     if not scope_matches_candidates(settings.read_projects, candidates):
         raise ProjectScopeDeniedError("OpenProject access to this project is disabled by OPENPROJECT_READ_PROJECTS.")
 
@@ -406,7 +403,7 @@ def ensure_project_write_link_allowed(
         raise ProjectScopeDeniedError("OpenProject writes to this project are disabled by OPENPROJECT_WRITE_PROJECTS.")
     if scope_allows_all(settings.write_projects):
         return
-    candidates = project_candidates(project_id_to_identifier=project_id_to_identifier, settings=settings, link=link)
+    candidates = project_link_candidates(link, settings=settings, project_id_to_identifier=project_id_to_identifier)
     if not scope_matches_candidates(settings.write_projects, candidates):
         raise ProjectScopeDeniedError("OpenProject writes to this project are disabled by OPENPROJECT_WRITE_PROJECTS.")
 
@@ -433,7 +430,7 @@ def ensure_project_link_allowed_if_present(
         raise ProjectScopeDeniedError("OpenProject access to this project is disabled by OPENPROJECT_READ_PROJECTS.")
     if scope_allows_all(settings.read_projects):
         return
-    candidates = project_candidates(project_id_to_identifier=project_id_to_identifier, settings=settings, link=link)
+    candidates = project_link_candidates(link, settings=settings, project_id_to_identifier=project_id_to_identifier)
     if not scope_matches_candidates(settings.read_projects, candidates):
         raise ProjectScopeDeniedError("OpenProject access to this project is disabled by OPENPROJECT_READ_PROJECTS.")
 
@@ -450,6 +447,6 @@ def ensure_project_write_link_allowed_if_present(
         raise ProjectScopeDeniedError("OpenProject writes to this project are disabled by OPENPROJECT_WRITE_PROJECTS.")
     if scope_allows_all(settings.write_projects):
         return
-    candidates = project_candidates(project_id_to_identifier=project_id_to_identifier, settings=settings, link=link)
+    candidates = project_link_candidates(link, settings=settings, project_id_to_identifier=project_id_to_identifier)
     if not scope_matches_candidates(settings.write_projects, candidates):
         raise ProjectScopeDeniedError("OpenProject writes to this project are disabled by OPENPROJECT_WRITE_PROJECTS.")

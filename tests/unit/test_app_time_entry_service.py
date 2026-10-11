@@ -850,3 +850,28 @@ async def test_list_all_project_filter_matches_the_project_id_not_its_name() -> 
     result = await service.list_all(project="demo-two")
 
     assert [entry.id for entry in result.results] == [8]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name", ["²", "٣"])
+async def test_list_all_reads_a_non_ascii_digit_user_as_a_name(name: str) -> None:
+    api = _FakeTimeEntryApi(records=[_summary(1, user=name), _summary(2, user="Someone Else")])
+    settings = dataclasses.replace(make_settings(), read_projects=("*",))
+    user_api = _FakeUserApi(name="Numeric User")
+    service = _service(api=api, settings=settings, user_api=user_api)
+
+    result = await service.list_all(user=name)
+
+    assert user_api.get_user_calls == []
+    assert [r.id for r in result.results] == [1]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name", ["²", "٣"])
+async def test_create_reads_a_non_ascii_digit_activity_as_a_name(name: str) -> None:
+    api = _FakeTimeEntryApi(activities=[_activity_summary(2, name="Support"), _activity_summary(5, name=name)])
+    service = _service(api=api)
+
+    await service.create(work_package_id=42, activity=name, hours="PT1H", spent_on="2026-03-20", confirm=False)
+
+    assert api.validate_create_calls[-1]["_links"]["activity"]["href"] == "/api/v3/time_entries/activities/5"
