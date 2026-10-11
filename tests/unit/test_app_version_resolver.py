@@ -149,3 +149,13 @@ async def test_resolve_does_not_match_a_blank_name_against_the_synthetic_display
 
     with pytest.raises(InvalidInputError, match="was not found in project"):
         await resolver.resolve_id("Version 9", project="demo")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("project", ["demo", None])
+@pytest.mark.parametrize("name", ["²", "٣"])
+async def test_resolve_reads_non_ascii_digits_as_a_name(name: str, project: str | None) -> None:
+    link = {"href": "/api/v3/projects/6", "title": "Demo"}
+    resolver = _resolver([_record(8, name, defining_project_link=link)])
+
+    assert await resolver.resolve_id(name, project=project) == "8"

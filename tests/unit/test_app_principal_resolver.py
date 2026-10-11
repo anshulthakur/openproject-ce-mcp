@@ -101,3 +101,12 @@ async def test_resolve_id_raises_when_ambiguous() -> None:
     resolver = PrincipalResolver(api=api, current_user=_current_user, settings=make_settings())
     with pytest.raises(InvalidInputError, match="ambiguous"):
         await resolver.resolve_id("Alice")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name", ["²", "٣"])
+async def test_resolve_id_reads_non_ascii_digits_as_a_name(name: str) -> None:
+    api = _FakePrincipalApi([_principal(7, name)])
+    resolver = PrincipalResolver(api=api, current_user=_current_user, settings=make_settings())
+    assert await resolver.resolve_id(name) == "7"
+    assert api.last_search == name

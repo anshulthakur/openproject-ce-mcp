@@ -583,3 +583,15 @@ async def test_delete_commits_and_stamps_result_when_confirmed() -> None:
     assert api.delete_calls == [1]
     assert committed.result is not None
     assert getattr(committed.result, "_hidden_keys", frozenset()) == {"principal_name"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name", ["²", "٣"])
+async def test_create_reads_a_non_ascii_digit_role_as_a_name(name: str) -> None:
+    role_api = _FakeRoleApi(records=[RoleRecord(summary=RoleSummary(id=4, name=name))])
+    api = _FakeMembershipApi()
+    service = _service(api, role_api=role_api)
+
+    await service.create(project="demo", principal="me", roles=[name], confirm=False)
+
+    assert api.create_form_calls[-1]["_links"]["roles"] == [{"href": "/api/v3/roles/4"}]

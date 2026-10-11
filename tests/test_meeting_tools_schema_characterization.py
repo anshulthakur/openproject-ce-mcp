@@ -57,6 +57,9 @@ def test_list_meetings_schema() -> None:
             "project": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -342,8 +345,15 @@ def test_create_meeting_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "project": {
+                "anyOf": [
+                    {
+                        "type": "integer",
+                    },
+                    {
+                        "type": "string",
+                    },
+                ],
                 "title": "Project",
-                "type": "string",
             },
             "title": {
                 "title": "Title",
@@ -425,7 +435,14 @@ def test_create_meeting_schema() -> None:
                 "anyOf": [
                     {
                         "items": {
-                            "type": "string",
+                            "anyOf": [
+                                {
+                                    "type": "integer",
+                                },
+                                {
+                                    "type": "string",
+                                },
+                            ],
                         },
                         "type": "array",
                     },
@@ -566,7 +583,14 @@ def test_update_meeting_schema() -> None:
                 "anyOf": [
                     {
                         "items": {
-                            "type": "string",
+                            "anyOf": [
+                                {
+                                    "type": "integer",
+                                },
+                                {
+                                    "type": "string",
+                                },
+                            ],
                         },
                         "type": "array",
                     },
@@ -1913,6 +1937,9 @@ def test_list_recurring_meetings_schema() -> None:
             "project": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -2234,8 +2261,15 @@ def test_create_recurring_meeting_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "project": {
+                "anyOf": [
+                    {
+                        "type": "integer",
+                    },
+                    {
+                        "type": "string",
+                    },
+                ],
                 "title": "Project",
-                "type": "string",
             },
             "title": {
                 "title": "Title",

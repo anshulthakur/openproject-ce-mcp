@@ -1,5 +1,5 @@
-"""The work package references OpenProject can resolve, as one pure rule shared
-by the tool layer and `app/`, neither of which may import the other."""
+"""The references OpenProject can resolve, as pure rules shared by the tool
+layer and `app/`, neither of which may import the other."""
 
 from __future__ import annotations
 
@@ -16,11 +16,17 @@ _NUMERIC = re.compile(r"[0-9]+")
 _DISPLAY_ID = re.compile(r"(?:[A-Z][A-Z0-9_]{0,9}|(?![0-9]+-[0-9]+\Z)[a-z0-9_-]{1,100})-[1-9][0-9]*")
 
 
+def is_numeric_ref(value: str) -> bool:
+    """Whether a reference is an id: ASCII digits only. `str.isdigit()` also
+    accepts superscripts and other scripts' digits, which are names here."""
+    return _NUMERIC.fullmatch(value) is not None
+
+
 def canonical_work_package_ref(value: int | str) -> str | None:
     """Return the reference as OpenProject resolves it, or None for a value it
     cannot resolve. A numeric id loses its leading zeros: OpenProject before
     17.4 reads "007" as 7, later versions as a display id that never exists."""
     text = str(value).strip()
-    if _NUMERIC.fullmatch(text):
+    if is_numeric_ref(text):
         return text.lstrip("0") or None
     return text if _DISPLAY_ID.fullmatch(text) else None

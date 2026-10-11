@@ -106,11 +106,11 @@ provider may transform or cache the catalog before billing it.
 
 | Configuration | Tools | Catalog tokens |
 | --- | ---: | ---: |
-| Fresh install, no project scope | 14 | ~3,677 |
-| Project reads, no writes | 85 | ~35,981 |
-| Work-package writes only | 109 | ~46,540 |
-| Every write scope | 178 | ~64,795 |
-| Every write scope plus extended metadata | 190 | ~66,712 |
+| Fresh install, no project scope | 14 | ~3,683 |
+| Project reads, no writes | 85 | ~36,323 |
+| Work-package writes only | 109 | ~47,164 |
+| Every write scope | 178 | ~65,786 |
+| Every write scope plus extended metadata | 190 | ~67,709 |
 
 The extended metadata group adds 12 rarely used tools and is opt-in through
 `OPENPROJECT_ENABLE_EXTENDED_READ=true`; see

@@ -60,7 +60,7 @@ def test_list_user_non_working_times_schema() -> None:
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "user_ref": {"title": "User Ref", "type": "string"},
+            "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
             "year": {
                 "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
@@ -95,7 +95,7 @@ def test_create_user_non_working_time_schema() -> None:
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "user_ref": {"title": "User Ref", "type": "string"},
+            "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
             "start_date": {"title": "Start Date", "type": "string"},
             "end_date": {"title": "End Date", "type": "string"},
             "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
@@ -124,7 +124,7 @@ def test_update_user_non_working_time_schema() -> None:
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "user_ref": {"title": "User Ref", "type": "string"},
+            "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
             "non_working_time_id": {"title": "Non Working Time Id", "type": "integer"},
             "start_date": {
                 "anyOf": [{"type": "string"}, {"type": "null"}],
@@ -164,7 +164,7 @@ def test_delete_user_non_working_time_schema() -> None:
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "user_ref": {"title": "User Ref", "type": "string"},
+            "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
             "non_working_time_id": {"title": "Non Working Time Id", "type": "integer"},
             "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
         },
@@ -195,7 +195,7 @@ def test_list_user_working_hours_schema() -> None:
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "user_ref": {"title": "User Ref", "type": "string"},
+            "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
             "offset": {"default": 1, "title": "Offset", "type": "integer"},
             "limit": {
                 "anyOf": [{"type": "integer"}, {"type": "null"}],
@@ -222,7 +222,7 @@ def test_get_user_working_hours_schema() -> None:
     assert tool.output_schema is not None
     assert tool.parameters == {
         "properties": {
-            "user_ref": {"title": "User Ref", "type": "string"},
+            "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
             "working_hours_id": {"title": "Working Hours Id", "type": "integer"},
         },
         "required": ["user_ref", "working_hours_id"],
@@ -270,7 +270,7 @@ def test_create_user_working_hours_schema() -> None:
     }
     assert tool.parameters == {
         "properties": {
-            "user_ref": {"title": "User Ref", "type": "string"},
+            "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
             "valid_from": {"title": "Valid From", "type": "string"},
             **day_props,
             "availability_factor": {
@@ -327,7 +327,7 @@ def test_update_user_working_hours_schema() -> None:
     }
     assert tool.parameters == {
         "properties": {
-            "user_ref": {"title": "User Ref", "type": "string"},
+            "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
             "working_hours_id": {"title": "Working Hours Id", "type": "integer"},
             "valid_from": {
                 "anyOf": [{"type": "string"}, {"type": "null"}],
@@ -374,7 +374,7 @@ def test_delete_user_working_hours_schema() -> None:
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "user_ref": {"title": "User Ref", "type": "string"},
+            "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
             "working_hours_id": {"title": "Working Hours Id", "type": "integer"},
             "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
         },

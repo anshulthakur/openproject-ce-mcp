@@ -20,6 +20,7 @@ import asyncio
 from collections.abc import Iterable, Mapping
 
 from ...config import Settings
+from ...work_package_reference import is_numeric_ref
 from ..errors import NotFoundError
 from ..policies import scope as scope_policy
 from ..ports.work_package_lookup_api import WorkPackageLookupApi
@@ -73,7 +74,7 @@ class WorkPackageResolver:
         try:
             payload = await self._api.get(reference)
         except NotFoundError as exc:
-            if reference.isdigit():
+            if is_numeric_ref(reference):
                 raise
             # A project-prefixed reference only resolves on OpenProject 17.5+, or
             # 17.4 with its feature flag, and requires the exact, case-sensitive

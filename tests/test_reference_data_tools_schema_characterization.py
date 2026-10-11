@@ -250,6 +250,9 @@ def test_list_types_schema() -> None:
             "project": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {

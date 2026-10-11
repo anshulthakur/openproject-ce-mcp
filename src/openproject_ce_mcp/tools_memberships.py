@@ -28,6 +28,7 @@ from .models import (
     RoleListResult,
     RoleSummary,
 )
+from .tool_types import IdOrName
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
     _validate_limit,
@@ -37,8 +38,8 @@ from .tools_validation import (
     _validate_optional_text,
     _validate_positive_int,
     _validate_project_ref,
-    _validate_required_query,
-    _validate_required_string_list,
+    _validate_ref,
+    _validate_required_ref_list,
     _validate_select,
 )
 
@@ -87,7 +88,7 @@ async def list_actions(
 @register_tool
 async def list_capabilities(
     ctx: Context,
-    project: str | None = None,
+    project: IdOrName | None = None,
     capability_id: str | None = None,
     offset: int = 1,
     limit: int | None = None,
@@ -124,7 +125,7 @@ async def list_capabilities(
 @register_tool
 async def list_project_memberships(
     ctx: Context,
-    project: str,
+    project: IdOrName,
     offset: int = 1,
     limit: int | None = None,
     select: list[str] | None = None,
@@ -159,17 +160,17 @@ async def get_membership(
 @register_tool
 async def create_membership(
     ctx: Context,
-    project: str,
-    principal: str,
-    roles: list[str],
+    project: IdOrName,
+    principal: IdOrName,
+    roles: list[IdOrName],
     notification_message: str | None = None,
     confirm: bool = False,
 ) -> MembershipWriteResult:
     """Prepare or create a project membership."""
     client = _client_from_context(ctx)
     safe_project = _validate_project_ref(project)
-    safe_principal = _validate_required_query(principal, field_name="principal", max_length=255)
-    safe_roles = _validate_required_string_list(roles, field_name="roles", max_items=20, item_max_length=100)
+    safe_principal = _validate_ref(principal, field_name="principal", max_length=255)
+    safe_roles = _validate_required_ref_list(roles, field_name="roles", max_items=20, item_max_length=100)
     safe_notification_message = _validate_optional_text(
         notification_message, field_name="notification_message", max_length=None
     )
@@ -188,14 +189,14 @@ async def create_membership(
 async def update_membership(
     ctx: Context,
     membership_id: int,
-    roles: list[str],
+    roles: list[IdOrName],
     notification_message: str | None = None,
     confirm: bool = False,
 ) -> MembershipWriteResult:
     """Prepare or update a project membership."""
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(membership_id, field_name="membership_id")
-    safe_roles = _validate_required_string_list(roles, field_name="roles", max_items=20, item_max_length=100)
+    safe_roles = _validate_required_ref_list(roles, field_name="roles", max_items=20, item_max_length=100)
     safe_notification_message = _validate_optional_text(
         notification_message, field_name="notification_message", max_length=None
     )

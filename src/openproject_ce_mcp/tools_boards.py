@@ -15,6 +15,7 @@ from typing import Any
 from mcp.server.mcpserver import Context
 
 from .models import BoardDetail, BoardListResult, BoardSummary, BoardWriteResult
+from .tool_types import IdOrName
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
     _require_at_least_one,
@@ -32,7 +33,7 @@ from .tools_validation import (
 @register_tool
 async def list_boards(
     ctx: Context,
-    project: str | None = None,
+    project: IdOrName | None = None,
     search: str | None = None,
     offset: int = 1,
     limit: int | None = None,
@@ -71,7 +72,7 @@ async def get_board(
 
 def _validate_board_query_fields(
     *,
-    project: str | None,
+    project: int | str | None,
     group_by: str | None,
     columns: list[str] | None,
     sort_by: list[str] | None,
@@ -100,7 +101,7 @@ def _validate_board_query_fields(
 async def create_board(
     ctx: Context,
     name: str,
-    project: str | None = None,
+    project: IdOrName | None = None,
     public: bool | None = None,
     starred: bool | None = None,
     hidden: bool | None = None,
@@ -150,7 +151,7 @@ async def update_board(
     ctx: Context,
     board_id: int,
     name: str | None = None,
-    project: str | None = None,
+    project: IdOrName | None = None,
     public: bool | None = None,
     starred: bool | None = None,
     hidden: bool | None = None,

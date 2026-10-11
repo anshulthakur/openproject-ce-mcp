@@ -91,3 +91,11 @@ async def test_resolve_id_does_not_match_a_blank_name_against_the_synthetic_disp
     resolver = TypeResolver(api=api, resolve_project_ref=_resolve_project_ref)
     with pytest.raises(InvalidInputError, match="was not found in project"):
         await resolver.resolve_id("Type 9", project="5")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name", ["²", "٣"])
+async def test_resolve_id_reads_non_ascii_digits_as_a_name(name: str) -> None:
+    api = _FakeApi(types=[_type(9, name)])
+    resolver = TypeResolver(api=api, resolve_project_ref=_resolve_project_ref)
+    assert await resolver.resolve_id(name, project="5") == "9"

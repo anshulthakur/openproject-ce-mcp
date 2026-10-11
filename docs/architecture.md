@@ -102,6 +102,9 @@ src/openproject_ce_mcp/
   categorization, and the return-model/select-trimming machinery.
 - `tools_validation.py` holds the generic, domain-crossing field validators
   every domain module imports from.
+- `tool_types.py` holds the annotations tool signatures share: `IdOrName` for a
+  reference that takes a numeric id or a name, strict so that a JSON `true` or
+  `7.0` is rejected instead of read as an id.
 - Every tool result is a `models.py` dataclass trimmed by the presentation seam
   (`presentation._to_payload`: `select`, hidden-field masking, confirmed-payload
   drop). The one thing JSON cannot carry -- an attachment's image or text as a
@@ -416,7 +419,9 @@ the project's id, current identifier and name. A grid's `_links.project`
 Work package references follow the same idea in
 `work_package_reference.py`: a canonical numeric id or `<slug>-<sequence>`,
 the slug semantic (`PROJ`) or classic (`my-proj`), which is what
-`WorkPackage.find` resolves; anything else is rejected before a request.
+`WorkPackage.find` resolves; anything else is rejected before a request. The
+same module's `is_numeric_ref` is the one rule for when any reference is an
+id: ASCII digits only, shared by the tool validators and the resolvers.
 
 An `ast`-based test (`tests/test_architecture_boundaries.py`) enforces the layer
 directions above, confines `httpx` to `HttpxTransport`, forbids importing the

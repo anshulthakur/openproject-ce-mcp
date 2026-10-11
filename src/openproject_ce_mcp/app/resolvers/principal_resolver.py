@@ -25,6 +25,7 @@ module docstring for the full rationale.
 from __future__ import annotations
 
 from ...config import Settings
+from ...work_package_reference import is_numeric_ref
 from ..errors import InvalidInputError
 from ..pagination import effective_limit as _effective_limit
 from ..ports.current_user import CurrentUserLookup
@@ -41,7 +42,7 @@ class PrincipalResolver:
         if principal_ref.casefold() == "me":
             current_user = await self._current_user()
             return str(current_user.id)
-        if principal_ref.isdigit():
+        if is_numeric_ref(principal_ref):
             return principal_ref
 
         # Capped by both max_page_size and max_results (min of the two, via

@@ -33,6 +33,7 @@ from .models import (
     UserSummary,
     UserWriteResult,
 )
+from .tool_types import IdOrName
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
     _require_at_least_one,
@@ -41,6 +42,7 @@ from .tools_validation import (
     _validate_offset,
     _validate_optional_query,
     _validate_positive_int,
+    _validate_ref,
     _validate_required_query,
     _validate_select,
 )
@@ -96,11 +98,11 @@ async def list_users(
 @register_tool
 async def get_user(
     ctx: Context,
-    user: str,
+    user: IdOrName,
 ) -> UserDetail:
     """Get a user by id, login, or `me` when supported by OpenProject."""
     client = _client_from_context(ctx)
-    safe_user = _validate_required_query(user, field_name="user", max_length=100)
+    safe_user = _validate_ref(user, field_name="user", max_length=100)
     return await _run_tool(client.user.get_user(safe_user))
 
 

@@ -69,6 +69,9 @@ def test_list_time_entries_schema() -> None:
             "project": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -95,6 +98,9 @@ def test_list_time_entries_schema() -> None:
             },
             "user": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },
@@ -420,8 +426,15 @@ def test_create_time_entry_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "activity": {
+                "anyOf": [
+                    {
+                        "type": "integer",
+                    },
+                    {
+                        "type": "string",
+                    },
+                ],
                 "title": "Activity",
-                "type": "string",
             },
             "hours": {
                 "title": "Hours",
@@ -433,6 +446,9 @@ def test_create_time_entry_schema() -> None:
             },
             "project": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },
@@ -460,6 +476,9 @@ def test_create_time_entry_schema() -> None:
             },
             "user": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },
@@ -548,6 +567,9 @@ def test_update_time_entry_schema() -> None:
             "user": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -559,6 +581,9 @@ def test_update_time_entry_schema() -> None:
             },
             "activity": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },
@@ -664,8 +689,15 @@ def test_create_time_entry_until_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "activity": {
+                "anyOf": [
+                    {
+                        "type": "integer",
+                    },
+                    {
+                        "type": "string",
+                    },
+                ],
                 "title": "Activity",
-                "type": "string",
             },
             "start_time": {
                 "title": "Start Time",
@@ -681,6 +713,9 @@ def test_create_time_entry_until_schema() -> None:
             },
             "project": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },
@@ -708,6 +743,9 @@ def test_create_time_entry_until_schema() -> None:
             },
             "user": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },
@@ -779,6 +817,9 @@ def test_update_time_entry_until_schema() -> None:
             "user": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -790,6 +831,9 @@ def test_update_time_entry_until_schema() -> None:
             },
             "activity": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },

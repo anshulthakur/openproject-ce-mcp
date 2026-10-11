@@ -144,7 +144,11 @@ def test_list_query_filter_instance_schemas_schema() -> None:
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "project": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Project"},
+            "project": {
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                "default": None,
+                "title": "Project",
+            },
         },
         "title": "list_query_filter_instance_schemasArguments",
         "type": "object",

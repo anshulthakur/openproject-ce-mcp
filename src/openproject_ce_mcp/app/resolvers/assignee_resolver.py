@@ -11,6 +11,7 @@ as the Port" pin test applies here (there is no `api` param to mistype).
 
 from __future__ import annotations
 
+from ...work_package_reference import is_numeric_ref
 from ..errors import InvalidInputError
 from ..ports.current_user import CurrentUserLookup
 
@@ -23,6 +24,6 @@ class AssigneeResolver:
         if assignee_ref.casefold() == "me":
             current_user = await self._current_user()
             return str(current_user.id)
-        if assignee_ref.isdigit():
+        if is_numeric_ref(assignee_ref):
             return assignee_ref
         raise InvalidInputError("assignee must be a positive integer user id or 'me'.")

@@ -32,6 +32,7 @@ gate logic of its own, so this resolver's no-gate contract is unchanged.
 
 from __future__ import annotations
 
+from ...work_package_reference import is_numeric_ref
 from ..caches import SingletonCache
 from ..errors import InvalidInputError
 from ..ports.status_priority_type_api import PriorityRecord, StatusPriorityTypeApi, StatusRecord
@@ -50,7 +51,7 @@ class StatusPriorityTypeResolver:
         self._priorities_cache = priorities_cache
 
     async def resolve_status_id(self, status_ref: str) -> str:
-        if status_ref.isdigit():
+        if is_numeric_ref(status_ref):
             return status_ref
         if self._statuses_cache.value is None:
             self._statuses_cache.value = await self._api.list_statuses()
@@ -64,7 +65,7 @@ class StatusPriorityTypeResolver:
         return matches[0]
 
     async def resolve_priority_id(self, priority_ref: str) -> str:
-        if priority_ref.isdigit():
+        if is_numeric_ref(priority_ref):
             return priority_ref
         if self._priorities_cache.value is None:
             self._priorities_cache.value = await self._api.list_priorities()

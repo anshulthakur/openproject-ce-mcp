@@ -53,8 +53,15 @@ def test_list_categories_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "project": {
+                "anyOf": [
+                    {
+                        "type": "integer",
+                    },
+                    {
+                        "type": "string",
+                    },
+                ],
                 "title": "Project",
-                "type": "string",
             },
             "select": {
                 "anyOf": [
@@ -156,6 +163,9 @@ def test_get_category_schema() -> None:
             },
             "project": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },

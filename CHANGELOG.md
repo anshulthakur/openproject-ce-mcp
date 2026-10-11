@@ -46,7 +46,18 @@ development baseline.
 - `create_work_package`, `update_work_package` and `create_subtask` accept a
   numeric `parent`, `assignee` and `responsible` (a JSON number such as `7`),
   not only a string; `bulk_update_work_packages` items accept a numeric
-  `assignee` and `responsible` too.
+  `assignee` and `responsible` too, and every other tool that takes a
+  reference to a project, type, status, priority, version, category, phase,
+  sprint, activity, user, principal or role accepts the id as a JSON number
+  too. `get_user`, the user-schedule `user_ref` tools and the
+  `list_time_entries` `user` filter pass the reference to OpenProject, which
+  also matches it against the login.
+- A project given as an all-digit value is looked up by id only; a missing id
+  no longer falls back to a project whose name contains those digits.
+  Category, priority, phase and `responsible` values given as digits match by
+  id only, not by a title made of those digits.
+- In `bulk_create_work_packages` items, `project` and `type` reject a boolean
+  or a decimal number instead of using it as a name such as "True".
 - A confirmed `delete_project`, `delete_user` or `delete_group` no longer
   reports the deletion as done: OpenProject only schedules it and deletes in a
   background job, and the message now says so. A confirmed `delete_project`

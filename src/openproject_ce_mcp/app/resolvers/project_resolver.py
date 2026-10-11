@@ -30,6 +30,7 @@ from typing import Any
 
 from ...config import Settings
 from ...models import ProjectSummary
+from ...work_package_reference import is_numeric_ref
 from ..errors import InvalidInputError, NotFoundError
 from ..policies import project_policy
 from ..ports.project_api import FORMATTABLE_LIMIT, ProjectApi, ProjectRecord
@@ -68,10 +69,10 @@ class ProjectResolver:
         """Resolve a project by numeric id, exact identifier, or (as a fallback) display name.
 
         Numeric id / identifier is tried first via a direct GET (cheap, unchanged from before this
-        fallback existed). Only when that 404s do we fall back to a name search via list_projects.
-        Identifiers are unique in OpenProject by construction; display names are not, so an exact-name
-        match is only trusted once the search has confirmed there is no second project with that same
-        name (see _resolve_by_name_record for the exact algorithm).
+        fallback existed). Only when that 404s for a non-numeric reference do we fall back to a name
+        search via list_projects. Identifiers are unique in OpenProject by construction; display names
+        are not, so an exact-name match is only trusted once the search has confirmed there is no second
+        project with that same name (see _resolve_by_name_record for the exact algorithm).
         """
         try:
             record: ProjectRecord | None = await self._api.get(project_ref, text_limit=text_limit)
@@ -95,6 +96,10 @@ class ProjectResolver:
                     project_id_to_identifier=self._project_id_to_identifier,
                 )
             return record
+        if is_numeric_ref(project_ref):
+            # OpenProject never allows an all-digit identifier, so this was an id; a name
+            # search would substring-match it, e.g. "7" against a project named "Release 2027".
+            raise NotFoundError(f"OpenProject project '{project_ref}' was not found. Call list_projects.")
         return await self._resolve_by_name_record(project_ref, write=write, text_limit=text_limit)
 
     async def _resolve_by_name_record(self, project_ref: str, *, write: bool, text_limit: int | None) -> ProjectRecord:

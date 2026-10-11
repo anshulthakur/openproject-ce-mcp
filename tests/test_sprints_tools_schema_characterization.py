@@ -55,6 +55,9 @@ def test_list_sprints_schema() -> None:
             "project": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -249,6 +252,9 @@ def test_list_backlog_buckets_schema() -> None:
         "properties": {
             "project": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },

@@ -117,7 +117,7 @@ def test_list_capabilities_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "project": {
-                "anyOf": [{"type": "string"}, {"type": "null"}],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
                 "title": "Project",
             },
@@ -158,7 +158,7 @@ def test_list_project_memberships_schema() -> None:
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "project": {"title": "Project", "type": "string"},
+            "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
             "offset": {"default": 1, "title": "Offset", "type": "integer"},
             "limit": {
                 "anyOf": [{"type": "integer"}, {"type": "null"}],
@@ -250,9 +250,9 @@ def test_create_membership_schema() -> None:
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "project": {"title": "Project", "type": "string"},
-            "principal": {"title": "Principal", "type": "string"},
-            "roles": {"items": {"type": "string"}, "title": "Roles", "type": "array"},
+            "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
+            "principal": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Principal"},
+            "roles": {"items": {"anyOf": [{"type": "integer"}, {"type": "string"}]}, "title": "Roles", "type": "array"},
             "notification_message": {
                 "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
@@ -282,7 +282,7 @@ def test_update_membership_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "membership_id": {"title": "Membership Id", "type": "integer"},
-            "roles": {"items": {"type": "string"}, "title": "Roles", "type": "array"},
+            "roles": {"items": {"anyOf": [{"type": "integer"}, {"type": "string"}]}, "title": "Roles", "type": "array"},
             "notification_message": {
                 "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,

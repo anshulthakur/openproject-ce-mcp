@@ -13,6 +13,7 @@ never-synthesized name), not `summary.name` -- see
 
 from __future__ import annotations
 
+from ...work_package_reference import is_numeric_ref
 from ..errors import InvalidInputError
 from ..ports.project_ref import ProjectRefResolver
 from ..ports.project_resolution import ProjectResolutionContext
@@ -27,7 +28,7 @@ class TypeResolver:
     async def resolve_id(
         self, type_ref: str, *, project: str | None, context: ProjectResolutionContext | None = None
     ) -> str:
-        if type_ref.isdigit():
+        if is_numeric_ref(type_ref):
             return type_ref
         if not project:
             raise InvalidInputError("type names require a project filter. Pass a numeric type id or set project.")

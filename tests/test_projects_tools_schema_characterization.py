@@ -332,8 +332,15 @@ def test_get_project_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "project": {
+                "anyOf": [
+                    {
+                        "type": "integer",
+                    },
+                    {
+                        "type": "string",
+                    },
+                ],
                 "title": "Project",
-                "type": "string",
             },
             "text_limit": {
                 "anyOf": [
@@ -719,8 +726,15 @@ def test_get_project_admin_context_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "project": {
+                "anyOf": [
+                    {
+                        "type": "integer",
+                    },
+                    {
+                        "type": "string",
+                    },
+                ],
                 "title": "Project",
-                "type": "string",
             },
         },
         "required": ["project"],
@@ -866,8 +880,15 @@ def test_get_project_configuration_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "project": {
+                "anyOf": [
+                    {
+                        "type": "integer",
+                    },
+                    {
+                        "type": "string",
+                    },
+                ],
                 "title": "Project",
-                "type": "string",
             },
         },
         "required": ["project"],
@@ -959,6 +980,9 @@ def test_create_project_schema() -> None:
             "parent": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -1003,8 +1027,15 @@ def test_copy_project_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "source_project": {
+                "anyOf": [
+                    {
+                        "type": "integer",
+                    },
+                    {
+                        "type": "string",
+                    },
+                ],
                 "title": "Source Project",
-                "type": "string",
             },
             "name": {
                 "title": "Name",
@@ -1076,6 +1107,9 @@ def test_copy_project_schema() -> None:
             },
             "parent": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },
@@ -1257,8 +1291,15 @@ def test_update_project_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "project": {
+                "anyOf": [
+                    {
+                        "type": "integer",
+                    },
+                    {
+                        "type": "string",
+                    },
+                ],
                 "title": "Project",
-                "type": "string",
             },
             "name": {
                 "anyOf": [
@@ -1347,6 +1388,9 @@ def test_update_project_schema() -> None:
             "parent": {
                 "anyOf": [
                     {
+                        "type": "integer",
+                    },
+                    {
                         "type": "string",
                     },
                     {
@@ -1389,8 +1433,15 @@ def test_delete_project_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "project": {
+                "anyOf": [
+                    {
+                        "type": "integer",
+                    },
+                    {
+                        "type": "string",
+                    },
+                ],
                 "title": "Project",
-                "type": "string",
             },
             "confirm": {
                 "default": False,
@@ -1604,8 +1655,15 @@ def test_get_my_project_access_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "project": {
+                "anyOf": [
+                    {
+                        "type": "integer",
+                    },
+                    {
+                        "type": "string",
+                    },
+                ],
                 "title": "Project",
-                "type": "string",
             },
         },
         "required": ["project"],
@@ -1984,6 +2042,9 @@ def test_list_project_storages_schema() -> None:
         "properties": {
             "project": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },
@@ -2545,11 +2606,21 @@ def test_get_project_work_package_context_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "project": {
+                "anyOf": [
+                    {
+                        "type": "integer",
+                    },
+                    {
+                        "type": "string",
+                    },
+                ],
                 "title": "Project",
-                "type": "string",
             },
             "type": {
                 "anyOf": [
+                    {
+                        "type": "integer",
+                    },
                     {
                         "type": "string",
                     },
@@ -2625,8 +2696,15 @@ def test_set_project_favorite_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "project": {
+                "anyOf": [
+                    {
+                        "type": "integer",
+                    },
+                    {
+                        "type": "string",
+                    },
+                ],
                 "title": "Project",
-                "type": "string",
             },
             "favorite": {
                 "title": "Favorite",

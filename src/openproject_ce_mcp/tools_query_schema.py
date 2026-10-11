@@ -21,6 +21,7 @@ from .models import (
     QueryOperatorSummary,
     QuerySortBySummary,
 )
+from .tool_types import IdOrName
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import _validate_optional_project_ref, _validate_required_query
 
@@ -72,7 +73,7 @@ async def get_query_sort_by(
 @register_tool
 async def list_query_filter_instance_schemas(
     ctx: Context,
-    project: str | None = None,
+    project: IdOrName | None = None,
 ) -> QueryFilterInstanceSchemaListResult:
     """List query filter instance schemas globally or for a project."""
     client = _client_from_context(ctx)

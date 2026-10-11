@@ -38,6 +38,7 @@ class _FakeProjectApi:
     def __init__(self, records: list[ProjectRecord]) -> None:
         self._records = records
         self.get_calls: list[tuple[str, object]] = []
+        self.list_searches: list[str | None] = []
 
     async def get(self, project_ref: str, *, text_limit=None) -> ProjectRecord:
         self.get_calls.append((project_ref, text_limit))
@@ -49,6 +50,7 @@ class _FakeProjectApi:
     async def list(
         self, *, server_offset: int, server_page_size: int, search: str | None, text_limit=None
     ) -> ProjectPage:
+        self.list_searches.append(search)
         if server_offset > 1:
             return ProjectPage(records=[], server_total=len(self._records), exhausted=True)
         matches = self._records
@@ -259,3 +261,24 @@ async def test_resolve_record_text_limit_is_forwarded_through_the_name_fallback(
 
     assert ("Demo Project", None) in api.get_calls
     assert ("6", None) in api.get_calls
+
+
+@pytest.mark.asyncio
+async def test_an_all_digit_reference_is_an_id_only_and_never_a_name_search() -> None:
+    resolver, api = _resolver_with_api([_record(6, "Release 2027", identifier="release")])
+
+    with pytest.raises(NotFoundError, match="OpenProject project '7' was not found"):
+        await resolver.resolve("7")
+
+    assert api.list_searches == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name", ["Build ²", "Build ٣"])
+async def test_non_ascii_digits_are_a_name(name: str) -> None:
+    resolver, api = _resolver_with_api([_record(6, name, identifier="build")])
+
+    payload = await resolver.resolve(name[-1])
+
+    assert payload["id"] == 6
+    assert api.list_searches == [name[-1]]

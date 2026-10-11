@@ -42,6 +42,7 @@ from .models import (
     RecurringMeetingSummary,
     RecurringMeetingWriteResult,
 )
+from .tool_types import IdOrName
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
     _require_at_least_one,
@@ -77,7 +78,7 @@ _MEETING_OUTCOME_KINDS = {"information", "decision", "work_package"}
 @register_tool
 async def list_meetings(
     ctx: Context,
-    project: str | None = None,
+    project: IdOrName | None = None,
     offset: int = 1,
     limit: int | None = None,
 ) -> MeetingListResult:
@@ -114,7 +115,7 @@ async def get_meeting(ctx: Context, meeting_id: int) -> MeetingSummary:
 @register_tool
 async def create_meeting(
     ctx: Context,
-    project: str,
+    project: IdOrName,
     title: str,
     location: str | None = None,
     start_time: str | None = None,
@@ -122,7 +123,7 @@ async def create_meeting(
     state: str | None = None,
     sharing: str | None = None,
     notify: bool | None = None,
-    participant_user_refs: list[str] | None = None,
+    participant_user_refs: list[IdOrName] | None = None,
     confirm: bool = False,
 ) -> MeetingWriteResult:
     """Prepare or create an OpenProject meeting; only writes when called
@@ -172,7 +173,7 @@ async def update_meeting(
     state: str | None = None,
     sharing: str | None = None,
     notify: bool | None = None,
-    participant_user_refs: list[str] | None = None,
+    participant_user_refs: list[IdOrName] | None = None,
     lock_version: int | None = None,
     confirm: bool = False,
 ) -> MeetingWriteResult:
@@ -657,7 +658,7 @@ async def delete_meeting_section(ctx: Context, section_id: int, confirm: bool = 
 @register_tool
 async def list_recurring_meetings(
     ctx: Context,
-    project: str | None = None,
+    project: IdOrName | None = None,
     offset: int = 1,
     limit: int | None = None,
 ) -> RecurringMeetingListResult:
@@ -694,7 +695,7 @@ async def get_recurring_meeting(ctx: Context, recurring_meeting_id: int) -> Recu
 @register_tool
 async def create_recurring_meeting(
     ctx: Context,
-    project: str,
+    project: IdOrName,
     title: str,
     frequency: str,
     start_time: str,
