@@ -24,6 +24,9 @@ development baseline.
 
 - Listed in the official MCP Registry as
   `io.github.jtauschl/openproject-ce-mcp`.
+- Installable on macOS with Homebrew from the `jtauschl/tap` tap:
+  `brew tap jtauschl/tap`, `brew trust --formula jtauschl/tap/openproject-ce-mcp`,
+  then `brew install openproject-ce-mcp`.
 
 ### Changed
 
