@@ -40,6 +40,8 @@ development baseline.
 
 ### Fixed
 
+- `list_work_package_file_links` takes `offset` and `limit`, so file links
+  beyond the first page can be listed with the `next_offset` it returns.
 - Tool descriptions no longer state wrong facts: `get_project`,
   `set_project_favorite` and `list_sprints` accept a project name too; the
   get, create, update and delete tools for agenda items and sections need
