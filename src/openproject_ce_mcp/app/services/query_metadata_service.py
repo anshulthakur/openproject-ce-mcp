@@ -2,8 +2,10 @@
 
 Depends on the QueryMetadataApi Protocol, never HttpxQueryMetadataApi
 concretely (enforced by the architecture-boundary test). No dedicated
-Resolver for any of the five: filter/column/operator/sort-by/schema ids are
-opaque strings, not semantic references needing lookup.
+Resolver for any of the five: filter/column/operator/schema ids are opaque
+strings, not semantic references needing lookup. A sort-by id is parsed into
+a `SortCriterion` here, before any request, for the request path only; the
+result reports the id as the caller gave it.
 
 All five share `access.ensure_read_enabled("board", ...)` as their gate
 (these describe the query/board schema, not a dedicated
@@ -32,6 +34,8 @@ from ...models import (
     QueryOperatorSummary,
     QuerySortBySummary,
 )
+from ...sort_criteria import parse_sort_criterion
+from ..errors import InvalidInputError
 from ..policies import access, hidden_fields
 from ..ports.project_ref import ProjectRefResolver
 from ..ports.query_metadata_api import QueryMetadataApi
@@ -66,7 +70,11 @@ class QueryMetadataService:
 
     async def get_sort_by(self, sort_by_id: str) -> QuerySortBySummary:
         access.ensure_read_enabled("board", settings=self._settings)
-        record = await self._api.get_sort_by(sort_by_id)
+        try:
+            criterion = parse_sort_criterion(sort_by_id, label="sort_by_id")
+        except ValueError as exc:
+            raise InvalidInputError(str(exc)) from exc
+        record = await self._api.get_sort_by(criterion, requested_id=sort_by_id)
         return hidden_fields.apply_hidden_fields("query_sort_by", record.summary, settings=self._settings)
 
     async def list_filter_instance_schemas(self, *, project: str | None = None) -> QueryFilterInstanceSchemaListResult:

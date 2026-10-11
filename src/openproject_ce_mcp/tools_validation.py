@@ -17,6 +17,7 @@ from typing import Any
 
 from .config import TEXT_LIMIT_MAX
 from .models import SortCriterion
+from .sort_criteria import parse_sort_by
 from .work_package_reference import canonical_work_package_ref, is_numeric_ref
 
 PROJECT_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -765,53 +766,26 @@ def _describe_valid_fields(allowed: frozenset[str]) -> str:
 
 
 def _validate_sort_by(values: list[str] | None) -> list[SortCriterion] | None:
-    """Validate and parse sort_by list into list of SortCriterion objects.
-
-    Validates format, field name pattern, and parses each item.
-    Returns None if input is None.
-    Raises ValueError if any item is invalid.
+    """Parse sort_by into SortCriterion objects, each field checked against
+    OpenProject's sortable work-package columns. Returns None for None or an
+    empty list. Raises ValueError if any item is invalid.
     """
     if values is None:
         return None
     if not isinstance(values, list):
         raise ValueError("sort_by must be a list of strings")
 
-    result = []
-    for i, item in enumerate(values):
-        if not isinstance(item, str):
-            raise ValueError(f"sort_by[{i}] must be a string, got {type(item).__name__}")
-
-        item = item.strip()
-        if not item:
-            raise ValueError(f"sort_by[{i}] cannot be empty")
-
-        if ":" in item:
-            parts = item.split(":", 1)
-            field = parts[0].strip()
-            direction = parts[1].strip().lower()
-
-            if not field:
-                raise ValueError(f"sort_by[{i}]: field name cannot be empty")
-            if direction not in ("asc", "desc"):
-                raise ValueError(f"sort_by[{i}]: direction must be 'asc' or 'desc', got '{direction}'")
-        else:
-            field = item
-            direction = "asc"
-
-        if not field.replace("_", "").replace(".", "").isalnum():
+    criteria = parse_sort_by(values, field_name="sort_by")
+    for i, criterion in enumerate(criteria):
+        if criterion.field not in _SORTABLE_WORK_PACKAGE_FIELDS and not _CUSTOM_FIELD_PATTERN.fullmatch(
+            criterion.field
+        ):
             raise ValueError(
-                f"sort_by[{i}]: field name '{field}' contains invalid characters "
-                "(only alphanumeric, underscore, and dot allowed)"
-            )
-        if field not in _SORTABLE_WORK_PACKAGE_FIELDS and not _CUSTOM_FIELD_PATTERN.fullmatch(field):
-            raise ValueError(
-                f"sort_by[{i}]: unknown field '{field}'. "
+                f"sort_by[{i}]: unknown field '{criterion.field}'. "
                 f"Valid fields are: {_describe_valid_fields(_SORTABLE_WORK_PACKAGE_FIELDS)}."
             )
 
-        result.append(SortCriterion(field=field, direction=direction))
-
-    return result if result else None
+    return criteria or None
 
 
 def _validate_group_by(value: str | None) -> str | None:

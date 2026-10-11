@@ -5,7 +5,7 @@ import dataclasses
 import pytest
 from _client_test_helpers import make_settings
 
-from openproject_ce_mcp.app.errors import PermissionDeniedError
+from openproject_ce_mcp.app.errors import InvalidInputError, PermissionDeniedError
 from openproject_ce_mcp.app.ports.query_metadata_api import (
     QueryColumnRecord,
     QueryFilterInstanceSchemaRecord,
@@ -20,6 +20,7 @@ from openproject_ce_mcp.models import (
     QueryFilterSummary,
     QueryOperatorSummary,
     QuerySortBySummary,
+    SortCriterion,
 )
 from openproject_ce_mcp.presentation import _to_payload
 
@@ -71,16 +72,17 @@ class _FakeQueryMetadataApi:
         filters: dict[str, QueryFilterRecord] | None = None,
         columns: dict[str, QueryColumnRecord] | None = None,
         operators: dict[str, QueryOperatorRecord] | None = None,
-        sort_bys: dict[str, QuerySortByRecord] | None = None,
+        sort_bys: dict[SortCriterion, QuerySortByRecord] | None = None,
         schemas: list[QueryFilterInstanceSchemaRecord] | None = None,
     ) -> None:
         self._filters = filters or {"assignee": QueryFilterRecord(summary=_filter_summary())}
         self._columns = columns or {"subject": QueryColumnRecord(summary=_column_summary())}
         self._operators = operators or {"=": QueryOperatorRecord(summary=_operator_summary())}
-        self._sort_bys = sort_bys or {"subject:asc": QuerySortByRecord(summary=_sort_by_summary())}
+        self._sort_bys = sort_bys or {SortCriterion("subject", "asc"): QuerySortByRecord(summary=_sort_by_summary())}
         self._schemas = schemas if schemas is not None else [QueryFilterInstanceSchemaRecord(summary=_schema_summary())]
         self._schemas_by_id = {s.summary.id: s for s in self._schemas}
         self.list_filter_instance_schemas_calls: list[int | None] = []
+        self.get_sort_by_calls: list[tuple[SortCriterion, str]] = []
 
     async def get_filter(self, filter_id: str) -> QueryFilterRecord:
         return self._filters[filter_id]
@@ -91,8 +93,9 @@ class _FakeQueryMetadataApi:
     async def get_operator(self, operator_id: str) -> QueryOperatorRecord:
         return self._operators[operator_id]
 
-    async def get_sort_by(self, sort_by_id: str) -> QuerySortByRecord:
-        return self._sort_bys[sort_by_id]
+    async def get_sort_by(self, criterion: SortCriterion, *, requested_id: str) -> QuerySortByRecord:
+        self.get_sort_by_calls.append((criterion, requested_id))
+        return self._sort_bys[criterion]
 
     async def list_filter_instance_schemas(self, *, project_id: int | None) -> list[QueryFilterInstanceSchemaRecord]:
         self.list_filter_instance_schemas_calls.append(project_id)
@@ -179,6 +182,28 @@ async def test_get_sort_by_returns_summary() -> None:
     sort_by = await service.get_sort_by("subject:asc")
 
     assert sort_by.direction == "ascending"
+
+
+@pytest.mark.asyncio
+async def test_get_sort_by_parses_the_id_for_the_port_and_passes_the_given_id_through() -> None:
+    api = _FakeQueryMetadataApi()
+    service = _service(api)
+
+    await service.get_sort_by("subject-asc")
+
+    assert api.get_sort_by_calls == [(SortCriterion("subject", "asc"), "subject-asc")]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("sort_by_id", ["../projects/42", "é:asc"])
+async def test_get_sort_by_rejects_a_field_outside_the_ascii_charset_without_a_request(sort_by_id: str) -> None:
+    api = _FakeQueryMetadataApi()
+    service = _service(api)
+
+    with pytest.raises(InvalidInputError, match="sort_by_id: field name .* contains invalid characters"):
+        await service.get_sort_by(sort_by_id)
+
+    assert api.get_sort_by_calls == []
 
 
 @pytest.mark.asyncio

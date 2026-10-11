@@ -236,7 +236,7 @@ user exists.
 | `get_query_filter` | Fetch a single query filter definition by id such as `assignee` |
 | `get_query_column` | Fetch a single query column definition by id such as `subject` |
 | `get_query_operator` | Fetch a single query operator definition by id such as `=` |
-| `get_query_sort_by` | Fetch a single query sort-by definition by id such as `id-asc` |
+| `get_query_sort_by` | Fetch a single query sort-by definition by id such as `id:asc` or `id-asc` |
 | `list_query_filter_instance_schemas` | List query filter-instance schemas globally or for a specific project |
 | `get_query_filter_instance_schema` | Fetch a single query filter-instance schema by id |
 
@@ -480,6 +480,10 @@ needs credentials the MCP client does not carry.
 | `create_board` | Validate and then create a saved OpenProject board/query; only writes when called again with `confirm=true` |
 | `update_board` | Validate and then update a saved OpenProject board/query; only writes when called again with `confirm=true` |
 | `delete_board` | Validate and then delete a saved OpenProject board/query; only deletes when called again with `confirm=true` |
+
+On `create_board` and `update_board`, `sort_by` takes criteria as `field:direction` or `field-direction`, the same
+form as `list_work_packages`; the direction defaults to `asc`. OpenProject reports an unknown field as a validation
+error in the preview.
 
 ## Meetings
 

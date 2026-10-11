@@ -122,6 +122,19 @@ development baseline.
   incomplete or broken entry is no longer hidden by another client's entry or
   by the shell running doctor, and the connection check uses the entry's own
   proxy and certificate settings.
+- `create_board` and `update_board` apply a `sort_by` criterion written as
+  `"field:direction"`, for example `"id:asc"`, or as a bare field name, which
+  sorts ascending. OpenProject used to drop such criteria without an error.
+- A board `sort_by` direction written in upper or mixed case, such as
+  `"id-DESC"`, now sorts in that direction instead of ascending, and an
+  invalid direction such as `"id-up"` is rejected instead of sorting
+  ascending.
+- `list_work_packages` and `search_work_packages` accept a `sort_by` criterion
+  written as `"field-direction"`, for example `"status-desc"`, as well as
+  `"field:direction"`.
+- `get_query_sort_by` accepts the id as `"field:direction"`,
+  `"field-direction"` or a bare field name; a bare field name used to fail
+  with not found.
 
 Thanks to our contributors: [@webadmin-stattreisen](https://github.com/webadmin-stattreisen) ([#45](https://github.com/jtauschl/openproject-ce-mcp/pull/45)).
 

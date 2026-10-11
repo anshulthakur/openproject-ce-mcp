@@ -13,6 +13,7 @@ from openproject_ce_mcp.app.adapters.httpx_query_metadata_api import (
 )
 from openproject_ce_mcp.app.errors import InvalidInputError
 from openproject_ce_mcp.app.transport.httpx_transport import HttpxTransport
+from openproject_ce_mcp.models import SortCriterion
 
 BASE_URL = "https://op.example.com"
 
@@ -121,13 +122,10 @@ async def test_get_filter_percent_encodes_the_id_in_the_path() -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_sort_by_translates_colon_to_hyphen_and_preserves_requested_id() -> None:
+async def test_get_sort_by_requests_the_hyphen_route_and_reports_the_requested_id() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
-        # OpenProject's sort_bys route is "queries/sort_bys/:id-:direction"
-        # (hyphen-joined, verified against OpenProject's own API
-        # implementation), not a bare id segment like
-        # filters/columns/operators. The client must request the hyphen form,
-        # not the caller-facing colon form ("subject:asc" -> "subject-asc").
+        # OpenProject's sort_bys route is "queries/sort_bys/:id-:direction",
+        # not a bare id segment like filters/columns/operators.
         assert request.url.raw_path == b"/api/v3/queries/sort_bys/subject-asc"
         return httpx.Response(
             200,
@@ -137,11 +135,10 @@ async def test_get_sort_by_translates_colon_to_hyphen_and_preserves_requested_id
 
     async with _client(handler) as http_client:
         api = HttpxQueryMetadataApi(HttpxTransport(http_client), base_url=BASE_URL, origin=BASE_URL)
-        record = await api.get_sort_by("subject:asc")
+        record = await api.get_sort_by(SortCriterion("subject", "asc"), requested_id="subject")
 
-    # The public id stays in the colon form the caller passed in, even though
-    # the server's own self-link href uses the hyphen form.
-    assert record.summary.id == "subject:asc"
+    # The public id is the caller's, although the server's self-link uses the hyphen form.
+    assert record.summary.id == "subject"
 
 
 @pytest.mark.asyncio
@@ -254,14 +251,6 @@ async def test_get_operator_rejects_path_traversal_id() -> None:
         api = HttpxQueryMetadataApi(HttpxTransport(http_client), base_url=BASE_URL, origin=BASE_URL)
         with pytest.raises(InvalidInputError, match="operator_id"):
             await api.get_operator("../projects/42")
-
-
-@pytest.mark.asyncio
-async def test_get_sort_by_rejects_path_traversal_id() -> None:
-    async with await _no_request_client() as http_client:
-        api = HttpxQueryMetadataApi(HttpxTransport(http_client), base_url=BASE_URL, origin=BASE_URL)
-        with pytest.raises(InvalidInputError, match="sort_by_id"):
-            await api.get_sort_by("../projects/42")
 
 
 @pytest.mark.asyncio

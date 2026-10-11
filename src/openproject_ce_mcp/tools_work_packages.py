@@ -264,8 +264,8 @@ async def list_work_packages(
     due_date in [today, today+N days]. Neither can be combined with each
     other or with due_on/due_between (all four constrain the same field).
 
-    sort_by accepts a list of sort criteria in format "field:direction"
-    (e.g., ["status:desc", "priority:asc"]). Direction defaults to "asc" if omitted.
+    sort_by accepts a list of sort criteria in format "field:direction" or "field-direction"
+    (e.g., ["status:desc", "priority-asc"]). Direction defaults to "asc" if omitted.
     Each field is checked against OpenProject's real sortable work-package
     columns (id, project, subject, type, status, priority, author, assigned_to,
     responsible, updated_at, category, version, start_date, due_date,

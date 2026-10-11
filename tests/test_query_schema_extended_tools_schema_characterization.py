@@ -114,7 +114,9 @@ def test_get_query_operator_schema() -> None:
 
 def test_get_query_sort_by_schema() -> None:
     tool = _tools(create_app(_make_settings()))["get_query_sort_by"]
-    assert tool.description == "Get a single query sort-by definition by id."
+    assert tool.description == (
+        'Get a single query sort-by definition by id, "field:direction" or "field-direction" (e.g. "subject:asc").'
+    )
     assert tool.output_schema == {
         "properties": {
             "id": {"title": "Id", "type": "string"},

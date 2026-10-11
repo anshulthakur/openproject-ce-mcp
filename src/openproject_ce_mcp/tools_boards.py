@@ -115,7 +115,10 @@ async def create_board(
     filters: list[dict[str, Any]] | None = None,
     confirm: bool = False,
 ) -> BoardWriteResult:
-    """Prepare or create a saved OpenProject board/query."""
+    """Prepare or create a saved OpenProject board/query.
+
+    sort_by: each "field:direction" or "field-direction" (e.g. "id:asc"); direction defaults to asc.
+    """
     client = _client_from_context(ctx)
     safe_name = _validate_required_query(name, field_name="name", max_length=255)
     common = _validate_board_query_fields(
@@ -165,7 +168,10 @@ async def update_board(
     filters: list[dict[str, Any]] | None = None,
     confirm: bool = False,
 ) -> BoardWriteResult:
-    """Prepare or update a saved OpenProject board/query."""
+    """Prepare or update a saved OpenProject board/query.
+
+    sort_by: each "field:direction" or "field-direction" (e.g. "id:asc"); direction defaults to asc.
+    """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(board_id, field_name="board_id")
     safe_name = _validate_optional_query(name, field_name="name", max_length=255)

@@ -79,6 +79,30 @@ async def test_create_get_update_delete_board(
     board_ids.remove(board_id)
 
 
+async def test_board_sort_by_forms_apply(client: OpenProjectClient, test_project: str, board_ids: list[int]) -> None:
+    """OpenProject drops a sortBy link that is not "<field>-<direction>"
+    without an error, so the colon form must reach it translated. Comparing
+    against the sort-by's own name keeps this independent of the user's locale."""
+    created = await client.board.create(
+        name=f"[integration-test] sort {uuid.uuid4().hex[:8]}",
+        project=test_project,
+        public=False,
+        sort_by=["id:desc"],
+        confirm=True,
+    )
+    assert created.ready, created.validation_errors
+    board_id = created.board_id
+    assert board_id is not None
+    board_ids.append(board_id)
+
+    expected = await client.query_metadata.get_sort_by("id:desc")
+    assert (await client.board.get(board_id)).sort_by == [expected.name]
+
+    cleared = await client.board.update(board_id=board_id, sort_by=[], confirm=True)
+    assert cleared.ready, cleared.validation_errors
+    assert (await client.board.get(board_id)).sort_by == []
+
+
 async def test_update_board_denies_reparent_into_write_restricted_project(
     client: OpenProjectClient, test_project: str, project_refs: list[str]
 ) -> None:

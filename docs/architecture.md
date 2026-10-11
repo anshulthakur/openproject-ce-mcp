@@ -432,6 +432,13 @@ the slug semantic (`PROJ`) or classic (`my-proj`), which is what
 same module's `is_numeric_ref` is the one rule for when any reference is an
 id: ASCII digits only, shared by the tool validators and the resolvers.
 
+Sort criteria follow the same idea in `sort_criteria.py`: `"field:direction"`,
+`"field-direction"` or a bare field (ascending), the direction
+case-insensitive. The board and query-metadata services parse their string
+input with it, the work-package tools before their service;
+`api_href.sort_by_path` builds OpenProject's
+`queries/sort_bys/<field>-<direction>` path.
+
 An `ast`-based test (`tests/test_architecture_boundaries.py`) enforces the layer
 directions above, confines `httpx` to `HttpxTransport`, forbids importing the
 `mcp` SDK or reading environment variables directly anywhere under `app/`, and

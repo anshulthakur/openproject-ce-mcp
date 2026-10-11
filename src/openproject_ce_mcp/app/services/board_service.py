@@ -53,7 +53,9 @@ from urllib.parse import urlparse
 
 from ...config import Settings
 from ...models import BoardDetail, BoardListResult, BoardWriteResult
+from ...sort_criteria import parse_sort_criterion
 from ..api_href import api_href as _api_href
+from ..api_href import sort_by_path
 from ..errors import InvalidInputError, PermissionDeniedError
 from ..origin import origin_from_url as _origin_from_url
 from ..pagination import clamp_limit, paginate_server, scan_records_and_paginate
@@ -102,11 +104,25 @@ class BoardService:
         if normalized.startswith("/"):
             return normalized
 
-        if kind == "sort_by":
-            return _api_href(f"queries/sort_bys/{normalized}", api_prefix=self._api_prefix)
         if kind == "group_by":
             return _api_href(f"queries/group_bys/{normalized}", api_prefix=self._api_prefix)
         return _api_href(f"queries/columns/{normalized}", api_prefix=self._api_prefix)
+
+    def _sort_by_hrefs(self, sort_by: builtins.list[str] | None) -> builtins.list[str] | None:
+        if sort_by is None:
+            return None
+        hrefs = []
+        for i, item in enumerate(sort_by):
+            normalized = item.strip()
+            if normalized.startswith(("http://", "https://", "/")):
+                hrefs.append(self._resolve_query_reference_href(normalized, kind="sort_by"))
+                continue
+            try:
+                criterion = parse_sort_criterion(normalized, label=f"sort_by[{i}]")
+            except ValueError as exc:
+                raise InvalidInputError(str(exc)) from exc
+            hrefs.append(_api_href(sort_by_path(criterion), api_prefix=self._api_prefix))
+        return hrefs
 
     async def list(
         self,
@@ -217,6 +233,7 @@ class BoardService:
         filters: builtins.list[dict[str, Any]] | None = None,
         confirm: bool = False,
     ) -> BoardWriteResult:
+        sort_by_hrefs = self._sort_by_hrefs(sort_by)
         if project is not None:
             await self._resolve_project_ref(project, write=True)
         elif not (
@@ -239,7 +256,7 @@ class BoardService:
             timeline_visible=timeline_visible,
             group_by=group_by,
             columns=columns,
-            sort_by=sort_by,
+            sort_by_hrefs=sort_by_hrefs,
             highlighted_attributes=highlighted_attributes,
             filters=filters,
         )
@@ -278,6 +295,7 @@ class BoardService:
         filters: builtins.list[dict[str, Any]] | None = None,
         confirm: bool = False,
     ) -> BoardWriteResult:
+        sort_by_hrefs = self._sort_by_hrefs(sort_by)
         current = await self._api.get(board_id)
         board_policy.ensure_board_write_allowed(
             current.project_link, settings=self._settings, project_id_to_identifier=self._project_id_to_identifier
@@ -304,7 +322,7 @@ class BoardService:
             timeline_visible=timeline_visible,
             group_by=group_by,
             columns=columns,
-            sort_by=sort_by,
+            sort_by_hrefs=sort_by_hrefs,
             highlighted_attributes=highlighted_attributes,
             filters=filters,
         )
@@ -375,7 +393,7 @@ class BoardService:
         timeline_visible: bool | None,
         group_by: str | None,
         columns: builtins.list[str] | None,
-        sort_by: builtins.list[str] | None,
+        sort_by_hrefs: builtins.list[str] | None,
         highlighted_attributes: builtins.list[str] | None,
         filters: builtins.list[dict[str, Any]] | None,
     ) -> dict[str, Any]:
@@ -422,9 +440,9 @@ class BoardService:
         if columns is not None:
             hidden_fields.ensure_field_writable("board", "columns", settings=self._settings)
             links["columns"] = [{"href": self._resolve_query_reference_href(item, kind="column")} for item in columns]
-        if sort_by is not None:
+        if sort_by_hrefs is not None:
             hidden_fields.ensure_field_writable("board", "sort_by", settings=self._settings)
-            links["sortBy"] = [{"href": self._resolve_query_reference_href(item, kind="sort_by")} for item in sort_by]
+            links["sortBy"] = [{"href": href} for href in sort_by_hrefs]
         if highlighted_attributes is not None:
             hidden_fields.ensure_field_writable("board", "highlighted_attributes", settings=self._settings)
             links["highlightedAttributes"] = [

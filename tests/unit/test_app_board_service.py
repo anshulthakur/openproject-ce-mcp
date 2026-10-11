@@ -671,6 +671,27 @@ async def test_update_rejects_when_a_written_field_is_hidden() -> None:
     assert api.commit_update_calls == []
 
 
+@pytest.mark.asyncio
+async def test_create_takes_sort_by_strings_and_writes_the_parsed_link() -> None:
+    api = _FakeBoardApi()
+    service = _service(api)
+
+    await service.create(name="My Board", project=None, sort_by=["id:desc"])
+
+    assert api.create_form_calls[0]["_links"]["sortBy"] == [{"href": "/api/v3/queries/sort_bys/id-desc"}]
+
+
+@pytest.mark.asyncio
+async def test_update_rejects_an_invalid_sort_by_direction_before_any_request() -> None:
+    api = _FakeBoardApi()
+    service = _service(api)
+
+    with pytest.raises(InvalidInputError, match=r"sort_by\[0\]: direction must be 'asc' or 'desc', got 'up'"):
+        await service.update(board_id=1, sort_by=["id-up"])
+
+    assert api.get_calls == []
+
+
 # --- update() ---------------------------------------------------------------
 
 
