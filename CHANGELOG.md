@@ -20,42 +20,12 @@ development baseline.
   picks fields of each written work package as `result.<field>`, e.g.
   `["work_package_id", "result.status"]`; a bare work package field name is
   rejected with the path to use.
-- CI now installs the built wheel via both `pipx` and `uv tool install` in
-  an isolated environment outside the repository, checks `--version`,
-  `configure --help`, `doctor --help`, and a bounded MCP stdio startup, and
-  verifies an upgrade from the latest published release keeps an existing
-  `.mcp.json` readable.
-- CI now creates a GitHub Release for each published tag, attaching the
-  built wheel, sdist, and a `SHA256SUMS` checksum file covering both.
 - `doctor` now reports the Python version and executable in use, warns when a
   discovered client configuration file has unsafe group/other-readable
-  permissions (POSIX only), and performs a real, strictly time-bounded MCP
-  stdio handshake self-test that never leaves a server process running. API
+  permissions (POSIX only), and checks in-process, with a time limit, that
+  the server builds and dispatches tool calls. API
   connectivity failures now distinguish TLS/certificate errors from a plain
   connection failure and include actionable remediation hints.
-- Documented a verified Continue setup path (`docs/continue.md`), covering
-  the project-scoped `.continue/mcpServers/mcp.json` file and the global
-  `config.yaml` alternative, the Agent Mode requirement, and credential
-  protection. `configure` does not write Continue's config directly; the
-  documented example is validated by an automated test.
-- A dedicated Homebrew tap now provides an additional macOS install path
-  (`brew install jtauschl/tap/openproject-ce-mcp`) alongside the canonical
-  PyPI publication, with pinned resource dependencies and a verified install
-  on Apple Silicon and Intel; PyPI remains the source of truth and the tap's
-  Formula is proposed automatically after each release.
-- Parametrized security-invariant tests now run across every registered
-  write/delete tool, proving a project-scoped write is denied outside
-  `OPENPROJECT_WRITE_PROJECTS`, a cross-referenced resource (e.g. a relation
-  target or a reparent target) is independently write-authorized rather than
-  inheriting the primary resource's scope, form validation errors never
-  reach a commit even when confirmed, and error messages never carry
-  upstream response data beyond OpenProject's own (already-trusted)
-  validation text.
-- A versioned snapshot of the full ~190-tool MCP catalog (name, input
-  schema, output structure, read/write classification, and required
-  capability) now gates CI: any undeclared change to a tool's contract
-  fails the build until the snapshot is deliberately updated, treating the
-  tool surface as a public API ahead of a future 1.0.
 - Optional structured stderr logging of per-tool-call diagnostics
   (`OPENPROJECT_LOG_FORMAT=json`), one JSON line per call carrying the tool
   name, outcome, duration, error code/layer, HTTP request count (accurate
@@ -78,13 +48,9 @@ development baseline.
 
 - A confirmed bulk write no longer returns an item's echoed `payload` when
   `select` names it; the normalized `result` carries the same data.
-- **Breaking:** minimum supported Python version raised from 3.10 to 3.11.
-  Enables `asyncio.create_task`'s `context=` parameter, which the new
-  structured stderr logging needs to keep the `http_requests`/`project_scope`/
-  `policy_decision` fields correct for tool calls that fan out through
-  concurrent work; also removes the now-dead `tomllib`-availability fallback
-  in the interactive setup and a `datetime.fromisoformat` fractional-seconds
-  compatibility shim.
+- **Breaking:** Python 3.11 or later is required; Python 3.10 is no longer
+  supported. Install or upgrade under Python 3.11+ (for example
+  `pipx install --python python3.11 openproject-ce-mcp`).
 - **Breaking:** tool error messages now carry a small, stable set of
   uppercase agent-facing codes (`AUTHENTICATION_FAILED`, `PROJECT_SCOPE_DENIED`,
   `CAPABILITY_DISABLED`, `OPENPROJECT_PERMISSION_DENIED`, `RESOURCE_NOT_FOUND`,
