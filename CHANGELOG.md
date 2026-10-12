@@ -186,6 +186,13 @@ development baseline.
   edit that text instead. The tool description and the tool reference say
   that only relation links can be deleted and that deleting needs the "Manage
   wiki page links" permission.
+- The configuration guide listed the sprint tools under
+  `OPENPROJECT_ENABLE_WORK_PACKAGE_READ` and left out the backlog bucket
+  tools; both are switched by `OPENPROJECT_ENABLE_PROJECT_READ`. Several other
+  tool group rows also left out tools they switch, among them news, wiki,
+  views, grids, statuses, time entries, reminders, watchers and project
+  copies. A new table in the guide lists every tool per setting, and another
+  lists the tools that also need a second setting.
 
 Thanks to our contributors: [@webadmin-stattreisen](https://github.com/webadmin-stattreisen) ([#45](https://github.com/jtauschl/openproject-ce-mcp/pull/45)).
 

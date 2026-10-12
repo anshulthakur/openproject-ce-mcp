@@ -112,16 +112,16 @@ explicitly requested.
 
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
-| `OPENPROJECT_ENABLE_PROJECT_READ` | no | `true` | Projects, favorites, admin/work-package context, phases, documents, project storages (project's link to a configured external file storage) |
-| `OPENPROJECT_ENABLE_WORK_PACKAGE_READ` | no | `true` | Work packages, search, relations, attachments, watchers, reactions, sprints |
+| `OPENPROJECT_ENABLE_PROJECT_READ` | no | `true` | Projects and their context, sprints, backlog buckets, documents, project storages (a project's link to a configured external file storage), news, wiki pages, forum posts, views, grids, categories, phases, instance configuration, background jobs |
+| `OPENPROJECT_ENABLE_WORK_PACKAGE_READ` | no | `true` | Work packages, search, activities, reactions, reminders, relations, attachments, file links, watchers, statuses, priorities, types, time entries, costs, GitHub and GitLab links, wiki links, saved queries |
 | `OPENPROJECT_ENABLE_MEMBERSHIP_READ` | no | `true` | Project memberships, roles, current user, actions, capabilities |
 | `OPENPROJECT_ENABLE_VERSION_READ` | no | `true` | Versions |
 | `OPENPROJECT_ENABLE_BOARD_READ` | no | `true` | Boards |
-| `OPENPROJECT_ENABLE_MEETING_READ` | no | `true` | Meetings, agenda items, sections, outcomes, recurring meetings |
-| `OPENPROJECT_ENABLE_PERSONAL_READ` | no | `false` | Your own preferences and notifications (`get_my_preferences`, `list_notifications`) |
-| `OPENPROJECT_ENABLE_ADMIN_READ` | no | `false` | Instance-wide user/group listing (`list_users`, `get_user`, `list_groups`, `get_group`, `list_principals`) plus external file storage connections (`list_storages`, `get_storage`) — PII / admin-only, not project-scoped. `list_project_storages`/`get_project_storage` are NOT gated here — they are project-scoped, see `OPENPROJECT_ENABLE_PROJECT_READ` |
-| `OPENPROJECT_ENABLE_USER_SCHEDULE_READ` | no | `false` | Per-user schedule overrides — vacation date ranges and working-hours schedules (`list_user_non_working_times`, `list_user_working_hours`, `get_user_working_hours`; requires OpenProject 17.3+). Its own dedicated scope: not bounded by a project allowlist, but also not `_ADMIN_READ` (would block ordinary self-service) or `_PERSONAL_READ` (its tools take no `user_id`) |
-| `OPENPROJECT_ENABLE_EXTENDED_READ` | no | `false` | Rarely-used metadata/reference tools (`get_query_*` schema tools, `render_text`, `get_custom_option`, `list_help_texts`/`get_help_text`, `list_working_days`/`list_non_working_days`) |
+| `OPENPROJECT_ENABLE_MEETING_READ` | no | `true` | Meetings, agenda items, sections, outcomes, recurring meetings and their occurrences |
+| `OPENPROJECT_ENABLE_PERSONAL_READ` | no | `false` | Your own preferences and notifications |
+| `OPENPROJECT_ENABLE_ADMIN_READ` | no | `false` | Instance-wide user/group listing plus external file storage connections; PII / admin-only, not project-scoped. `list_project_storages`/`get_project_storage` are not gated here; they are project-scoped, see `OPENPROJECT_ENABLE_PROJECT_READ` |
+| `OPENPROJECT_ENABLE_USER_SCHEDULE_READ` | no | `false` | Per-user schedule overrides: vacation date ranges and working-hours schedules (requires OpenProject 17.3+). Its own dedicated scope: not bounded by a project allowlist, but also not `_ADMIN_READ` (would block ordinary self-service) or `_PERSONAL_READ` (its tools take no `user_id`) |
+| `OPENPROJECT_ENABLE_EXTENDED_READ` | no | `false` | Rarely-used metadata/reference tools: query schemas, text rendering, custom options, help texts, working days |
 
 Each write flag below requires its matching read boolean to be `true` — e.g.
 `OPENPROJECT_ENABLE_BOARD_WRITE=true` with `OPENPROJECT_ENABLE_BOARD_READ=false`
@@ -137,17 +137,56 @@ project allowlist, so there is no equivalent safety net for them.
 
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
-| `OPENPROJECT_ENABLE_PROJECT_WRITE` | no | `true` | Project create/update/delete, news, documents, grids. has no effect without a non-empty `OPENPROJECT_WRITE_PROJECTS` |
-| `OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE` | no | `true` | Work-package create/update/delete, comments, relations, attachments, time entries. has no effect without a non-empty `OPENPROJECT_WRITE_PROJECTS` |
-| `OPENPROJECT_ENABLE_MEMBERSHIP_WRITE` | no | `true` | Project membership create/update/delete. has no effect without a non-empty `OPENPROJECT_WRITE_PROJECTS` |
-| `OPENPROJECT_ENABLE_VERSION_WRITE` | no | `true` | Version create/update/delete. has no effect without a non-empty `OPENPROJECT_WRITE_PROJECTS` |
-| `OPENPROJECT_ENABLE_BOARD_WRITE` | no | `true` | Board create/update/delete. has no effect without a non-empty `OPENPROJECT_WRITE_PROJECTS` |
-| `OPENPROJECT_ENABLE_MEETING_WRITE` | no | `true` | Meeting/agenda-item/section/outcome/recurring-meeting create/update/delete. has no effect without a non-empty `OPENPROJECT_WRITE_PROJECTS` |
+| `OPENPROJECT_ENABLE_PROJECT_WRITE` | no | `true` | Project create/update/delete/copy and favorites, news, documents, grids. Has no effect without a non-empty `OPENPROJECT_WRITE_PROJECTS` |
+| `OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE` | no | `true` | Work-package create/update/delete including subtasks and bulk writes, comments, reactions, reminders, relations, attachments, watchers, time entries, file links, wiki links. Has no effect without a non-empty `OPENPROJECT_WRITE_PROJECTS` |
+| `OPENPROJECT_ENABLE_MEMBERSHIP_WRITE` | no | `true` | Project membership create/update/delete. Has no effect without a non-empty `OPENPROJECT_WRITE_PROJECTS` |
+| `OPENPROJECT_ENABLE_VERSION_WRITE` | no | `true` | Version create/update/delete. Has no effect without a non-empty `OPENPROJECT_WRITE_PROJECTS` |
+| `OPENPROJECT_ENABLE_BOARD_WRITE` | no | `true` | Board create/update/delete. Has no effect without a non-empty `OPENPROJECT_WRITE_PROJECTS` |
+| `OPENPROJECT_ENABLE_MEETING_WRITE` | no | `true` | Meeting/agenda-item/section/outcome/recurring-meeting create/update/delete, recurring meeting occurrences. Has no effect without a non-empty `OPENPROJECT_WRITE_PROJECTS` |
 | `OPENPROJECT_ENABLE_PERSONAL_WRITE` | no | `false` | Personal-data mutations (update your own preferences, mark notifications read). Personal read tools require only `OPENPROJECT_ENABLE_PERSONAL_READ=true`; personal mutations require both the read and write flags together |
 | `OPENPROJECT_ENABLE_USER_SCHEDULE_WRITE` | no | `false` | Create/update/delete a user's non-working times and working-hours schedule (requires `OPENPROJECT_ENABLE_USER_SCHEDULE_READ=true` too, like every other write flag requires its matching read) |
 
 `OPENPROJECT_ENABLE_ADMIN_WRITE` is documented under [Security /
 Privacy](#security--privacy) below.
+
+### Tools per switch
+
+Each switch registers the tools in its row. The project allowlists above and
+the table after it can still keep a tool unregistered.
+
+| Switch | Tools |
+| --- | --- |
+| `OPENPROJECT_ENABLE_PROJECT_READ` | `list_projects`, `get_project`, `get_project_admin_context`, `get_project_configuration`, `list_sprints`, `get_sprint`, `list_backlog_buckets`, `get_backlog_bucket`, `list_documents`, `get_document`, `list_project_storages`, `get_project_storage`, `list_news`, `get_news`, `get_wiki_page`, `get_post`, `list_views`, `get_view`, `list_grids`, `get_grid`, `list_categories`, `get_category`, `list_project_phase_definitions`, `get_project_phase_definition`, `get_project_phase`, `get_my_project_access`, `get_project_work_package_context`, `get_instance_configuration`, `get_job_status` |
+| `OPENPROJECT_ENABLE_WORK_PACKAGE_READ` | `list_work_packages`, `search_work_packages`, `get_work_package`, `get_work_packages`, `list_my_open_work_packages`, `get_work_package_activities`, `list_work_package_reactions`, `list_reminders`, `get_work_package_relations`, `list_work_package_attachments`, `get_attachment`, `get_attachment_content`, `list_work_package_file_links`, `list_work_package_watchers`, `list_statuses`, `get_status`, `list_priorities`, `get_priority`, `list_types`, `get_type`, `list_time_entry_activities`, `list_time_entries`, `get_time_entry`, `get_cost_entry`, `list_work_package_cost_entries`, `get_work_package_costs_by_type`, `get_cost_type`, `get_github_pull_request`, `list_work_package_github_pull_requests`, `list_work_package_gitlab_issues`, `list_work_package_gitlab_merge_requests`, `list_relations`, `list_work_package_wiki_links`, `execute_query` |
+| `OPENPROJECT_ENABLE_MEMBERSHIP_READ` | `list_project_memberships`, `get_membership`, `list_roles`, `get_current_user`, `list_actions`, `list_capabilities` |
+| `OPENPROJECT_ENABLE_VERSION_READ` | `list_versions`, `get_version` |
+| `OPENPROJECT_ENABLE_BOARD_READ` | `list_boards`, `get_board` |
+| `OPENPROJECT_ENABLE_MEETING_READ` | `list_meetings`, `get_meeting`, `list_meeting_agenda_items`, `list_work_package_meeting_agenda_items`, `get_meeting_agenda_item`, `list_meeting_outcomes`, `get_meeting_outcome`, `list_meeting_sections`, `get_meeting_section`, `list_recurring_meetings`, `get_recurring_meeting`, `list_recurring_meeting_occurrences` |
+| `OPENPROJECT_ENABLE_PERSONAL_READ` | `get_my_preferences`, `list_notifications` |
+| `OPENPROJECT_ENABLE_ADMIN_READ` | `list_principals`, `list_users`, `get_user`, `list_groups`, `get_group`, `list_storages`, `get_storage` |
+| `OPENPROJECT_ENABLE_USER_SCHEDULE_READ` | `list_user_non_working_times`, `list_user_working_hours`, `get_user_working_hours` |
+| `OPENPROJECT_ENABLE_EXTENDED_READ` | `get_query_filter`, `get_query_column`, `get_query_operator`, `get_query_sort_by`, `list_query_filter_instance_schemas`, `get_query_filter_instance_schema`, `render_text`, `list_help_texts`, `get_help_text`, `list_working_days`, `list_non_working_days`, `get_custom_option` |
+| `OPENPROJECT_ENABLE_PROJECT_WRITE` | `create_project`, `update_project`, `delete_project`, `copy_project`, `set_project_favorite`, `create_news`, `update_news`, `delete_news`, `update_document`, `create_grid`, `update_grid`, `delete_grid` |
+| `OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE` | `create_work_package`, `create_subtask`, `update_work_package`, `bulk_create_work_packages`, `bulk_update_work_packages`, `delete_work_package`, `add_work_package_comment`, `toggle_activity_emoji_reaction`, `create_work_package_reminder`, `update_reminder`, `delete_reminder`, `create_work_package_relation`, `delete_relation`, `delete_attachment`, `set_work_package_watcher`, `create_time_entry`, `update_time_entry`, `create_time_entry_until`, `update_time_entry_until`, `delete_time_entry`, `update_relation`, `delete_file_link`, `create_work_package_wiki_link`, `delete_work_package_wiki_link`, `create_work_package_attachment` |
+| `OPENPROJECT_ENABLE_MEMBERSHIP_WRITE` | `create_membership`, `update_membership`, `delete_membership` |
+| `OPENPROJECT_ENABLE_VERSION_WRITE` | `create_version`, `update_version`, `delete_version` |
+| `OPENPROJECT_ENABLE_BOARD_WRITE` | `create_board`, `update_board`, `delete_board` |
+| `OPENPROJECT_ENABLE_MEETING_WRITE` | `create_meeting`, `update_meeting`, `delete_meeting`, `create_meeting_agenda_item`, `update_meeting_agenda_item`, `delete_meeting_agenda_item`, `create_meeting_outcome`, `update_meeting_outcome`, `delete_meeting_outcome`, `create_meeting_section`, `update_meeting_section`, `delete_meeting_section`, `create_recurring_meeting`, `update_recurring_meeting`, `delete_recurring_meeting`, `init_recurring_meeting_occurrence`, `cancel_recurring_meeting_occurrence` |
+| `OPENPROJECT_ENABLE_PERSONAL_WRITE` | `update_my_preferences`, `mark_notifications_read` |
+| `OPENPROJECT_ENABLE_ADMIN_WRITE` | `create_user`, `update_user`, `delete_user`, `set_user_locked`, `create_group`, `update_group`, `delete_group`, `create_storage`, `update_storage`, `delete_storage` |
+| `OPENPROJECT_ENABLE_USER_SCHEDULE_WRITE` | `create_user_non_working_time`, `update_user_non_working_time`, `delete_user_non_working_time`, `create_user_working_hours`, `update_user_working_hours`, `delete_user_working_hours` |
+
+A few tools also need a setting outside their own group. Each is registered
+only when its own flag and every setting in its row are enabled (`true` for a
+flag, a directory for `OPENPROJECT_ATTACHMENT_ROOT`):
+
+| Tool | Also requires |
+| --- | --- |
+| `get_my_project_access` | `OPENPROJECT_ENABLE_MEMBERSHIP_READ` |
+| `get_project_work_package_context` | `OPENPROJECT_ENABLE_WORK_PACKAGE_READ`, `OPENPROJECT_ENABLE_VERSION_READ` |
+| `get_query_filter`, `get_query_column`, `get_query_operator`, `get_query_sort_by`, `list_query_filter_instance_schemas`, `get_query_filter_instance_schema` | `OPENPROJECT_ENABLE_BOARD_READ` |
+| `render_text` | `OPENPROJECT_ENABLE_WORK_PACKAGE_READ` |
+| `create_work_package_attachment` | `OPENPROJECT_ATTACHMENT_ROOT` |
 
 ### Exposure controls vs. real security boundaries
 

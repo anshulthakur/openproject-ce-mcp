@@ -5,13 +5,21 @@ from __future__ import annotations
 
 import argparse
 import re
+from collections import Counter
 from importlib.metadata import distribution
 from pathlib import Path
 
 import pytest
 
-from openproject_ce_mcp.config import TOOL_GROUPS
+from openproject_ce_mcp.config import READ_SCOPE_ENV_VAR, TOOL_GROUPS
 from openproject_ce_mcp.server import CE_INSTRUCTIONS, _build_parser
+from openproject_ce_mcp.tools import (
+    ADDITIONAL_READ_SCOPES_BY_TOOL,
+    ATTACHMENT_UPLOAD_TOOLS,
+    PERSONAL_MUTATION_TOOLS,
+    READ_TOOLS_BY_SCOPE,
+    WRITE_TOOLS_BY_SCOPE,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIGURATION = ROOT / "docs" / "configuration.md"
@@ -94,6 +102,85 @@ def test_configuration_tables_list_exactly_the_group_flags() -> None:
     expected = {group.read_env_var for group in TOOL_GROUPS}
     expected |= {group.write.env_var for group in TOOL_GROUPS if group.write is not None}
 
+    assert documented == expected
+
+
+def _classified_tools() -> set[str]:
+    return (
+        set(PERSONAL_MUTATION_TOOLS)
+        | set(ATTACHMENT_UPLOAD_TOOLS)
+        | {name for names in READ_TOOLS_BY_SCOPE.values() for name in names}
+        | {name for names in WRITE_TOOLS_BY_SCOPE.values() for name in names}
+    )
+
+
+def _table_rows(header: str) -> list[list[str]]:
+    text = CONFIGURATION.read_text(encoding="utf-8")
+    table = text[text.index(header) :].split("\n\n", 1)[0].splitlines()[2:]
+    return [[cell.strip() for cell in line.strip().strip("|").split("|")] for line in table]
+
+
+def _backticked(cell: str) -> list[str]:
+    return re.findall(r"`([^`]+)`", cell)
+
+
+def _duplicates(names: list[str]) -> list[str]:
+    return sorted(name for name, count in Counter(names).items() if count > 1)
+
+
+def _write_env_var(key: str) -> str:
+    write = next(group.write for group in TOOL_GROUPS if group.key == key)
+    assert write is not None
+    return write.env_var
+
+
+def test_tools_per_switch_lists_exactly_the_tools_each_switch_registers() -> None:
+    rows = _table_rows("| Switch | Tools |")
+    switches = [switch.strip("`") for switch, _ in rows]
+    documented = {switch.strip("`"): _backticked(tools) for switch, tools in rows}
+
+    expected: dict[str, list[str]] = {}
+    for group in TOOL_GROUPS:
+        expected[group.read_env_var] = [
+            name for scope in group.read_scopes for name in READ_TOOLS_BY_SCOPE.get(scope, ())
+        ]
+        if group.write is not None:
+            expected[group.write.env_var] = list(WRITE_TOOLS_BY_SCOPE.get(group.key, ()))
+    expected[_write_env_var("personal")] += PERSONAL_MUTATION_TOOLS
+    expected[_write_env_var("work_package")] += ATTACHMENT_UPLOAD_TOOLS
+
+    assert _duplicates(switches) == []
+    assert [tools for _, tools in rows if not re.fullmatch(r"`\w+`(?:, `\w+`)*", tools)] == []
+    assert sorted({name for names in documented.values() for name in names} - _classified_tools()) == []
+    assert {switch: _duplicates(names) for switch, names in documented.items() if _duplicates(names)} == {}
+    assert {name for names in expected.values() for name in names} == _classified_tools()
+    assert {switch: set(names) for switch, names in documented.items()} == {
+        switch: set(names) for switch, names in expected.items()
+    }
+
+
+def test_configuration_lists_exactly_the_tools_needing_another_setting() -> None:
+    rows = _table_rows("| Tool | Also requires |")
+    names = [name for tools, _ in rows for name in _backticked(tools)]
+    documented = {name: set(_backticked(requires)) for tools, requires in rows for name in _backticked(tools)}
+
+    # The server refuses a write flag without its read flag, so a group's own
+    # read scope is never an extra requirement.
+    home_read_scopes: dict[str, set[str]] = {}
+    for group in TOOL_GROUPS:
+        home_tools = [name for scope in group.read_scopes for name in READ_TOOLS_BY_SCOPE.get(scope, ())]
+        for name in [*home_tools, *WRITE_TOOLS_BY_SCOPE.get(group.key, ())]:
+            home_read_scopes[name] = set(group.read_scopes)
+    expected = {
+        name: {READ_SCOPE_ENV_VAR[scope] for scope in extra}
+        for name, scopes in ADDITIONAL_READ_SCOPES_BY_TOOL.items()
+        if (extra := scopes - home_read_scopes[name])
+    }
+    for name in ATTACHMENT_UPLOAD_TOOLS:
+        expected[name] = {"OPENPROJECT_ATTACHMENT_ROOT"}
+
+    assert _duplicates(names) == []
+    assert sorted(set(names) - _classified_tools()) == []
     assert documented == expected
 
 
