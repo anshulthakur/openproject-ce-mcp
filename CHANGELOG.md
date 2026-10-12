@@ -193,6 +193,11 @@ development baseline.
   views, grids, statuses, time entries, reminders, watchers and project
   copies. A new table in the guide lists every tool per setting, and another
   lists the tools that also need a second setting.
+- An invalid `select` error now says that no request was sent, so a rejected
+  confirmed bulk write is known to have written nothing. The
+  `bulk_create_work_packages` and `bulk_update_work_packages` descriptions say
+  that `select` names write-result fields and that `display_id` and the other
+  work package fields come with `result`.
 
 Thanks to our contributors: [@webadmin-stattreisen](https://github.com/webadmin-stattreisen) ([#45](https://github.com/jtauschl/openproject-ce-mcp/pull/45)).
 

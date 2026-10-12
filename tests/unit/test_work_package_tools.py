@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import httpx
 import pytest
+from _client_test_helpers import _write_enabled_settings
 from _tools_test_helpers import FakeContext, make_settings
 
 from openproject_ce_mcp.client import CLEAR, CLEAR_PARENT, CLEAR_VERSION, OpenProjectClient
@@ -1477,6 +1478,51 @@ async def test_bulk_update_work_packages_rejects_invalid_select_field() -> None:
             select=["bogus"],
             confirm=False,
         )
+
+
+_BULK_TOOL_ITEMS = [
+    (bulk_create_work_packages, {"project": "demo", "type": "Task", "subject": "New"}),
+    (bulk_update_work_packages, {"work_package_id": 10, "subject": "New"}),
+]
+
+
+def _recording_client(sent: list[str]) -> OpenProjectClient:
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(f"{request.method} {request.url.path}")
+        return httpx.Response(404, json={"_type": "Error", "message": "not found"}, request=request)
+
+    return OpenProjectClient(_write_enabled_settings(), transport=httpx.MockTransport(handler))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("tool", "item"), _BULK_TOOL_ITEMS)
+@pytest.mark.parametrize("select", [["index", "display_id"], []])
+async def test_confirmed_bulk_write_with_invalid_select_sends_no_request_and_says_so(tool, item, select) -> None:
+    sent: list[str] = []
+    client = _recording_client(sent)
+    try:
+        with pytest.raises(ValueError, match=r"No request was sent\.$") as error:
+            await tool(FakeContext(client), items=[item], select=select, confirm=True)
+
+        assert sent == []
+        assert str(error.value).startswith("select ")
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("tool", "item"), _BULK_TOOL_ITEMS)
+async def test_confirmed_bulk_write_with_valid_select_reaches_the_transport(tool, item) -> None:
+    # Control for the test above: the same call with a valid select is recorded,
+    # so an empty request log there means nothing was sent, not a deaf transport.
+    sent: list[str] = []
+    client = _recording_client(sent)
+    try:
+        await tool(FakeContext(client), items=[item], select=["ready"], confirm=True)
+
+        assert sent != []
+    finally:
+        await client.aclose()
 
 
 @pytest.mark.asyncio

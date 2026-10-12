@@ -895,17 +895,20 @@ def _clearable_duration(value: str | None, *, field_name: str, sentinel: object)
 BULK_ITEM_WRAPPER_FIELDS = frozenset({"index", "success", "error"})
 BATCH_READ_ITEM_WRAPPER_FIELDS = frozenset({"id", "success", "error"})
 
+_SELECT_NOTHING_SENT = "No request was sent."
+
 
 def _validate_select(
     select: list[str] | None, *, row_type: type, wrapper_fields: frozenset[str] = frozenset()
 ) -> list[str] | None:
     """Validate a field-selection list against a result-row dataclass.
 
-    Called in the tool body so invalid field names raise [validation_error] before
-    the client call. Returns the cleaned list of entity fields (or None); names in
+    Call it in the tool body before any request: the error says no request was
+    sent, so a rejected confirmed write is known to have written nothing.
+    Returns the cleaned list of entity fields (or None); names in
     ``wrapper_fields`` are accepted but not returned. The trimming wrapper
-    (tools_runtime._normalize_select) reads the same ``select`` kwarg and applies
-    it after the result resolves.
+    (tools_runtime._normalize_select) reads the same ``select`` kwarg and
+    applies it after the result resolves.
     """
     if select is None:
         return None
@@ -921,7 +924,10 @@ def _validate_select(
             wrapper_only = True
         else:
             allowed = ", ".join(sorted(valid | wrapper_fields))
-            raise ValueError(f"select field '{name}' is not a valid {row_type.__name__} field. Allowed: {allowed}.")
+            raise ValueError(
+                f"select field '{name}' is not a valid {row_type.__name__} field. Allowed: {allowed}. "
+                f"{_SELECT_NOTHING_SENT}"
+            )
     if not chosen and not wrapper_only:
-        raise ValueError("select must contain at least one field name.")
+        raise ValueError(f"select must contain at least one field name. {_SELECT_NOTHING_SENT}")
     return chosen

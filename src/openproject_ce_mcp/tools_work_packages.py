@@ -923,10 +923,12 @@ async def bulk_create_work_packages(
     `error`, and nested `result` rather than the MCP error envelope.
 
     select restricts each item's nested result to the given fields (e.g.
-    ["ready", "work_package_id"]); an invalid name returns the allowed set. The
-    index/success/error fields on each item are always included regardless of
-    select, so you can still tell which items succeeded; listing them in select
-    is accepted and changes nothing. For batches with many
+    ["ready", "work_package_id"]); an invalid name returns the allowed set.
+    These are write-result fields (work_package_id, ready, state, ...), not work
+    package fields: `display_id` and the rest come with `result`, the full
+    written work package. The index/success/error fields on each item are always
+    included regardless of select, so you can still tell which items succeeded;
+    listing them in select is accepted and changes nothing. For batches with many
     items or long descriptions, set select proactively — an unconfirmed preview
     echoes each item's full proposed payload, and an unbounded batch can exceed
     the tool-result size limit and get redirected to a file.
@@ -1072,7 +1074,9 @@ async def bulk_update_work_packages(
     due_date's non-working-day shift, the confirm/preview contract, select's item-trimming
     behavior, and cancellation/atomicity semantics all work exactly as documented on
     bulk_create_work_packages — only the affected result field differs
-    (`result.result.due_date` here too).
+    (`result.result.due_date` here too). As there, select names write-result
+    fields (work_package_id, ready, state, ...), not work package fields:
+    `display_id` and the rest come with `result`, the full written work package.
     """
     client = _client_from_context(ctx)
     if not items:

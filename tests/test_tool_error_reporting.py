@@ -100,6 +100,7 @@ async def test_client_sees_why_a_confirmed_bulk_write_rejects_its_select(call_to
 
     assert result.is_error is True
     assert f"[validation_error] select field '{field}' is not a valid WorkPackageWriteResult field" in _text(result)
+    assert _text(result).endswith("No request was sent.")
 
 
 async def test_categorised_errors_stay_value_and_runtime_errors_for_python_callers():
