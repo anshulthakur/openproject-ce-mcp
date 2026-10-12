@@ -73,14 +73,21 @@ name, also with the name's spaces written as hyphens (`my-project` matches
 renamed project match: OpenProject 17.3 and later still finds the project by
 it, but the check uses the project's current values.
 
-A project created after the server started (a copy, the web UI, another
-client) is matched as soon as a response shows or links it; no restart is
-needed. `list_work_packages` without a `project` filters on the readable
-projects the server has seen and refreshes that list at most every five
-minutes, so a new project's work packages can take up to five minutes to
-appear there unless another call has already shown the project. Archived
-projects are left out of that filter, since OpenProject hides their work
-packages.
+Content such as a list of work packages links its project by id and name only.
+When either list matches a linked project by its identifier alone, the server
+reads the project's current identifier before it checks the response, one
+request per project and response.
+
+A project created after the server started (a copy, the web UI, another client)
+is matched as soon as a response shows or links it; no restart is needed.
+`list_work_packages` without a `project` filters on the readable projects the
+server has seen and refreshes that list at most every five minutes, so a new
+project's work packages can take up to five minutes to appear there unless
+another call has already shown the project. Before each such list it reads every
+project in that filter that a pattern does not match by id, one request per page
+of projects, and leaves out any that no longer matches, so the counts and sums
+OpenProject returns cover only readable projects. Archived projects are left out
+of that filter, since OpenProject hides their work packages.
 
 ## Tool Groups
 

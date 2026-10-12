@@ -288,7 +288,7 @@ class OpenProjectClient:
             settings=settings,
         )
         self._project_id_to_identifier = self._project_directory.positives
-        self._transport = LearningTransport(HttpxTransport(self._http), learn=self._project_directory.learn)
+        self._transport = LearningTransport(HttpxTransport(self._http), learner=self._project_directory)
         self._project_api: ProjectApi = HttpxProjectApi(
             self._transport, base_url=settings.base_url, api_prefix=self._api_prefix
         )

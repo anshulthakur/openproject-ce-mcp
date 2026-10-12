@@ -23,6 +23,19 @@ development baseline.
   written through its former identifier when only that identifier matched
   `OPENPROJECT_READ_PROJECTS` or `OPENPROJECT_WRITE_PROJECTS`. A project now
   matches only by its id, current identifier and name.
+- Content of a project renamed in OpenProject while the server ran, such as
+  listed work packages, versions or time entries, was still admitted when only
+  the project's former identifier matched `OPENPROJECT_READ_PROJECTS` or
+  `OPENPROJECT_WRITE_PROJECTS`, until the server next rescanned its projects.
+  When only a linked project's identifier decides the check, the server now
+  reads the project's current identifier first, one request per project and
+  response.
+- `list_work_packages` without a `project` could count the work packages of
+  a project renamed out of `OPENPROJECT_READ_PROJECTS`, by identifier or by
+  name, in `total`, `groups` and `total_sums` for up to five minutes. Before
+  each such list the server now reads every project in its filter that no
+  pattern matches by id, one request per page of projects, and leaves out any
+  that no longer matches.
 
 ### Added
 

@@ -6,7 +6,9 @@ an id -> identifier map. The map has to know projects that came into being
 after the server started (a copy, the web UI, another client), not just the
 ones present at startup. The directory learns them from every JSON response
 before a policy sees it (see transport.learning_transport) and looks up an
-id only when no response or scan has shown it yet.
+id when no response or scan has shown it yet. A known project is looked up
+again whenever its recorded identifier alone would admit a link to it: the
+link carries no identifier, and the recorded one may predate a rename.
 
 The policies read `positives` synchronously; it is updated in place and never
 rebound, because every service and resolver holds the same object.
@@ -17,7 +19,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
+from functools import partial
 from typing import Any, NamedTuple
 
 from ...config import Settings
@@ -26,6 +29,7 @@ from ..errors import NotFoundError, OpenProjectError
 from ..policies.scope import (
     LinkedProject,
     parse_project_href,
+    project_link_candidates,
     project_record_candidates,
     scope_allows_all,
     scope_matches_candidates,
@@ -60,13 +64,16 @@ class ProjectDirectoryService:
         self._readable: set[int] = set()
         self._negatives: dict[int, float] = {}
         self._seen_by_scan: set[int] = set()
-        # A scan's results must not overwrite what record() learned after the
-        # scan started; each write is stamped so the scan can tell.
-        self._sequence = 0
-        self._written_at: dict[int, int] = {}
+        # Every entry is stamped with the tick at which the read it came from
+        # began (a scan, a lookup, the request whose response showed it, or
+        # the moment it was dropped). Older data never overwrites newer, and a response relies on
+        # an identifier only if it was read after the response arrived: one
+        # read earlier can predate a rename the response already reflects.
+        self._ticks = 0
+        self._as_of: dict[int, int] = {}
         self._last_scan_attempt: float | None = None
         self._scan_task: asyncio.Task[None] | None = None
-        self._lookups: dict[int, asyncio.Task[None]] = {}
+        self._lookups: dict[int, _Lookup] = {}
         self._lookup_slots = asyncio.Semaphore(_CONCURRENT_LOOKUPS)
 
     @property
@@ -76,12 +83,43 @@ class ProjectDirectoryService:
     def readable_project_ids(self) -> frozenset[int]:
         return frozenset(self._readable)
 
+    async def current_readable_project_ids(self) -> frozenset[int]:
+        """The readable projects, each re-read from OpenProject unless its id
+        alone matches the read allowlist: a recorded identifier or name can
+        predate a rename, and OpenProject counts and sums everything a
+        work-package filter names."""
+        await self.ensure_fresh()
+        by_id = {
+            project_id
+            for project_id in self._readable
+            if scope_matches_candidates(self._settings.read_projects, {str(project_id)})
+        }
+        recorded = sorted(self._readable - by_id)
+        if not recorded:
+            return frozenset(by_id)
+        started = self._tick()
+        current = {project.id: project for project in await self._list_projects(ids=recorded)}
+        for project_id in recorded:
+            project = current.get(project_id)
+            if project is None:
+                self._forget(project_id, as_of=started)
+            else:
+                self._store(project, as_of=started)
+        # What was recorded while the request ran may be newer than its answer.
+        return frozenset(self._readable & (by_id | set(recorded)))
+
+    def _tick(self) -> int:
+        self._ticks += 1
+        return self._ticks
+
     def record(self, project_id: int, identifier: str, name: str | None, *, archived: bool) -> None:
-        if not self._active:
+        self._store(_Project(project_id, identifier, name, archived), as_of=self._tick())
+
+    def _store(self, project: _Project, *, as_of: int) -> None:
+        if not self._active or self._as_of.get(project.id, 0) > as_of:
             return
-        self._sequence += 1
-        self._written_at[project_id] = self._sequence
-        self._apply(_Project(project_id, identifier, name, archived), now=self._clock())
+        self._as_of[project.id] = as_of
+        self._apply(project, now=self._clock())
 
     def _apply(self, project: _Project, *, now: float) -> None:
         project_id = project.id
@@ -122,18 +160,9 @@ class ProjectDirectoryService:
         await self.refresh()
 
     async def _scan(self) -> None:
-        started_at = self._sequence
-        projects: list[_Project] = []
+        started = self._tick()
         try:
-            offset = 1
-            while True:
-                page = await self._api.list(
-                    server_offset=offset, server_page_size=self._settings.max_page_size, search=None
-                )
-                projects.extend(project for record in page.records if (project := _from_summary(record.summary)))
-                if page.exhausted or not page.records:
-                    break
-                offset += 1
+            projects = await self._list_projects(ids=None)
         except OpenProjectError as exc:
             LOGGER.warning(
                 "Project allowlist scan failed; projects not seen in a response stay denied until a later scan: %s",
@@ -142,10 +171,22 @@ class ProjectDirectoryService:
             return
         finally:
             self._last_scan_attempt = self._clock()
-        self._replace_with_scan(projects, started_at)
+        self._replace_with_scan(projects, started)
 
-    def _replace_with_scan(self, projects: list[_Project], started_at: int) -> None:
-        newer = {project_id for project_id, sequence in self._written_at.items() if sequence > started_at}
+    async def _list_projects(self, *, ids: Sequence[int] | None) -> list[_Project]:
+        projects: list[_Project] = []
+        offset = 1
+        while True:
+            page = await self._api.list(
+                server_offset=offset, server_page_size=self._settings.max_page_size, search=None, ids=ids
+            )
+            projects.extend(project for record in page.records if (project := _from_summary(record.summary)))
+            if page.exhausted or not page.records:
+                return projects
+            offset += 1
+
+    def _replace_with_scan(self, projects: list[_Project], started: int) -> None:
+        newer = {project_id for project_id, as_of in self._as_of.items() if as_of > started}
         kept_positives = {pid: ident for pid, ident in self.positives.items() if pid in newer}
         kept_readable = self._readable & newer
         kept_negatives = {pid: expiry for pid, expiry in self._negatives.items() if pid in newer}
@@ -155,36 +196,47 @@ class ProjectDirectoryService:
         self._negatives.clear()
         for project in projects:
             if project.id not in newer:
+                self._as_of[project.id] = started
                 self._apply(project, now=now)
+        # Absence from the scan is a finding as of its start too, so a response
+        # sent before it cannot bring a project back.
+        scanned = {project.id for project in projects}
+        for project_id in self._as_of.keys() - newer - scanned:
+            self._as_of[project_id] = started
         self.positives.update(kept_positives)
         self._readable.update(kept_readable)
         self._negatives.update(kept_negatives)
-        self._seen_by_scan = {project.id for project in projects}
+        # A project forgotten after the scan started stays unknown, so the
+        # next link looks it up instead of waiting for the next scan.
+        self._seen_by_scan = scanned - newer
 
-    async def learn(self, payload: Any) -> None:
-        """Record every project the payload shows or links to."""
+    def request_sent(self) -> int:
+        return self._tick()
+
+    async def learn(self, payload: Any, *, sent: int) -> None:
+        """Record every project the payload shows or links to; `sent` is
+        request_sent() from just before the request that returned it."""
         if not self._active or not isinstance(payload, dict):
             return
-        linked: set[int] = set()
+        received = self._tick()
+        shown: set[int] = set()
+        linked: dict[int, list[dict[str, Any]]] = {}
         for node in _hal_resources(payload):
             representation = self._project_representation(node)
             if representation is not None:
-                self.record(
-                    representation.id,
-                    representation.identifier,
-                    representation.name,
-                    archived=representation.archived,
-                )
+                self._store(representation, as_of=sent)
+                shown.add(representation.id)
             links = node.get("_links")
             if isinstance(links, dict):
                 for link in _link_objects(links):
                     project_id = self._project_id_from_href(link.get("href"))
                     if project_id is not None:
-                        linked.add(project_id)
+                        linked.setdefault(project_id, []).append(link)
+        unshown = [project_id for project_id in linked if project_id not in shown]
         now = self._clock()
         rescan = False
-        lookups: list[int] = []
-        for project_id in linked:
+        lookups: dict[int, None] = {}
+        for project_id in unshown:
             if project_id in self.positives:
                 continue
             expiry = self._negatives.get(project_id)
@@ -193,37 +245,82 @@ class ProjectDirectoryService:
             if project_id in self._seen_by_scan:
                 rescan = True
             else:
-                lookups.append(project_id)
+                lookups[project_id] = None
         if rescan:
             await self.ensure_fresh()
+        # A link carries no identifier, so a recorded one read before this
+        # response arrived is re-read wherever it alone would admit the link.
+        for project_id in unshown:
+            identifier = self.positives.get(project_id)
+            if (
+                identifier is not None
+                and self._as_of.get(project_id, 0) < received
+                and any(self._identifier_decides(link, project_id, identifier) for link in linked[project_id])
+            ):
+                lookups[project_id] = None
         if lookups:
-            await asyncio.gather(*(self._look_up(project_id) for project_id in lookups))
+            await asyncio.gather(*(self._look_up(project_id, received=received) for project_id in lookups))
 
-    async def _look_up(self, project_id: int) -> None:
-        task = self._lookups.get(project_id)
-        if task is None:
-            task = asyncio.create_task(self._fetch(project_id))
-            self._lookups[project_id] = task
-            task.add_done_callback(lambda _: self._lookups.pop(project_id, None))
-        await asyncio.shield(task)
+    def _identifier_decides(self, link: dict[str, Any], project_id: int, identifier: str) -> bool:
+        without = project_link_candidates(link, settings=self._settings, project_id_to_identifier={})
+        with_identifier = project_link_candidates(
+            link, settings=self._settings, project_id_to_identifier={project_id: identifier}
+        )
+        return any(
+            scope_matches_candidates(scope, with_identifier) and not scope_matches_candidates(scope, without)
+            for scope in (self._settings.read_projects, self._settings.write_projects)
+        )
 
-    async def _fetch(self, project_id: int) -> None:
+    async def _look_up(self, project_id: int, *, received: int) -> None:
+        lookup = self._lookups.get(project_id)
+        if lookup is None or lookup.started < received:
+            started = self._tick()
+            lookup = _Lookup(asyncio.create_task(self._fetch(project_id, started)), started)
+            self._lookups[project_id] = lookup
+            lookup.task.add_done_callback(partial(self._lookup_done, project_id, lookup))
+        await asyncio.shield(lookup.task)
+
+    def _lookup_done(self, project_id: int, lookup: _Lookup, _task: asyncio.Task[None]) -> None:
+        if self._lookups.get(project_id) is lookup:
+            del self._lookups[project_id]
+
+    async def _fetch(self, project_id: int, started: int) -> None:
         try:
             async with self._lookup_slots:
                 record = await self._api.get(str(project_id))
         except NotFoundError:
-            self._sequence += 1
-            self._written_at[project_id] = self._sequence
-            self.positives.pop(project_id, None)
-            self._readable.discard(project_id)
-            self._negatives[project_id] = self._clock() + FRESHNESS_SECONDS
+            if self._drop(project_id, as_of=started):
+                self._negatives[project_id] = self._clock() + FRESHNESS_SECONDS
             return
         except OpenProjectError as exc:
-            LOGGER.warning("Project %s could not be looked up for the allowlist; it stays denied: %s", project_id, exc)
+            LOGGER.warning(
+                "Project %s could not be looked up for the allowlist; only its id and name match until a lookup "
+                "succeeds: %s",
+                project_id,
+                exc,
+            )
+            self._forget(project_id, as_of=started)
             return
         project = _from_summary(record.summary)
-        if project is not None:
-            self.record(project.id, project.identifier, project.name, archived=project.archived)
+        if project is None:
+            self._forget(project_id, as_of=started)
+            return
+        self._store(project, as_of=started)
+
+    def _drop(self, project_id: int, *, as_of: int) -> bool:
+        """Drop what a read that began at `as_of` can no longer vouch for,
+        unless a later read has recorded the project since."""
+        if self._as_of.get(project_id, 0) > as_of:
+            return False
+        self._as_of[project_id] = as_of
+        self.positives.pop(project_id, None)
+        self._readable.discard(project_id)
+        return True
+
+    def _forget(self, project_id: int, *, as_of: int) -> None:
+        if self._drop(project_id, as_of=as_of):
+            # Unknown again, so the next link to it looks it up instead of waiting for a rescan.
+            self._seen_by_scan.discard(project_id)
 
     def _project_representation(self, node: dict[str, Any]) -> _Project | None:
         # A form's _embedded.payload carries a proposed identifier but no id
@@ -245,6 +342,11 @@ class ProjectDirectoryService:
         # reported where it is checked, not here.
         parsed = parse_project_href(href, settings=self._settings)
         return parsed.id if isinstance(parsed, LinkedProject) else None
+
+
+class _Lookup(NamedTuple):
+    task: asyncio.Task[None]
+    started: int
 
 
 class _Project(NamedTuple):

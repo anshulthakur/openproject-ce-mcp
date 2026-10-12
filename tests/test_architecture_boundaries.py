@@ -1415,10 +1415,7 @@ def test_f3_allowlist_semaphore_is_structurally_separate_from_f6_batch_read_sema
             raise AssertionError(f"unused: {name}")
 
     class _StubReadableProjects:
-        async def ensure_fresh(self) -> None:
-            raise AssertionError("unused")
-
-        def readable_project_ids(self) -> frozenset[int]:
+        async def current_readable_project_ids(self) -> frozenset[int]:
             raise AssertionError("unused")
 
     service = WorkPackageService(

@@ -4,7 +4,7 @@ import json
 
 import httpx
 import pytest
-from _client_test_helpers import _make_grid_payload, _make_grid_settings, started_client
+from _client_test_helpers import _make_grid_payload, _make_grid_settings, _make_project_response, started_client
 
 from openproject_ce_mcp.client import (
     InvalidInputError,
@@ -191,6 +191,8 @@ async def test_board_crud_uses_query_form_endpoints_and_project_filtering() -> N
             )
         if request.url.path == "/api/v3/queries/12" and request.method == "DELETE":
             return httpx.Response(204, request=request)
+        if request.url.path == "/api/v3/projects/6" and request.method == "GET":
+            return _make_project_response(request, 6)
         raise AssertionError(f"Unexpected request: {request.method} {request.url}")
 
     settings = Settings(

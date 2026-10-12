@@ -394,12 +394,24 @@ directory reads only the server's own resources in a body (the response itself,
 everything under `_embedded`, and a job status's `payload`), never a free-form
 property such as a grid's `options`. A project representation there is recorded
 as is; a linked id the last scan never saw is looked up with
-`GET /projects/{id}`, at most ten at a time. Out-of-scope projects are
-remembered for five minutes, then re-checked. The global `list_work_packages`
-filters on the projects the directory reports as readable (read scope matched,
-not archived) and rescans when the last scan is older than five minutes. A test
-asserts that every adapter holds the one `LearningTransport`; only the
-directory's own project lookups bypass it.
+`GET /projects/{id}`, at most ten at a time. A known project is looked up again
+whenever its recorded identifier alone would admit a link to it and was read
+before the response arrived, since a link carries no identifier and the recorded
+one may predate a rename. Every entry carries the moment the read it came from
+began, for a project shown in a response the moment its request was sent
+(`LearningTransport` asks the directory before each request): older data never
+overwrites newer, and a response shares only a lookup that started after it
+arrived. A failed lookup, or one that returns no identifier, forgets the project
+unless a read that began later has recorded it since, so a stale identifier
+never admits. Out-of-scope projects are remembered for five minutes, then
+re-checked. The global `list_work_packages` filters on the projects the
+directory reports as readable (read scope matched, not archived), rescans when
+the last scan is older than five minutes, and first re-reads every one of them
+the read scope does not match by id with `GET /projects` filtered by id, one
+request per page of projects: OpenProject computes the total, groups and sums
+over everything the filter names, so a stale entry would count a project that is
+no longer readable. A test asserts that every adapter holds the one
+`LearningTransport`; only the directory's own project lookups bypass it.
 
 ### Project links
 
