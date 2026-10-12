@@ -1,8 +1,8 @@
 """Notifications Domain API port.
 
-List-only for reads (no single-item GET endpoint exists for a notification),
-plus two parameterless write actions with no request body: `mark_read` (one
-notification) and `mark_all_read` (every currently-unread notification).
+List-only for reads, plus two parameterless write actions with no request
+body: `mark_read` (one notification) and `mark_all_read` (only the unread
+notifications: an already-read one keeps its updatedAt).
 
 `NotificationRecord.summary` is a LAZY callable, not an eager field:
 raw elements are filtered by project/work-package allowlist first, and only

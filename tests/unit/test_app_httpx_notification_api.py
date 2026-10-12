@@ -146,18 +146,27 @@ async def test_mark_read_posts_an_empty_json_body() -> None:
 
 
 @pytest.mark.asyncio
-async def test_mark_all_read_posts_an_empty_json_body() -> None:
-    requests: list[tuple[str, str, bytes]] = []
+async def test_mark_all_read_posts_an_empty_json_body_limited_to_unread() -> None:
+    """Unfiltered, the bulk route also rewrites every already-read
+    notification and moves its updatedAt."""
+    requests: list[tuple[str, str, dict[str, str], bytes]] = []
 
     async def handler(request: httpx.Request) -> httpx.Response:
-        requests.append((request.method, request.url.path, request.content))
+        requests.append((request.method, request.url.path, dict(request.url.params), request.content))
         return httpx.Response(204, request=request)
 
     async with _client(handler) as http_client:
         api = HttpxNotificationApi(HttpxTransport(http_client))
         await api.mark_all_read()
 
-    assert requests == [("POST", "/api/v3/notifications/read_ian", b"{}")]
+    assert requests == [
+        (
+            "POST",
+            "/api/v3/notifications/read_ian",
+            {"filters": '[{"readIAN":{"operator":"=","values":["f"]}}]'},
+            b"{}",
+        )
+    ]
 
 
 def test_normalize_notification_resolves_work_package_resource_link() -> None:

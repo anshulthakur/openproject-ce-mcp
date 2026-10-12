@@ -173,6 +173,11 @@ development baseline.
   an update, for example of `iterations` or `start_time`, left those
   occurrences without a title, while the API could keep showing the old one
   for a while. The update now sends the series' current title along.
+- `mark_notifications_read` without `notification_id` changes only unread
+  notifications, as OpenProject's own "mark all as read" does. It used to
+  write every notification again, so already-read notifications got a new
+  `updatedAt` on each call; they now keep it, and a repeated call changes
+  nothing.
 
 Thanks to our contributors: [@webadmin-stattreisen](https://github.com/webadmin-stattreisen) ([#45](https://github.com/jtauschl/openproject-ce-mcp/pull/45)).
 

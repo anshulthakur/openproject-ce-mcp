@@ -26,6 +26,12 @@ from ._text import id_from_href as _id_from_href
 from ._text import link_title as _link_title
 from ._text import trim_text as _trim_text
 
+_UNREAD_IN_APP_FILTER: dict[str, Any] = {"readIAN": {"operator": "=", "values": ["f"]}}
+
+
+def _filters_param(filters: list[dict[str, Any]]) -> str:
+    return json.dumps(filters, separators=(",", ":"))
+
 
 def normalize_notification(payload: dict[str, Any]) -> NotificationSummary:
     """Pure HAL->model translation (ADR: 'lives in the Domain API adapter').
@@ -84,7 +90,7 @@ class HttpxNotificationApi:
     async def list_all(self, *, unread_only: bool, offset: int, limit: int) -> NotificationPage:
         params: dict[str, str] = {"offset": str(offset), "pageSize": str(limit)}
         if unread_only:
-            params["filters"] = json.dumps([{"readIAN": {"operator": "=", "values": ["f"]}}], separators=(",", ":"))
+            params["filters"] = _filters_param([_UNREAD_IN_APP_FILTER])
         payload = await self._transport.get_json("notifications", params=params)
         elements = payload.get("_embedded", {}).get("elements", [])
         records = [self._record(item) for item in elements if isinstance(item, dict)]
@@ -101,4 +107,13 @@ class HttpxNotificationApi:
         await self._transport.request_raw("POST", f"notifications/{notification_id}/read_ian", json_body={})
 
     async def mark_all_read(self) -> None:
-        await self._transport.request_raw("POST", "notifications/read_ian", json_body={})
+        # Unfiltered, the bulk route sets read_ian and updated_at on every
+        # visible notification, so each call would rewrite the already-read
+        # ones and move their updatedAt. OpenProject's own mark-all also
+        # touches only unread ones.
+        await self._transport.request_raw(
+            "POST",
+            "notifications/read_ian",
+            params={"filters": _filters_param([_UNREAD_IN_APP_FILTER])},
+            json_body={},
+        )
