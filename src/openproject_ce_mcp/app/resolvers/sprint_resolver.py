@@ -57,7 +57,8 @@ class SprintResolver:
                 record = await self._api.get(int(sprint_ref))
             except NotFoundError as exc:
                 raise NotFoundError(
-                    "OpenProject sprint not found, or the Backlogs module / sprint API is unavailable."
+                    "OpenProject sprint not found, or the sprint API is unavailable "
+                    "(it requires the Backlogs module and OpenProject 17.3 or newer)."
                 ) from exc
             sprint_policy.ensure_sprint_workspace_allowed(
                 defining_workspace_payload=record.defining_workspace_payload,

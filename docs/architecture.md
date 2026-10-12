@@ -763,7 +763,8 @@ areas are in scope:
   subtasks, attachments, watchers, activities
 - Versions, boards/queries, views
 - Backlogs sprints (read, plus assigning/unassigning a work package's sprint;
-  requires the Backlogs module)
+  requires the Backlogs module and OpenProject 17.3+) and backlog buckets
+  (read; requires OpenProject 17.6+)
 - News, documents (read/update only), wiki pages (single-page fetch only — no
   list endpoint in OpenProject v3)
 - Time entries, Nextcloud file links (CE feature, degrades gracefully)

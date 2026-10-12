@@ -174,7 +174,8 @@ class BacklogBucketService:
             record = await self._api.get(backlog_bucket_id)
         except NotFoundError as exc:
             raise NotFoundError(
-                "OpenProject backlog bucket not found, or the Backlogs module / backlog bucket API is unavailable."
+                "OpenProject backlog bucket not found, or the backlog bucket API is unavailable "
+                "(it requires the Backlogs module and OpenProject 17.6 or newer)."
             ) from exc
         ensure_backlog_bucket_workspace_allowed(
             defining_workspace_payload=record.defining_workspace_payload,

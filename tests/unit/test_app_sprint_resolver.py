@@ -82,6 +82,36 @@ async def test_resolve_id_numeric_short_circuits_via_get() -> None:
 
 
 @pytest.mark.asyncio
+async def test_resolve_id_numeric_not_found_names_the_sprint_api_floor() -> None:
+    resolver = SprintResolver(
+        api=_FakeSprintApi(),
+        resolve_project_ref=_resolve_project_ref,
+        settings=make_settings(),
+        project_id_to_identifier={},
+    )
+    with pytest.raises(NotFoundError, match=r"Backlogs module and OpenProject 17\.3 or newer"):
+        await resolver.resolve_id("5", project="demo")
+
+
+@pytest.mark.asyncio
+async def test_resolve_id_by_name_not_found_names_the_sprint_api_floor() -> None:
+    class _NoSprintApi(_FakeSprintApi):
+        async def list_for_project(
+            self, project_id: int, *, offset: int, page_size: int
+        ) -> tuple[list[SprintRecord], int]:
+            raise NotFoundError("Not found")
+
+    resolver = SprintResolver(
+        api=_NoSprintApi(),
+        resolve_project_ref=_resolve_project_ref,
+        settings=make_settings(),
+        project_id_to_identifier={},
+    )
+    with pytest.raises(NotFoundError, match=r"Backlogs module and OpenProject 17\.3 or newer"):
+        await resolver.resolve_id("Sprint 1", project="demo")
+
+
+@pytest.mark.asyncio
 async def test_resolve_id_matches_by_case_insensitive_name() -> None:
     api = _FakeSprintApi(pages=[([_record(1, "Sprint 1"), _record(2, "Sprint 2")], 2)])
     resolver = SprintResolver(

@@ -93,7 +93,7 @@ default tool set and save context.
 | `get_project_admin_context` | Return project admin metadata such as lifecycle statuses, parent project options, and writable fields |
 | `get_project_configuration` | Return project-scoped configuration such as internal comment support |
 | `list_sprints` | List Backlogs sprints (requires Backlogs/OpenProject 17.3+), with an optional project filter and name search filter — omit `project` to list every sprint visible to the current token, or pass it to list only that project's sprints |
-| `get_sprint` | Fetch a Backlogs sprint by id |
+| `get_sprint` | Fetch a Backlogs sprint by id (requires OpenProject 17.3+) |
 | `list_backlog_buckets` | List Backlogs backlog buckets (requires Backlogs/OpenProject 17.6+), with an optional project filter and name search filter — omit `project` to list every backlog bucket visible to the current token, or pass it to list only that project's backlog buckets |
 | `get_backlog_bucket` | Fetch a Backlogs backlog bucket by id (requires OpenProject 17.6+) |
 | `create_project` | Validate and then create a project; only writes when called again with `confirm=true` |

@@ -163,6 +163,11 @@ development baseline.
   Their descriptions and the tool reference state these versions and
   describe when OpenProject fails to list a work package's links, instead of
   naming versions where the tools do not exist.
+- The `list_sprints` and `get_sprint` descriptions and the tool reference now
+  say that sprints need OpenProject 17.3 or later. When `get_sprint`,
+  `get_backlog_bucket` or a sprint given by id to `update_work_package` or
+  `bulk_update_work_packages` is not found, the error now names the version
+  the sprint API (17.3) or the backlog bucket API (17.6) needs.
 
 Thanks to our contributors: [@webadmin-stattreisen](https://github.com/webadmin-stattreisen) ([#45](https://github.com/jtauschl/openproject-ce-mcp/pull/45)).
 
