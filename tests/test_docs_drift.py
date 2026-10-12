@@ -14,6 +14,7 @@ import pytest
 from openproject_ce_mcp.config import READ_SCOPE_ENV_VAR, TOOL_GROUPS
 from openproject_ce_mcp.server import CE_INSTRUCTIONS, _build_parser
 from openproject_ce_mcp.tools import (
+    _PROJECT_SCOPED_READ_TOOLS,
     ADDITIONAL_READ_SCOPES_BY_TOOL,
     ATTACHMENT_UPLOAD_TOOLS,
     PERSONAL_MUTATION_TOOLS,
@@ -157,6 +158,24 @@ def test_tools_per_switch_lists_exactly_the_tools_each_switch_registers() -> Non
     assert {switch: set(names) for switch, names in documented.items()} == {
         switch: set(names) for switch, names in expected.items()
     }
+
+
+def test_configuration_lists_exactly_the_read_tools_registered_without_read_projects() -> None:
+    sentence = _section(_prose(CONFIGURATION), "register only these project-independent tools:", ".")
+    documented = _backticked(sentence)
+
+    core_read_tools: set[str] = set()
+    other_read_tools: set[str] = set()
+    for group in TOOL_GROUPS:
+        names = {name for scope in group.read_scopes for name in READ_TOOLS_BY_SCOPE.get(scope, ())}
+        if group.write is not None and group.write.project_scoped:
+            core_read_tools |= names
+        else:
+            other_read_tools |= names
+
+    assert _duplicates(documented) == []
+    assert set(documented) == core_read_tools - _PROJECT_SCOPED_READ_TOOLS
+    assert sorted(other_read_tools & _PROJECT_SCOPED_READ_TOOLS) == []
 
 
 def test_configuration_lists_exactly_the_tools_needing_another_setting() -> None:

@@ -45,7 +45,9 @@ depends on configuration; the most relevant controls are:
   opt-in `_PERSONAL_READ`, `_EXTENDED_READ`, `_ADMIN_READ`, and
   `_USER_SCHEDULE_READ` (default `false` — `_ADMIN_READ` gates the
   instance-wide user/group listing, which is PII with no project-scope
-  boundary). Setting the legacy `OPENPROJECT_ALLOWED_PROJECTS`/`_READ`/`_WRITE`
+  boundary). The project-bound read tools of the default-`true` groups are
+  registered only while `OPENPROJECT_READ_PROJECTS` is non-empty. Setting the
+  legacy `OPENPROJECT_ALLOWED_PROJECTS`/`_READ`/`_WRITE`
   names (see [Configuration](docs/configuration.md#legacy-configuration-migration))
   in your config has no effect on the running server beyond a startup/`doctor`
   warning naming the exact replacement. **The project-scoped write flags default

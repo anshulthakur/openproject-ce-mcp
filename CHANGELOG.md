@@ -193,6 +193,12 @@ development baseline.
   views, grids, statuses, time entries, reminders, watchers and project
   copies. A new table in the guide lists every tool per setting, and another
   lists the tools that also need a second setting.
+- The README said that the read tools of the projects, work packages,
+  memberships, versions, boards and meetings groups are registered by default.
+  Their project-bound tools are registered only while
+  `OPENPROJECT_READ_PROJECTS` is non-empty; the README, the security policy
+  and the configuration guide now say so, and the guide lists the core read
+  tools registered without it.
 - An invalid `select` error now says that no request was sent, so a rejected
   confirmed bulk write is known to have written nothing. The
   `bulk_create_work_packages` and `bulk_update_work_packages` descriptions say

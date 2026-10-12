@@ -98,7 +98,11 @@ actual security boundary is `OPENPROJECT_READ_PROJECTS` /
 `OPENPROJECT_WRITE_PROJECTS` plus the write flags below.
 
 The core groups (projects, work packages, memberships, versions, boards,
-meetings) default `true`, so a fresh setup gets their full read surface.
+meetings) default `true`. Their project-bound read tools are registered only
+while `OPENPROJECT_READ_PROJECTS` is non-empty, regardless of
+`OPENPROJECT_WRITE_PROJECTS`, so with `OPENPROJECT_READ_PROJECTS` empty (the
+default) only their project-independent read tools are registered, listed
+under [Tools per switch](#tools-per-switch).
 `OPENPROJECT_ENABLE_PERSONAL_READ`, `OPENPROJECT_ENABLE_ADMIN_READ`,
 `OPENPROJECT_ENABLE_USER_SCHEDULE_READ` and `OPENPROJECT_ENABLE_EXTENDED_READ`
 default `false`; they are opt-in because they surface data with a different
@@ -151,8 +155,18 @@ Privacy](#security--privacy) below.
 
 ### Tools per switch
 
-Each switch registers the tools in its row. The project allowlists above and
-the table after it can still keep a tool unregistered.
+Each switch registers the tools in its row, unless the project allowlists
+above or the table after it keep a tool unregistered. While
+`OPENPROJECT_READ_PROJECTS` is empty, the read switches of the core groups
+register only these project-independent tools:
+`list_project_phase_definitions`, `get_project_phase_definition`,
+`get_instance_configuration`, `list_statuses`, `get_status`,
+`list_priorities`, `get_priority`, `list_types`, `get_type`, `get_cost_type`,
+`get_github_pull_request`, `list_roles`, `get_current_user`, `list_actions`.
+The project-scoped write switches register their tools only while both
+`OPENPROJECT_READ_PROJECTS` and `OPENPROJECT_WRITE_PROJECTS` are non-empty.
+The personal, admin, user-schedule and extended switches register their tools
+regardless of either allowlist.
 
 | Switch | Tools |
 | --- | --- |

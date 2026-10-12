@@ -80,8 +80,8 @@ This MCP server targets **OpenProject Community Edition** only. It does not supp
 ## How it works
 
 - Communicates with the MCP client over stdio — no remote server, no persistent storage
-- The core read tools (projects, work packages, memberships, versions, boards, meetings) are registered by default, but no project data is accessible until `OPENPROJECT_READ_PROJECTS` is configured; personal, admin, user-schedule, and extended metadata tools are opt-in
-- The project-scoped write categories are enabled by default, but stay inert until a project is listed in `OPENPROJECT_WRITE_PROJECTS`: that allowlist, not the category flags, is the real gate; personal-data, admin, and user-schedule writes stay opt-in separately
+- The core read groups (projects, work packages, memberships, versions, boards, meetings) are on by default, but until `OPENPROJECT_READ_PROJECTS` lists a project, only project-independent tools such as `list_statuses`, `list_types` and `get_current_user` are registered. Personal, admin, user-schedule, and extended metadata tools are opt-in
+- The project-scoped write categories are on by default, but their tools are registered only when both `OPENPROJECT_READ_PROJECTS` and `OPENPROJECT_WRITE_PROJECTS` list a project, and a write reaches only projects in both. The allowlists, not the category flags, are the real gate. Personal-data, admin, and user-schedule writes are opt-in
 - Create and update operations validate the payload against OpenProject form endpoints before writing; delete and other simple operations execute directly once confirmed
 - Project scope is enforced server-side: the MCP only exposes what the configured allowlists permit
 - Responses are bounded and paginated — compact summaries, not raw HAL payloads
@@ -148,11 +148,11 @@ Your client config (`.mcp.json`, `.codex/config.toml`, or `.vscode/mcp.json`)
 contains your API token — treat it like a password and keep it out of version
 control; choose your client-specific guide from [Clients](https://github.com/jtauschl/openproject-ce-mcp/blob/main/docs/clients.md)
 for the exact `.gitignore` step. `configure` writes a minimal config: only the values that differ from a
-safe default. The core read tools are registered by default, and so are the
-project-scoped write categories, but project access stays denied either way until you list
-projects in `OPENPROJECT_READ_PROJECTS` (and, for writes, in
-`OPENPROJECT_WRITE_PROJECTS` too); that allowlist pair, not the category
-flags, is the real gate.
+safe default. The core read groups and the project-scoped write categories
+are enabled by default, but their project-bound tools are registered, and
+project access is granted, only once you list projects in
+`OPENPROJECT_READ_PROJECTS` (and, for writes, in `OPENPROJECT_WRITE_PROJECTS`
+too); that allowlist pair, not the category flags, is the real gate.
 
 See [Configuration](https://github.com/jtauschl/openproject-ce-mcp/blob/main/docs/configuration.md) for the full environment variable
 reference and what `configure --quick` vs. `--advanced` ask.
