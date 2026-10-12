@@ -319,14 +319,14 @@ async def list_work_package_wiki_links(
 ) -> WikiPageLinkListResult:
     """List wiki pages linked to a work package.
 
-    Requires OpenProject 17.6+ — the wiki_page_links endpoint does not exist
-    on earlier versions and returns a [server_error].
+    Requires OpenProject 17.5+; on an older server this returns a [not_found]
+    naming the required version.
 
-    Known OpenProject server bug (confirmed on 16.6/17.6/17.7.1): this call
-    returns a [server_error] whenever the work package
-    actually has one or more wiki page links — only the empty-list case
-    reliably works. create_work_package_wiki_link/delete_work_package_wiki_link
-    are unaffected and fully functional.
+    Known OpenProject server bug (17.5 to at least 17.9.1): this call returns
+    a [server_error] when none of the work package's links resolves to a wiki
+    page the user can see, and on 17.5/17.6 also when the work package has no
+    links. A link to the internal wiki resolves when its identifier is the
+    page's numeric id.
 
     work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
 
@@ -351,13 +351,14 @@ async def create_work_package_wiki_link(
     """Prepare or create a link from a work package to a wiki page; only
     writes when called again with confirm=true.
 
-    Requires OpenProject 17.6+ — the wiki_page_links endpoint does not exist
-    on earlier versions and returns a [server_error].
+    Requires OpenProject 17.7+; on an older server this returns a [not_found]
+    naming the required version.
 
     work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
-    identifier: the target wiki page's provider-specific identifier (not this
-    MCP's own wiki_page_id — OpenProject's wiki-provider abstraction uses its
-    own opaque page identifiers).
+    identifier: the target wiki page's identifier at its provider; for the
+    internal wiki, the page's numeric id (the wiki_page_id of get_wiki_page).
+    OpenProject accepts any string, but list_work_package_wiki_links fails
+    while none of a work package's links resolves to a page.
     provider: the wiki provider's universal identifier (e.g. "internal" for
     OpenProject's built-in wiki).
     """
@@ -380,12 +381,13 @@ async def delete_work_package_wiki_link(
     """Prepare or delete a work package's wiki page link; only deletes when
     called again with confirm=true.
 
-    Known OpenProject server bug (confirmed on 16.6/17.6/17.7.1): this call
-    currently fails with a [server_error] whenever the
-    given link actually exists — the same bug that breaks
-    list_work_package_wiki_links, since this tool verifies link_id actually
-    belongs to work_package_id before deleting (a real authorization check,
-    not optional) by internally listing the work package's links first.
+    Requires OpenProject 17.6+. On 17.4 or older this returns a [not_found]
+    naming 17.6; on 17.5 the link check below usually fails first with a
+    [server_error].
+
+    This tool lists the work package's links first to verify that link_id
+    belongs to work_package_id (an authorization check), so it fails with a
+    [server_error] whenever list_work_package_wiki_links does (see there).
 
     work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number
     — used to authorize the delete against that work package's project, since

@@ -77,10 +77,12 @@ class WikiPageLinkService:
         delete links scoped to THAT work package, not that the caller-supplied
         `link_id` is one of them. Without this, a write-allowed anchor work package
         could be paired with an arbitrary link_id from a disallowed project."""
+        # Gated with the delete's floor: below 17.5 this list 404s, and the
+        # version the caller needs is the one DELETE requires (17.6).
         records = await paginate_all(
             lambda o, ps: call_version_gated(
                 lambda: self._api.list_for_work_package(resolved_work_package_id, offset=o, page_size=ps),
-                feature="Wiki page links",
+                feature="Deleting wiki page links",
                 floor="17.6",
             ),
             page_size=self._settings.max_page_size,
@@ -106,8 +108,8 @@ class WikiPageLinkService:
         raw_items, truncated = await scan_records_and_paginate(
             lambda o, ps: call_version_gated(
                 lambda: self._api.list_for_work_package(resolved_id, offset=o, page_size=ps),
-                feature="Wiki page links",
-                floor="17.6",
+                feature="Listing wiki page links",
+                floor="17.5",
             ),
             item_allowed=lambda _record: True,
             server_page_size=self._settings.max_page_size,
@@ -160,8 +162,8 @@ class WikiPageLinkService:
         current_user = await self._current_user()
         record = await call_version_gated(
             lambda: self._api.create(resolved_id, identifier=identifier, provider=provider, author_id=current_user.id),
-            feature="Wiki page links",
-            floor="17.6",
+            feature="Creating wiki page links",
+            floor="17.7",
         )
         result = self._stamp(record)
         return WikiPageLinkWriteResult(
@@ -197,7 +199,7 @@ class WikiPageLinkService:
             )
 
         access.ensure_write_enabled("work_package", settings=self._settings)
-        await call_version_gated(lambda: self._api.delete(link_id), feature="Wiki page links", floor="17.6")
+        await call_version_gated(lambda: self._api.delete(link_id), feature="Deleting wiki page links", floor="17.6")
         return WikiPageLinkWriteResult(
             action="delete",
             state="confirmed",

@@ -279,28 +279,31 @@ user exists.
 | Tool | Description |
 | --- | --- |
 | `get_wiki_page` | Fetch a single wiki page by id |
-| `list_work_package_wiki_links` | List wiki pages linked to a work package (requires OpenProject 17.6+; the collection endpoint exists from 17.6, but see the pagination note below) |
-| `create_work_package_wiki_link` | Validate and then create a link from a work package to a wiki page; only writes when called again with `confirm=true` (requires OpenProject 17.7+ — the server's `POST work_packages/{id}/wiki_page_links` handler does not exist at all on 17.6 or earlier) |
-| `delete_work_package_wiki_link` | Validate and then delete a work package's wiki page link; only deletes when called again with `confirm=true` (requires OpenProject 17.7+, for the same reason as `create_work_package_wiki_link` above) |
+| `list_work_package_wiki_links` | List wiki pages linked to a work package (requires OpenProject 17.5+; see the server bug note below) |
+| `create_work_package_wiki_link` | Validate and then create a link from a work package to a wiki page; only writes when called again with `confirm=true` (requires OpenProject 17.7+: `POST work_packages/{id}/wiki_page_links` does not exist on 17.6 or earlier) |
+| `delete_work_package_wiki_link` | Validate and then delete a work package's wiki page link; only deletes when called again with `confirm=true` (requires OpenProject 17.6+: `DELETE wiki_page_links/{id}` does not exist on 17.5 or earlier) |
 
 > **Note:** OpenProject API v3 does not provide a collection endpoint for wiki pages
 > (`GET /api/v3/projects/{id}/wiki_pages` is not implemented). `list_wiki_pages`
 has
 > therefore been removed. Individual pages can be fetched by id via `get_wiki_page`.
 >
-> **Note:** the `wiki_page_links` endpoint (`list_work_package_wiki_links`/
-> `create_work_package_wiki_link`/`delete_work_package_wiki_link`) requires
-> OpenProject 17.6 or later — earlier versions return a `[server_error]`.
+> **Note:** on a server older than the version a wiki page link tool
+> requires (list 17.5, delete 17.6, create 17.7), the tool returns a
+> `[not_found]` that names the required version. On 17.5,
+> `delete_work_package_wiki_link` usually fails earlier with a
+> `[server_error]`, because its link check runs into the server bug below.
 >
-> **Note:** `list_work_package_wiki_links` returns a `[server_error]` whenever
-> the work package actually has one or more wiki page links due to an
-> OpenProject server bug in 16.6/17.6/17.7.1. Only the
-> empty-list case reliably works. `delete_work_package_wiki_link` is affected
-> too: it verifies `link_id` actually belongs to `work_package_id` before
-> deleting (a real authorization check, not skippable) by listing the work
-> package's links internally first, so it hits the same bug whenever the
-> link being deleted actually exists. `create_work_package_wiki_link` is
-> unaffected.
+> **Note:** an OpenProject server bug (17.5 to at least 17.9.1) makes
+> `list_work_package_wiki_links` return a `[server_error]` when none of the
+> work package's links resolves to a wiki page the user can see; on 17.5 and
+> 17.6 this also happens when the work package has no links. A link to the
+> internal wiki resolves when its `identifier` is the page's numeric id (the
+> `wiki_page_id` of `get_wiki_page`); OpenProject accepts any other string
+> when the link is created. `delete_work_package_wiki_link` is affected too:
+> it verifies `link_id` actually belongs to `work_package_id` before deleting
+> (a real authorization check, not skippable) by listing the work package's
+> links internally first. `create_work_package_wiki_link` is unaffected.
 
 ## Forums
 

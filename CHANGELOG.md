@@ -135,6 +135,15 @@ development baseline.
 - `get_query_sort_by` accepts the id as `"field:direction"`,
   `"field-direction"` or a bare field name; a bare field name used to fail
   with not found.
+- `create_work_package_wiki_link` needs OpenProject 17.7; on 17.6 it now says
+  so instead of claiming the server is older than 17.6.
+  `list_work_package_wiki_links` works from 17.5 and
+  `delete_work_package_wiki_link` from 17.6, and on an older server each of
+  these tools names the version it needs; on 17.5 an OpenProject bug usually
+  makes `delete_work_package_wiki_link` fail earlier with a server error.
+  Their descriptions and the tool reference state these versions and
+  describe when OpenProject fails to list a work package's links, instead of
+  naming versions where the tools do not exist.
 
 Thanks to our contributors: [@webadmin-stattreisen](https://github.com/webadmin-stattreisen) ([#45](https://github.com/jtauschl/openproject-ce-mcp/pull/45)).
 

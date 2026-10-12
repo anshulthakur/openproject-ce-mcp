@@ -1,9 +1,10 @@
 """Wiki Page Links Domain API port.
 
 Links a work package to a wiki page (OpenProject's `wiki_page_links`
-resource, requires OpenProject 17.6+ -- the route/endpoint only exists from
-17.6 onward; 17.4/17.5 carry the representer but no reachable route). Full
-CRUD minus update: list, create, delete -- no `PATCH`.
+resource). The routes arrive in three steps: `GET work_packages/{id}/
+wiki_page_links` in 17.5, `DELETE wiki_page_links/{id}` in 17.6, `POST
+work_packages/{id}/wiki_page_links` in 17.7; 17.4 carries the representer
+but no route. Full CRUD minus update: list, create, delete -- no `PATCH`.
 
 No `to_detail`: `WikiPageLinkSummary` is the only normalized shape this
 domain has, matching `AttachmentSummary`'s/`FileLinkSummary`'s shape.
