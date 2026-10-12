@@ -320,8 +320,11 @@ class RecurringMeetingService:
             )
 
         access.ensure_write_enabled("meeting", settings=self._settings)
+        # OpenProject 17.4+ copies a PATCH's title onto every instantiated
+        # future occurrence even when the key is absent, writing NULL.
+        request_body = payload if title is not None else {**payload, "title": current.raw_title}
         record = await call_version_gated(
-            lambda: self._api.update(recurring_meeting_id, payload), feature="Recurring meetings", floor="17.4"
+            lambda: self._api.update(recurring_meeting_id, request_body), feature="Recurring meetings", floor="17.4"
         )
         result = self._stamp(record.summary)
         return RecurringMeetingWriteResult(

@@ -168,6 +168,11 @@ development baseline.
   `get_backlog_bucket` or a sprint given by id to `update_work_package` or
   `bulk_update_work_packages` is not found, the error now names the version
   the sprint API (17.3) or the backlog bucket API (17.6) needs.
+- `update_recurring_meeting` without `title` no longer erases the titles of
+  already materialized future occurrences. On OpenProject 17.4 and later such
+  an update, for example of `iterations` or `start_time`, left those
+  occurrences without a title, while the API could keep showing the old one
+  for a while. The update now sends the series' current title along.
 
 Thanks to our contributors: [@webadmin-stattreisen](https://github.com/webadmin-stattreisen) ([#45](https://github.com/jtauschl/openproject-ce-mcp/pull/45)).
 

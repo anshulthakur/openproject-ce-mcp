@@ -103,7 +103,9 @@ class HttpxRecurringMeetingApi:
 
     def _record(self, payload: dict[str, Any]) -> RecurringMeetingRecord:
         return RecurringMeetingRecord(
-            summary=normalize_recurring_meeting(payload), project_link=payload.get("_links", {}).get("project")
+            summary=normalize_recurring_meeting(payload),
+            project_link=payload.get("_links", {}).get("project"),
+            raw_title=payload["title"],
         )
 
     async def list_page(

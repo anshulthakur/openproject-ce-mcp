@@ -21,9 +21,11 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import json
 import os
 import subprocess
 import uuid
+from collections.abc import Callable
 
 import httpx
 import pytest
@@ -706,6 +708,30 @@ def seed_project_phase_id(test_project: str) -> int:
     if value == "":
         pytest.skip(f"test_project {test_project!r} has no project phase (unexpected -- check docker/test/seed.rb ran)")
     return int(value)
+
+
+@pytest.fixture
+def meeting_title_in_database() -> Callable[[int], str | None]:
+    """Returns a reader for a meeting's title straight from the database.
+
+    The meeting representer cache keys on updated_at, which an `update_all`
+    leaves untouched, so the API can keep serving a title the database no
+    longer holds. Requires OPENPROJECT_DOCKER_SERVICE; skips cleanly if unset.
+    """
+    if not os.environ.get("OPENPROJECT_DOCKER_SERVICE"):
+        pytest.skip("OPENPROJECT_DOCKER_SERVICE not set (needed to read a meeting title from the database)")
+
+    script = """
+        puts "TITLE=#{Meeting.where(id: Integer(ENV.fetch("MEETING_ID"))).pick(:title).to_json}"
+    """
+
+    def read(meeting_id: int) -> str | None:
+        value: str | None = json.loads(
+            _run_rails_script(script, result_key="TITLE", env={"MEETING_ID": str(meeting_id)})
+        )
+        return value
+
+    return read
 
 
 @pytest.fixture
