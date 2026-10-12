@@ -34,6 +34,7 @@ import uuid
 import pytest
 
 from openproject_ce_mcp.client import (
+    InvalidInputError,
     NotFoundError,
     OpenProjectClient,
     OpenProjectServerError,
@@ -85,6 +86,49 @@ async def test_create_list_and_delete_a_resolving_wiki_page_link(
     finally:
         if not deleted:
             await _delete_link_bypassing_the_list(client, link_id)
+
+
+async def test_delete_rejects_an_inline_link_from_the_work_package_description(
+    client: OpenProjectClient,
+    test_project: str,
+    wp_ids: list[int],
+    internal_wiki_provider_id: int,
+    seed_wiki_page_id: int,
+) -> None:
+    wp_result = await client.work_package.create(
+        project=test_project,
+        type="Task",
+        subject=f"[integration-test] inline wiki link {uuid.uuid4().hex[:8]}",
+        description=f"See [[[{internal_wiki_provider_id}:{seed_wiki_page_id}]]]",
+        confirm=True,
+    )
+    assert wp_result.ready, wp_result.validation_errors
+    work_package_id = wp_result.work_package_id
+    wp_ids.append(work_package_id)
+
+    try:
+        try:
+            listed = await client.wiki_page_link.list_for_work_package(work_package_id)
+        except NotFoundError:
+            pytest.skip("GET work_packages/{id}/wiki_page_links not available (requires OpenProject 17.5+)")
+        assert [(link.identifier, link.link_type) for link in listed.results] == [(str(seed_wiki_page_id), "inline")]
+        link_id = listed.results[0].id
+
+        with pytest.raises(InvalidInputError) as exc_info:
+            await client.wiki_page_link.delete(work_package_id, link_id, confirm=True)
+
+        assert str(exc_info.value) == (
+            f"Wiki page link {link_id} on work package {work_package_id} is an inline link: OpenProject "
+            "derives it from a wiki link in the work package's description or from a wiki page that "
+            "mentions the work package, and offers no API to delete it. Remove the link from that text instead."
+        )
+        listed_after = await client.wiki_page_link.list_for_work_package(work_package_id)
+        assert [link.id for link in listed_after.results] == [link_id]
+    finally:
+        # Deleting the work package would leave its inline link behind; clearing
+        # the description removes it through OpenProject's own sync.
+        update_result = await client.work_package.update(work_package_id=work_package_id, description="", confirm=True)
+        assert update_result.ready, update_result.validation_errors
 
 
 async def test_create_wiki_page_link(client: OpenProjectClient, test_project: str, wp_ids: list[int]) -> None:

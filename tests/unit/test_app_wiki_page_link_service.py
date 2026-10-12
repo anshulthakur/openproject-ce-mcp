@@ -287,6 +287,63 @@ async def test_delete_denies_write_even_without_confirm() -> None:
     assert api.delete_calls == []
 
 
+_INLINE_LINK_MESSAGE = (
+    "Wiki page link 9 on work package 42 is an inline link: OpenProject derives it from a wiki link in "
+    "the work package's description or from a wiki page that mentions the work package, and offers no "
+    "API to delete it. Remove the link from that text instead."
+)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("confirm", [True, False])
+async def test_delete_rejects_an_inline_link_before_the_request(confirm: bool) -> None:
+    api = _FakeWikiPageLinkApi([WikiPageLinkRecord(summary=_summary(link_id=9, link_type="inline"))])
+    service = _service(api=api)
+
+    with pytest.raises(InvalidInputError) as exc_info:
+        await service.delete(42, 9, confirm=confirm)
+
+    assert str(exc_info.value) == _INLINE_LINK_MESSAGE
+    assert api.delete_calls == []
+
+
+@pytest.mark.asyncio
+async def test_delete_judges_the_requested_link_not_another_inline_link_of_the_work_package() -> None:
+    api = _FakeWikiPageLinkApi(
+        [
+            WikiPageLinkRecord(summary=_summary(link_id=8, link_type="inline")),
+            WikiPageLinkRecord(summary=_summary(link_id=9, link_type="relation")),
+        ]
+    )
+    service = _service(api=api)
+
+    result = await service.delete(42, 9, confirm=True)
+
+    assert result.state == "confirmed"
+    assert api.delete_calls == [9]
+
+
+class _ForbiddenDeleteApi(_FakeWikiPageLinkApi):
+    """OpenProject 17.6+ for a user without manage_wiki_page_links: the DELETE answers 403."""
+
+    async def delete(self, link_id: int) -> None:
+        raise PermissionDeniedError(
+            "OpenProject denied access to this resource. (You are not authorized to access this resource.)"
+        )
+
+
+@pytest.mark.asyncio
+async def test_delete_without_the_manage_permission_reports_permission_denied_not_a_version() -> None:
+    service = _service(api=_ForbiddenDeleteApi())
+
+    with pytest.raises(PermissionDeniedError) as exc_info:
+        await service.delete(42, 9, confirm=True)
+
+    assert str(exc_info.value) == (
+        "OpenProject denied access to this resource. (You are not authorized to access this resource.)"
+    )
+
+
 # --- entity-scope regression --------------------------------------------------
 
 
@@ -381,6 +438,21 @@ async def test_delete_preview_on_a_server_without_any_route_names_17_6() -> None
 
     with pytest.raises(NotFoundError) as exc_info:
         await service.delete(42, 9, confirm=False)
+
+    assert str(exc_info.value) == (
+        "Deleting wiki page links requires OpenProject 17.6 or newer; this instance appears to be older."
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_of_an_untyped_link_on_a_server_with_list_only_names_17_6() -> None:
+    """OpenProject 17.5 renders no link type for a reverse inline link, and has no DELETE route."""
+    api = _MissingRouteApi("create", "delete")
+    api._records = [WikiPageLinkRecord(summary=_summary(link_id=9, link_type=None))]
+    service = _service(api=api)
+
+    with pytest.raises(NotFoundError) as exc_info:
+        await service.delete(42, 9, confirm=True)
 
     assert str(exc_info.value) == (
         "Deleting wiki page links requires OpenProject 17.6 or newer; this instance appears to be older."

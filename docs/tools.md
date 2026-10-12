@@ -304,6 +304,15 @@ has
 > it verifies `link_id` actually belongs to `work_package_id` before deleting
 > (a real authorization check, not skippable) by listing the work package's
 > links internally first. `create_work_package_wiki_link` is unaffected.
+>
+> **Note:** `delete_work_package_wiki_link` deletes relation links only
+> (`link_type` `relation`). An inline link comes from a wiki link in the work
+> package's description or from a wiki page that mentions the work package;
+> OpenProject offers no API to delete it, so the tool rejects it with a
+> `[validation_error]` without sending the delete request, and the link goes
+> away only when that text changes. Deleting needs the "Manage wiki page
+> links" permission in the work package's project; without it the tool
+> returns `[permission_denied]`.
 
 ## Forums
 

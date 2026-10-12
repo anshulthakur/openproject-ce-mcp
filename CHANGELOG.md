@@ -178,6 +178,14 @@ development baseline.
   write every notification again, so already-read notifications got a new
   `updatedAt` on each call; they now keep it, and a repeated call changes
   nothing.
+- `delete_work_package_wiki_link` with the id of an inline link, which comes
+  from a wiki link in the work package's description or from a wiki page that
+  mentions the work package, no longer claims that the server is older than
+  OpenProject 17.6. OpenProject cannot delete inline links through its API,
+  so the tool now rejects one without sending the delete request and says to
+  edit that text instead. The tool description and the tool reference say
+  that only relation links can be deleted and that deleting needs the "Manage
+  wiki page links" permission.
 
 Thanks to our contributors: [@webadmin-stattreisen](https://github.com/webadmin-stattreisen) ([#45](https://github.com/jtauschl/openproject-ce-mcp/pull/45)).
 

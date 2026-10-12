@@ -658,6 +658,29 @@ def seed_wiki_page_id(test_project: str) -> int:
 
 
 @pytest.fixture
+def internal_wiki_provider_id() -> int:
+    """Returns the numeric id of OpenProject's internal wiki provider.
+
+    The inline wiki link macro in a description, `[[[<provider id>:<identifier>]]]`,
+    names the provider by this id, which the REST API never exposes (it links
+    providers by their universal identifier, e.g. "internal"). Requires
+    OPENPROJECT_DOCKER_SERVICE; skips cleanly if unset.
+    """
+    service = os.environ.get("OPENPROJECT_DOCKER_SERVICE")
+    if not service:
+        pytest.skip("OPENPROJECT_DOCKER_SERVICE not set (needed to look up the internal wiki provider id)")
+
+    script = """
+        provider = defined?(Wikis::InternalProvider) ? Wikis::InternalProvider.first : nil
+        puts "PROVIDER_ID=#{provider&.id}"
+    """
+    value = _run_rails_script(script, result_key="PROVIDER_ID")
+    if value == "":
+        pytest.skip("this instance has no internal wiki provider (OpenProject 17.4+)")
+    return int(value)
+
+
+@pytest.fixture
 def seed_post_id(test_project: str) -> int:
     """Returns the id of test_project's seeded forum post (Message).
 

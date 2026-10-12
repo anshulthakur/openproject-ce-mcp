@@ -38,14 +38,18 @@ Attachments' exact pattern:
   `list_for_work_package`'s scan) and fails closed with `NotFoundError` if
   `link_id` is not actually among them, on both the preview and confirmed
   paths -- this fixed a real authorization-bypass finding from this
-  domain's step-6.5 review, not a defense-in-depth nicety.
+  domain's step-6.5 review, not a defense-in-depth nicety. The same scan
+  shows the link's type: `DELETE wiki_page_links/{id}` finds relation links
+  only (`Wikis::RelationPageLink.find`), so `delete()` rejects an inline link
+  as invalid input before the DELETE instead of letting its 404 read as a
+  missing route.
 """
 
 from __future__ import annotations
 
 from ...config import Settings
 from ...models import WikiPageLinkListResult, WikiPageLinkSummary, WikiPageLinkWriteResult
-from ..errors import NotFoundError
+from ..errors import InvalidInputError, NotFoundError
 from ..pagination import clamp_limit, paginate_all, scan_records_and_paginate
 from ..policies import access, hidden_fields
 from ..ports.current_user import CurrentUserLookup
@@ -71,7 +75,7 @@ class WikiPageLinkService:
     def _stamp(self, record: WikiPageLinkRecord) -> WikiPageLinkSummary:
         return hidden_fields.apply_hidden_fields("wiki_page_link", record.summary, settings=self._settings)
 
-    async def _ensure_link_belongs_to_work_package(self, resolved_work_package_id: int, link_id: int) -> None:
+    async def _find_link_of_work_package(self, resolved_work_package_id: int, link_id: int) -> WikiPageLinkRecord:
         """Fail closed unless `link_id` is actually one of `resolved_work_package_id`'s
         own links -- resolving the work package id alone only proves the caller may
         delete links scoped to THAT work package, not that the caller-supplied
@@ -88,10 +92,12 @@ class WikiPageLinkService:
             page_size=self._settings.max_page_size,
             key=lambda r: r.summary.id,
         )
-        if not any(record.summary.id == link_id for record in records):
+        record = next((record for record in records if record.summary.id == link_id), None)
+        if record is None:
             raise NotFoundError(
                 f"OpenProject wiki page link {link_id} was not found on work package {resolved_work_package_id}."
             )
+        return record
 
     async def list_for_work_package(
         self, work_package_id: int | str, *, offset: int = 1, limit: int | None = None
@@ -183,7 +189,16 @@ class WikiPageLinkService:
     ) -> WikiPageLinkWriteResult:
         access.ensure_read_enabled("work_package", settings=self._settings)
         resolved_id = await self._resolve_work_package_id(work_package_id, write=True)
-        await self._ensure_link_belongs_to_work_package(resolved_id, link_id)
+        record = await self._find_link_of_work_package(resolved_id, link_id)
+        # DELETE wiki_page_links/{id} looks the id up as a relation link only,
+        # so it answers 404 for an inline link on every version.
+        if record.summary.link_type == "inline":
+            raise InvalidInputError(
+                f"Wiki page link {link_id} on work package {resolved_id} is an inline link: OpenProject "
+                "derives it from a wiki link in the work package's description or from a wiki page that "
+                "mentions the work package, and offers no API to delete it. Remove the link from that "
+                "text instead."
+            )
         payload = {"id": link_id}
         if not confirm:
             return WikiPageLinkWriteResult(
