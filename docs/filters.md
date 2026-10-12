@@ -4,7 +4,7 @@
   <img src="../img/work-package-filters.jpg" alt="Many work package records passing through layered filters into a precise result set." width="960">  <!-- markdownlint-disable-line MD013 -->
 </p>
 
-Verified against OpenProject CE source code (versions 16.0–17.6).
+Verified against OpenProject CE source code (versions 16.0–17.9).
 
 This document describes all work package filter parameters available in
 `list_work_packages` and `search_work_packages` tools, their official API filter
@@ -20,10 +20,10 @@ keys, supported operators, and implementation details.
 | open_only | status_id | :list (custom) | o | o, c, *, =, ! | Boolean for open statuses only (StatusFilter adds o/c/* operators) |
 | priority | priority_id | :list | = | =, ! | Filter by priority ID |
 | type | type_id | :list | = | =, ! | Filter by work package type ID |
-| version | version_id | :list_optional | = | =, !, *, !* | Filter by version ID |
-| version_status | version_id | :list_optional (custom) | o, c, l | o, c, l, =, !, *, !* | o=open, c=closed, l=locked (VersionFilter adds o/c/l operators) |
+| version | version_id | :list_optional | = | =, !, *, !* | Filter by version ID (`!*` is missing on OpenProject 16.4 only) |
+| version_status | version_id | :list_optional (custom) | o, c, l | o, c, l, =, !, *, !* | o=open, c=closed, l=locked (VersionFilter adds o/c/l operators from OpenProject 16.4; 16.0 to 16.3 reject them; 16.4 alone also lacks `!*`) |
 | project | project_id | :list | = | =, ! | Filter by project ID |
-| search | subject_or_id | :text | ** | ~, !~ | Free text search (search_work_packages only); matches only subject and numeric ID, never version/category/description or other linked fields — use the `version` filter above for version-based matches |
+| search | subject_or_id | :search | ** | ** | Free text search (search_work_packages only); matches only subject and numeric ID, never version/category/description or other linked fields; use the `version` filter above for version-based matches |
 | created_on | created_at | :datetime_past | =d | >t-, <t-, t-, t, w, =d, <>d | Single date exact match |
 | created_between | created_at | :datetime_past | <>d | >t-, <t-, t-, t, w, =d, <>d | Date range |
 | updated_on | updated_at | :datetime_past | =d | >t-, <t-, t-, t, w, =d, <>d | Single date exact match |
@@ -42,7 +42,7 @@ keys, supported operators, and implementation details.
 
 - **Used for:** status, priority, type, project
 - **Behavior:** Values required, no "none" option
-- **Source:** OpenProject CE 17.6
+- **Source:** OpenProject CE 17.9
   `app/models/queries/filters/strategies/list.rb`
 
 ### :list_optional
@@ -51,7 +51,7 @@ keys, supported operators, and implementation details.
 
 - **Used for:** assigned_to, version
 - **Behavior:** Supports "exists" and "not exists" queries
-- **Source:** OpenProject CE 17.6
+- **Source:** OpenProject CE 17.9
   `app/models/queries/filters/strategies/list_optional.rb`
 
 ### :date
@@ -62,7 +62,7 @@ keys, supported operators, and implementation details.
 - **Used for:** due_date
 - **Behavior:** Full date and relative operators; can check for "no date set"
   with `!*`
-- **Source:** OpenProject CE 17.6
+- **Source:** OpenProject CE 17.9
   `app/models/queries/filters/strategies/date.rb`
 
 ### :datetime_past
@@ -72,17 +72,28 @@ keys, supported operators, and implementation details.
 - **Used for:** created_at, updated_at
 - **Behavior:** Past-focused (no future operators); no "none" option (these
   fields always have values)
-- **Source:** OpenProject CE 17.6
+- **Source:** OpenProject CE 17.9
   `app/models/queries/filters/strategies/date_time_past.rb`
 
 ### :text
 
 **Supported operators:** `~` (contains), `!~` (not contains)
 
-- **Used for:** subject_or_id (in search)
+- **Used for:** text custom fields (see "Custom-Field Filters" below; 17.9
+  extends it as `CfText`); no parameter in the table above uses it
 - **Behavior:** Pattern matching only
-- **Source:** OpenProject CE 17.6
+- **Source:** OpenProject CE 17.9
   `app/models/queries/filters/strategies/text.rb`
+
+### :search
+
+**Supported operators:** `**` (everywhere)
+
+- **Used for:** subject_or_id (in search)
+- **Behavior:** Matches the subject (contains) or the numeric ID (equals)
+- **Source:** OpenProject CE 17.9
+  `app/models/queries/filters/strategies/search.rb`,
+  `app/models/queries/work_packages/filter/subject_or_id_filter.rb`
 
 ## Filter-Specific Custom Operators
 
@@ -95,16 +106,20 @@ Some filters extend their base strategy with custom operators via
 - **Custom operators:** `o` (OpenWorkPackages), `c` (ClosedWorkPackages), `*`
   (All)
 - **Implementation:** Custom `operator_strategy` method
-- **Source:** OpenProject CE 17.6
+- **Source:** OpenProject CE 17.9
   `app/models/queries/work_packages/filter/status_filter.rb`
 
 ### VersionFilter (version_id)
 
 - **Base strategy:** `:list_optional` (=, !, *, !*)
-- **Custom operators:** `o` (OpenStatus), `c` (ClosedStatus), `l` (LockedStatus)
+- **Custom operators:** `o` (OpenStatus), `c` (ClosedStatus), `l` (LockedStatus),
+  from OpenProject 16.4; 16.0 to 16.3 offer only the base strategy. 16.4's
+  operator list omits `!*` (None), so 16.4 rejects it; 16.5 restores it
 - **Implementation:** Custom `operator_strategy` method
-- **Source:** OpenProject CE 17.6
-  `app/models/queries/work_packages/filter/version_filter.rb`
+- **Source:** OpenProject CE 16.4 to 17.6
+  `app/models/queries/work_packages/filter/version_filter.rb`, 17.7 and 17.8
+  `filter_on_target_versions_mixin.rb`, 17.9 `filter_on_versions_mixin.rb`
+  (same directory)
 
 ## Operator Reference
 
@@ -143,8 +158,10 @@ Filtering and read-value exposure are separate concerns. The implementation
 was verified against these locations in the OpenProject CE source:
 `app/models/queries/filters/shared/custom_field_filter.rb` (dispatch),
 `app/models/queries/filters/shared/custom_fields/{base,list_optional,user,bool}.rb`
-(per-format strategy selection), and
+(per-format strategy selection),
 `app/models/queries/filters/strategies/{string,text,date,cf_integer,cf_float,cf_list_optional,boolean_list}.rb`
+and, from 17.9,
+`app/models/queries/filters/strategies/{cf_string,cf_text,cf_date,cf_boolean_list,cf_hierarchy}.rb`
 (operator sets).
 
 Custom fields are filtered via the `custom_field_filters` parameter on
@@ -177,23 +194,40 @@ strategy (`custom_field_filter.rb`'s `subfilter_class`, then
 
 | Format | Filter Strategy | Operators | Notes |
 | -------- | ------------------ | ----------- | ------- |
-| string | `:string` (`Strategies::String`) | `=`, `~`, `!`, `!~` | Free string match/contains |
-| text | `:text` (`Strategies::Text`) | `~`, `!~` | Contains-only, no exact `=` |
-| link | `:string` (`Strategies::String`) | `=`, `~`, `!`, `!~` | No dedicated "link" strategy exists server-side (absent from every `case`/`when` in the dispatch chain) — falls through to plain string, identical to the string row above |
+| string | `:string` (`Strategies::String`; `CfString` from 17.9) | `=`, `~`, `!`, `!~`; `*`, `!*` from 17.9 | Free string match/contains |
+| text | `:text` (`Strategies::Text`; `CfText` from 17.9) | `~`, `!~`; `*`, `!*` from 17.9 | Contains-only, no exact `=` |
+| link | `:string` (`Strategies::String`; `CfString` from 17.9) | `=`, `~`, `!`, `!~`; `*`, `!*` from 17.9 | No dedicated "link" strategy exists server-side (absent from every `case`/`when` in the dispatch chain); falls through to plain string, identical to the string row above in every version |
 | int | `CfInteger` | `=`, `!`, `>=`, `<=`, `!*`, `*` | `base.rb` explicitly overrides `:integer` → `CfInteger`; values must parse as `Integer` |
 | float | `CfFloat` | `=`, `!`, `>=`, `<=`, `!*`, `*` | Same operator set as int, `Float`-typed values |
-| date | `Strategies::Date` | `<t+`, `>t+`, `t+`, `t`, `w`, `>t-`, `<t-`, `t-`, `=d`, `<>d`, `!*` | Identical to the built-in `due_date` row above (same strategy class, unmodified) |
-| bool | `BooleanList` | `=`, `!` | Values are the literal wire strings `"t"`/`"f"` (`OpenProject::Database::DB_VALUE_TRUE`/`FALSE`), not JSON `true`/`false`; only one value per filter call |
+| date | `Strategies::Date` (`CfDate` from 17.9) | `<t+`, `>t+`, `t+`, `t`, `w`, `>t-`, `<t-`, `t-`, `=d`, `<>d`, `!*`; `*` from 17.9 | Up to 17.8 the same strategy class as the built-in `due_date` row above, where `!*` matches a missing value but not a stored empty one. From 17.9 `CfDate` adds `*`, and `!*` also matches a stored empty value |
+| bool | `BooleanList` (`CfBooleanList` from 17.9) | `=`, `!`; `*`, `!*` from 17.9 | Values are the literal wire strings `"t"`/`"f"` (`OpenProject::Database::DB_VALUE_TRUE`/`FALSE`), not JSON `true`/`false`; only one value per filter call. `*`/`!*` tell a "no" answer apart from no answer |
 | list | `CfListOptional` | `=`, `&=`, `!`, `*`, `!*` | Differs from the built-in `:list_optional` row above: `!*`/`*` mean none/any (same symbols, CF-specific semantics), `!` is `NotEqualsAll`, and `&=` (`EqualsAll`, "contains all of") has no built-in equivalent. Values are `CustomOption` ids |
 | user | `CfListOptional` (via `CustomFields::User`, inherits `ListOptional` unchanged) | `=`, `&=`, `!`, `*`, `!*` | Same operators as list; also accepts the literal value `"me"`, resolved server-side against the current user (and their group memberships) |
 | version | `CfListOptional` | `=`, `&=`, `!`, `*`, `!*` | Same as list; values are `Version` ids instead of `CustomOption` ids |
 
-**Not supported (Enterprise-only, rejected explicitly):** `hierarchy`,
-`weighted_item_list` — both are `enterprise_feature:`-tagged in
+**`*` and `!*` on a custom field.** `*` (any) matches work packages whose
+field holds a non-empty value; `!*` (none) matches those whose field has no
+value, including an empty one (`Queries::Operators::AllAndNonBlank` and
+`NoneOrBlank`). Neither takes a value: pass `"values": []`, e.g.
+`{"cf_12": {"operator": "!*", "values": []}}`. OpenProject 17.9 added both to
+string, text, link and bool fields and `*` to date fields; int, float, list,
+user and version fields have both since 16.0. On 16.0 to 17.8, `*` or `!*`
+on a format that does not offer it fails with OpenProject's 400
+`InvalidQuery`, like any other operator the format lacks. This MCP does not
+block it beforehand: its local check accepts every operator that at least
+one format in the table offers in some version (see below).
+
+**Not covered (Enterprise-only):** `hierarchy`, `weighted_item_list` (from
+16.6; 16.5 calls it `scored_list`). Both are `enterprise_feature:`-tagged in
 `config/initializers/custom_field_format.rb`, so a caller cannot legitimately
-have one configured on a CE instance. A third format, `calculated_value`, is
-likewise Enterprise-gated **and** registered `only: %w(Project)` — it cannot
-exist as a work-package custom field's format at all, so no `cf_<N>` filter on
+have one configured on a CE instance. This MCP does not look up a field's
+format, so it does not reject a filter on one either; OpenProject offers `=`,
+`!` and `eq_with_descendants` for them, plus `*` and `!*` from 17.9
+(`CfHierarchy`). `eq_with_descendants` is not in this MCP's operator
+allowlist, so it is rejected before any request. A third format,
+`calculated_value`, is likewise Enterprise-gated **and** registered
+`only: %w(Project)` — it cannot exist as a work-package custom field's format
+at all, so no `cf_<N>` filter on
 `list_work_packages`/`search_work_packages` could ever resolve to it (nothing to
 reject). Note this differs slightly by OpenProject version even where it would
 matter: 17.6 folds `calculated_value` into the plain `:float`/`CfFloat`
@@ -318,7 +352,11 @@ Custom-field filtering is additionally cross-checked against:
   `app/models/queries/filters/shared/custom_fields/{base,list_optional,user,bool}.rb`
 - **Strategies:**
   `app/models/queries/filters/strategies/{string,text,date,cf_integer,cf_float,
-  cf_list_optional,boolean_list}.rb`
+  cf_list_optional,boolean_list}.rb`, from 17.9 also
+  `app/models/queries/filters/strategies/{cf_string,cf_text,cf_date,
+  cf_boolean_list,cf_hierarchy}.rb`
+- **`*`/`!*` on custom fields:**
+  `app/models/queries/operators/{all_and_non_blank,none_or_blank}.rb`
 - **Enterprise gating / format registration:**
   `config/initializers/custom_field_format.rb`
 - **Global-scope constraint:**
