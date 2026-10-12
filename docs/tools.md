@@ -339,7 +339,7 @@ has
 | `list_categories` | List work-package categories configured for a project |
 | `get_category` | Fetch a single category from a project's category list |
 | `get_project_work_package_context` | Return project metadata plus the writable work-package schema for an optional type, including custom fields, project phases, and allowed values |
-| `list_work_packages` | List work packages with structured filters such as `project`, `type`, `version`, `version_status` (open/closed/locked), `assignee`, `status`, `priority`, and `custom_field_filters` (filter by custom field value, keyed by `cf_<N>`/`customField<N>` — see [filters.md](filters.md#custom-field-filters)) |
+| `list_work_packages` | List work packages with structured filters such as `project`, `type`, `version`, `version_status` (open/closed/locked, requires OpenProject 16.4+), `assignee`, `status`, `priority`, and `custom_field_filters` (filter by custom field value, keyed by `cf_<N>`/`customField<N>` — see [filters.md](filters.md#custom-field-filters)) |
 | `search_work_packages` | Search work packages by free-text query matching only subject/ID (not version); optional `project`, `status`, `open_only`, `assignee_me`, and `custom_field_filters` filters — for version-based filtering use `list_work_packages(version=...)` instead. Also resolves the query directly, in parallel, when it is a numeric id or display id (e.g. `PROJ-42`) and not shaped like a date; a match satisfying every other active filter is returned separately as `exact_match`, never merged into `results`/`total`/pagination |
 | `get_work_package` | Fetch a detailed work package summary by id or `displayId` reference |
 | `get_work_packages` | Fetch multiple work packages by ID in parallel (max 100 IDs per batch) |

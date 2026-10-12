@@ -25,6 +25,7 @@ import os
 import subprocess
 import uuid
 
+import httpx
 import pytest
 
 from openproject_ce_mcp.client import NotFoundError, OpenProjectClient
@@ -260,6 +261,20 @@ async def start_scoped_client():
 @pytest.fixture
 def test_project() -> str:
     return _resolve_test_project()
+
+
+@pytest.fixture
+async def openproject_version() -> tuple[int, int]:
+    """The instance's (major, minor), read from the API root's `coreVersion`,
+    which OpenProject shows to admins only -- the integration token is one."""
+    settings = _integration_settings()
+    if settings is None:
+        pytest.skip("OPENPROJECT_BASE_URL / OPENPROJECT_API_TOKEN not set")
+    async with httpx.AsyncClient(auth=("apikey", settings.api_token), timeout=settings.timeout) as http:
+        response = await http.get(f"{settings.base_url.rstrip('/')}/api/v3")
+    response.raise_for_status()
+    major, minor = response.json()["coreVersion"].split(".")[:2]
+    return int(major), int(minor)
 
 
 @pytest.fixture

@@ -18,9 +18,12 @@ every environment variable it can set, see [Configuration](configuration.md).
 | OS | macOS 12+, Linux, or Windows 10/11 |
 
 On OpenProject 16.0 specifically: emoji reactions and project phase
-definitions aren't available until 16.1, and documents PATCH plus the
+definitions aren't available until 16.1, the `version_status` filter of
+`list_work_packages` isn't available until 16.4, and documents PATCH plus the
 `entity` HAL link key (used by time/cost entries) aren't available until
-16.6. Every other tool works identically down to the 16.0 floor.
+16.6. Several tools need a 17.x release, for example the meeting tools (17.4)
+and the work package wiki-link tools (17.5 to 17.7, depending on the
+operation); the [tool reference](tools.md) names these floors.
 
 ## Prepare your OpenProject instance
 

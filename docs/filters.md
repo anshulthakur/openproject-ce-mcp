@@ -115,6 +115,13 @@ Some filters extend their base strategy with custom operators via
 - **Custom operators:** `o` (OpenStatus), `c` (ClosedStatus), `l` (LockedStatus),
   from OpenProject 16.4; 16.0 to 16.3 offer only the base strategy. 16.4's
   operator list omits `!*` (None), so 16.4 rejects it; 16.5 restores it
+- **Target versions:** from 17.7 the filter matches a work package when any
+  one of its target versions matches. From 17.8 OpenProject offers
+  `version_id` only while multiple versions per work package
+  (`Setting::WorkPackageMultipleVersions`) are off and `target_version_id`
+  only while they are on; the API maps either key to the one on offer
+  (`app/models/query/deprecated_version_filter.rb`), so `version` and
+  `version_status` work in both states
 - **Implementation:** Custom `operator_strategy` method
 - **Source:** OpenProject CE 16.4 to 17.6
   `app/models/queries/work_packages/filter/version_filter.rb`, 17.7 and 17.8

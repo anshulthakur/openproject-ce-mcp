@@ -244,7 +244,9 @@ async def list_work_packages(
     status, assignee, the date filters, etc.), listed below.
 
     version_status filters by the status of a work package's assigned version:
-    one of 'open', 'closed', or 'locked'.
+    one of 'open', 'closed', or 'locked'. It requires OpenProject 16.4 or
+    newer. A work package with several target versions matches version and
+    version_status when any one of them matches.
 
     assignee filters by any user (username, id, or "me"). assignee_me takes precedence.
 

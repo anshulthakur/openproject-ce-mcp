@@ -90,6 +90,12 @@ development baseline.
   occurrence can be restored. `create_storage`, `delete_storage`,
   `update_user_non_working_time` and `set_work_package_watcher` describe their
   checks and effects correctly.
+- The `list_work_packages` description and the installation guide now say
+  that `version_status` needs OpenProject 16.4 or later. When OpenProject
+  rejects a `list_work_packages` call that uses `version_status`, the error
+  keeps OpenProject's own message, for example "Version Operator is not set to
+  one of the allowed values", and adds that an instance older than 16.4 does
+  not support `version_status`.
 - `OPENPROJECT_VERIFY_SSL=false` and the proxy settings now take effect while
   retries are enabled, which is the default. They used to apply only with
   `OPENPROJECT_MAX_RETRIES=0`. Proxies come from `HTTP_PROXY`, `HTTPS_PROXY`
