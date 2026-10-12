@@ -1,8 +1,10 @@
 """Notifications Domain API port.
 
-List-only for reads, plus two parameterless write actions with no request
-body: `mark_read` (one notification) and `mark_all_read` (only the unread
-notifications: an already-read one keeps its updatedAt).
+A list and a single read, plus two write actions with no request body:
+`mark_read` (one notification) and `mark_all_read` (only the unread
+notifications: an already-read one keeps its updatedAt). `mark_all_read`
+takes the projects it may touch: `None` means every project, a set narrows
+the server-side update to notifications about those projects.
 
 `NotificationRecord.summary` is a LAZY callable, not an eager field:
 raw elements are filtered by project/work-package allowlist first, and only
@@ -72,5 +74,6 @@ class NotificationApi(Protocol):
     """
 
     async def list_all(self, *, unread_only: bool, offset: int, limit: int) -> NotificationPage: ...
+    async def get(self, notification_id: int) -> NotificationRecord: ...
     async def mark_read(self, notification_id: int) -> None: ...
-    async def mark_all_read(self) -> None: ...
+    async def mark_all_read(self, *, project_ids: frozenset[int] | None) -> None: ...

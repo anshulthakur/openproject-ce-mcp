@@ -79,6 +79,9 @@ def test_mark_notifications_read_schema() -> None:
         "Mark a single notification, or all unread notifications, as read.\n\n"
         "notification_id: mark just this notification read. Omit it (default) to\n"
         "mark every currently unread notification read instead.\n"
+        "Under a restricted OPENPROJECT_READ_PROJECTS, a notification about a\n"
+        "project outside it is refused (in the preview too), and omitting\n"
+        "notification_id marks only notifications about the projects it covers.\n"
         "Set confirm=true to write, or call without confirm=true first for a preview.\n"
     )
     assert tool.output_schema == {

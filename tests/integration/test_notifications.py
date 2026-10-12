@@ -7,15 +7,20 @@ it to the calling user, and adding a comment all produced zero
 notifications for that same user. Most tests here exercise the real
 (possibly empty) notification list from the admin token's own inbox.
 
-The two confirmed-write tests use second_user_client (a real second user,
+The three confirmed-write tests use second_user_client (a real second user,
 its own minted token -- see conftest.py, which needs the disposable Docker
 instance) to trigger genuine notifications FOR the admin: a comment from
 that user on a work package the admin watches.
 test_mark_notification_read_confirmed_roundtrip marks ONE such notification
-read. test_mark_all_notifications_read_rewrites_only_unread confirms
-mark_all_notifications_read, which also marks every other unread
-notification of the admin read; it records them first and marks them unread
-again afterwards through the API.
+read (`notification.mark_read`, `mark_notifications_read` with an id).
+test_mark_all_notifications_read_rewrites_only_unread confirms
+`notification.mark_all_read` (`mark_notifications_read` without an id),
+which also marks every other unread notification of the admin about
+test_project read; it records all unread ones first and marks any that
+became read unread again afterwards through the API.
+test_mark_notifications_read_leaves_notifications_outside_the_read_allowlist_unread
+adds a disposable second project outside the client's read allowlist and
+checks that neither write path touches its notification.
 """
 
 from __future__ import annotations
@@ -27,7 +32,9 @@ import json
 import httpx
 import pytest
 
-from openproject_ce_mcp.client import OpenProjectClient, PermissionDeniedError
+from openproject_ce_mcp.client import NotFoundError, OpenProjectClient, PermissionDeniedError
+
+from .conftest import disposable_project_identifier
 
 pytestmark = pytest.mark.integration
 
@@ -63,13 +70,16 @@ async def test_list_notifications_scoped_by_read_allowlist(client: OpenProjectCl
     assert result.count == 0
 
 
-async def test_mark_notification_read_preview_does_not_write(client: OpenProjectClient) -> None:
-    """No real notification exists to mark read in this suite (see module
-    docstring) -- confirm the preview path is side-effect-free and reports
-    requires_confirmation, without ever calling confirm=true against a real
-    notification id."""
-    preview = await client.notification.mark_read(999999999, confirm=False)
+async def test_mark_notification_read_preview_does_not_write(client: OpenProjectClient, start_scoped_client) -> None:
+    """Under `*` the preview sends no request, so even a nonexistent id gets
+    one. Under a restricted read allowlist the preview first reads the
+    notification, so OpenProject's 404 surfaces."""
+    unrestricted = await start_scoped_client(read_projects=("*",), write_projects=("*",))
+    preview = await unrestricted.notification.mark_read(999999999, confirm=False)
     assert preview.state == "preview"
+
+    with pytest.raises(NotFoundError):
+        await client.notification.mark_read(999999999, confirm=False)
 
 
 async def test_mark_all_notifications_read_preview_does_not_write(client: OpenProjectClient) -> None:
@@ -157,10 +167,13 @@ async def _notification_from_second_user(
     # spurious failure that a same-config re-run (isolated and full-suite)
     # could not reproduce.
     for _ in range(20):
-        listed = await client.notification.list_all(unread_only=True)
-        match = next((n for n in listed.results if n.work_package_id == wp_id), None)
-        if match is not None:
-            return match.id
+        offset: int | None = 1
+        while offset is not None:
+            listed = await client.notification.list_all(unread_only=True, offset=offset)
+            match = next((n for n in listed.results if n.work_package_id == wp_id), None)
+            if match is not None:
+                return match.id
+            offset = listed.next_offset
         await asyncio.sleep(1)
     pytest.fail("no notification appeared for the watched work package within the wait window")
 
@@ -194,8 +207,17 @@ async def _raw_notification(http: httpx.AsyncClient, notification_id: int) -> di
     return response.json()
 
 
-async def _raw_unread_ids(http: httpx.AsyncClient) -> list[int]:
-    filters = json.dumps([{"readIAN": {"operator": "=", "values": ["f"]}}])
+async def _raw_project_id(http: httpx.AsyncClient, identifier: str) -> int:
+    response = await http.get(f"projects/{identifier}")
+    response.raise_for_status()
+    return int(response.json()["id"])
+
+
+async def _raw_unread_ids(http: httpx.AsyncClient, *, project_id: int | None = None) -> list[int]:
+    filter_list: list[dict] = [{"readIAN": {"operator": "=", "values": ["f"]}}]
+    if project_id is not None:
+        filter_list.append({"project": {"operator": "=", "values": [str(project_id)]}})
+    filters = json.dumps(filter_list)
     ids: list[int] = []
     offset = 1
     while True:
@@ -207,6 +229,24 @@ async def _raw_unread_ids(http: httpx.AsyncClient) -> list[int]:
         if not elements or len(ids) >= payload["total"]:
             return ids
         offset += 1
+
+
+async def _restore_unread(http: httpx.AsyncClient, notification_ids: list[int]) -> list[tuple[int, int]]:
+    """Marks each of these that is read now unread again; returns the ones it
+    could not check or restore. Restoring moves updatedAt; only the read state
+    comes back."""
+    failed: list[tuple[int, int]] = []
+    for notification_id in notification_ids:
+        current = await http.get(f"notifications/{notification_id}")
+        if current.is_error:
+            failed.append((notification_id, current.status_code))
+            continue
+        if current.json()["readIAN"] is False:
+            continue
+        response = await http.post(f"notifications/{notification_id}/unread_ian", json={})
+        if response.is_error:
+            failed.append((notification_id, response.status_code))
+    return failed
 
 
 async def test_mark_all_notifications_read_rewrites_only_unread(
@@ -227,12 +267,15 @@ async def test_mark_all_notifications_read_rewrites_only_unread(
         auth=("apikey", client.settings.api_token),
         timeout=client.settings.timeout,
     ) as http:
+        project_id = await _raw_project_id(http, test_project)
         marked = await client.notification.mark_read(already_read_id, confirm=True)
         assert marked.state == "confirmed"
         already_read_before = await _raw_notification(http, already_read_id)
         assert already_read_before["readIAN"] is True
 
-        unread_before = await _raw_unread_ids(http)
+        unread_before = await _raw_unread_ids(http, project_id=project_id)
+        # Unfiltered, so a broken project filter cannot leave another project's notification read.
+        all_unread_before = await _raw_unread_ids(http)
         assert unread_id in unread_before
         try:
             marked_all = await client.notification.mark_all_read(confirm=True)
@@ -242,12 +285,65 @@ async def test_mark_all_notifications_read_rewrites_only_unread(
             assert already_read_after["updatedAt"] == already_read_before["updatedAt"]
             assert already_read_after["readIAN"] is True
             assert (await _raw_notification(http, unread_id))["readIAN"] is True
-            assert set(unread_before).isdisjoint(await _raw_unread_ids(http))
+            assert set(unread_before).isdisjoint(await _raw_unread_ids(http, project_id=project_id))
         finally:
-            # Restoring moves each notification's updatedAt; only its read state comes back.
-            failed = []
-            for notification_id in unread_before:
-                response = await http.post(f"notifications/{notification_id}/unread_ian", json={})
-                if response.is_error:
-                    failed.append((notification_id, response.status_code))
+            failed = await _restore_unread(http, all_unread_before)
+            assert not failed, f"could not mark these notifications unread again: {failed}"
+
+
+async def test_mark_notifications_read_leaves_notifications_outside_the_read_allowlist_unread(
+    client: OpenProjectClient,
+    test_project: str,
+    wp_ids: list[int],
+    project_refs: list[str],
+    second_user_client: tuple[int, OpenProjectClient],
+    start_scoped_client,
+) -> None:
+    """`client` reads only test_project. A notification about a disposable
+    project outside it must stay unread through both write paths, while the
+    bulk path still marks the one about test_project read."""
+    unrestricted = await start_scoped_client(read_projects=("*",), write_projects=("*",))
+    outside = disposable_project_identifier()
+    created = await unrestricted.project.create(name=f"[integration-test] {outside}", identifier=outside, confirm=True)
+    assert created.ready, created.validation_errors
+    project_refs.append(outside)
+
+    await _admit_second_user(client, test_project, second_user_client)
+    await _admit_second_user(unrestricted, outside, second_user_client)
+    _, second_client = second_user_client
+    second_unrestricted = OpenProjectClient(
+        dataclasses.replace(second_client.settings, read_projects=("*",), write_projects=("*",))
+    )
+    try:
+        await second_unrestricted.initialize()
+        inside_id = await _notification_from_second_user(client, second_client, test_project, wp_ids)
+        # The outside work package goes away with its project.
+        outside_id = await _notification_from_second_user(unrestricted, second_unrestricted, outside, [])
+    finally:
+        await second_unrestricted.aclose()
+
+    async with httpx.AsyncClient(
+        base_url=f"{client.settings.api_base_url}/",
+        auth=("apikey", client.settings.api_token),
+        timeout=client.settings.timeout,
+    ) as http:
+        inside_project_id = await _raw_project_id(http, test_project)
+        unread_inside_before = await _raw_unread_ids(http, project_id=inside_project_id)
+        all_unread_before = await _raw_unread_ids(http)
+        assert inside_id in unread_inside_before
+        assert outside_id in all_unread_before
+        try:
+            with pytest.raises(PermissionDeniedError, match="OPENPROJECT_READ_PROJECTS"):
+                await client.notification.mark_read(outside_id)
+            with pytest.raises(PermissionDeniedError, match="OPENPROJECT_READ_PROJECTS"):
+                await client.notification.mark_read(outside_id, confirm=True)
+            assert (await _raw_notification(http, outside_id))["readIAN"] is False
+
+            marked_all = await client.notification.mark_all_read(confirm=True)
+            assert marked_all.state == "confirmed"
+
+            assert (await _raw_notification(http, inside_id))["readIAN"] is True
+            assert (await _raw_notification(http, outside_id))["readIAN"] is False
+        finally:
+            failed = await _restore_unread(http, all_unread_before)
             assert not failed, f"could not mark these notifications unread again: {failed}"

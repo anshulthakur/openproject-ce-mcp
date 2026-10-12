@@ -1012,10 +1012,10 @@ async def test_notification_tools_pass_expected_arguments() -> None:
         async def list_all(self, **kwargs):
             return kwargs
 
-        async def mark_read(self, notification_id, confirm=False):
+        async def mark_read(self, notification_id, confirm=False, **kwargs):
             return {"notification_id": notification_id, "confirm": confirm}
 
-        async def mark_all_read(self, confirm=False):
+        async def mark_all_read(self, confirm=False, **kwargs):
             return {"all": True, "confirm": confirm}
 
     ctx = FakeContext(StubClient())  # type: ignore[arg-type]

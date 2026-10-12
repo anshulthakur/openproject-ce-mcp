@@ -66,12 +66,12 @@ depends on configuration; the most relevant controls are:
   restrict every project-scoped operation to the named projects. Both are
   **fail-closed**: empty or unset denies all project-scoped access on that
   side, not "everything visible" — `*` is required to explicitly allow all
-  projects. `mark_notification_read`/`mark_all_notifications_read` are the one
-  exception: they are personal, self-scoped mutations of the caller's own
-  notification state (not a project-scoped write) and are governed only by
-  `OPENPROJECT_ENABLE_PERSONAL_READ` plus `OPENPROJECT_ENABLE_PERSONAL_WRITE`,
-  independent of `OPENPROJECT_WRITE_PROJECTS`. The notification list itself is
-  still filtered by `OPENPROJECT_READ_PROJECTS`.
+  projects. `mark_notifications_read` is the one exception: it is a personal,
+  self-scoped mutation of the caller's own notification state (not a
+  project-scoped write), gated by `OPENPROJECT_ENABLE_PERSONAL_READ` plus
+  `OPENPROJECT_ENABLE_PERSONAL_WRITE` and independent of
+  `OPENPROJECT_WRITE_PROJECTS`. Like the notification list, it only touches
+  notifications about projects `OPENPROJECT_READ_PROJECTS` covers.
 - **Admin reads and writes** (listing users/groups, and user/group management)
   require the separate `OPENPROJECT_ENABLE_ADMIN_READ`/`OPENPROJECT_ENABLE_ADMIN_WRITE`
   opt-ins — an ordinary read/write pair, but neither is activated by any

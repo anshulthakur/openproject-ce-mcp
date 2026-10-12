@@ -746,11 +746,19 @@ Important properties of the current model:
   available and not gated by any read flag; a rarely-used subset (query schema
   tools, `render_text`, `get_custom_option`, help texts, working days) is off by
   default behind `OPENPROJECT_ENABLE_EXTENDED_READ` to save context
-- `list_notifications` filters by `OPENPROJECT_READ_PROJECTS`, but under a
-  restricted (non-empty, non-`*`) scope this only filters the current
-  server-side page — an empty filtered page does not guarantee no further
-  allowed notifications exist on later pages, since the notifications endpoint
-  has no server-side project filter to paginate against
+- notifications honor `OPENPROJECT_READ_PROJECTS` on every path. Under a
+  restricted (non-`*`) scope, `list_notifications` re-scans server pages from
+  the start and keeps only notifications about allowed projects, so a page
+  is filled across server pages. `mark_notifications_read` with a
+  `notification_id` reads that notification first and refuses one about a
+  project outside the allowlist, or one that names no project at all, in the
+  preview too. Without a `notification_id` it sends one bulk update narrowed
+  by OpenProject's `project` filter to the readable projects (the directory's
+  current set, rescanned when stale), and refuses when no project is
+  readable. Known limitation: the readable project ids travel in the query
+  string, as for `list_work_packages`, so a very large allowlist can exceed
+  the server's URL length limit; the request then fails without marking
+  anything
 
 ## Supported scope (Community Edition)
 

@@ -220,7 +220,7 @@ user exists.
 | Tool | Description |
 | --- | --- |
 | `list_notifications` | List the current user's unread notifications |
-| `mark_notifications_read` | Mark a single notification as read (pass `notification_id`), or every unread notification as read (omit it) |
+| `mark_notifications_read` | Mark a single notification as read (pass `notification_id`), or every unread notification as read (omit it); under a restricted `OPENPROJECT_READ_PROJECTS`, only notifications about projects it covers |
 
 ## Actions & capabilities
 

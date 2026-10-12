@@ -5,6 +5,7 @@ import json
 import httpx
 import pytest
 from _client_test_helpers import (
+    _base_settings,
     _notification_payload,
     _personal_write_enabled_settings,
     _write_enabled_settings,
@@ -13,6 +14,7 @@ from _client_test_helpers import (
 
 from openproject_ce_mcp.client import (
     InvalidInputError,
+    NotFoundError,
     OpenProjectClient,
     PermissionDeniedError,
 )
@@ -370,6 +372,111 @@ async def test_mark_all_notifications_read_posts_after_confirmation() -> None:
     assert result.state == "confirmed"
     assert result.notification_id is None
     assert requests == [("POST", "/api/v3/notifications/read_ian")]
+
+    await client.aclose()
+
+
+_TST_AND_OTHER = [(1, "TST", "Test"), (2, "OTHER", "Other")]
+
+
+def _tst_project_payload() -> dict:
+    return {
+        "_type": "Project",
+        "id": 1,
+        "identifier": "TST",
+        "name": "Test",
+        "active": True,
+        "_links": {"self": {"href": "/api/v3/projects/1", "title": "Test"}},
+    }
+
+
+def _tst_only_notification_settings() -> Settings:
+    return _base_settings(
+        read_projects=("TST",),
+        write_projects=("TST",),
+        enable_personal_read=True,
+        enable_personal_write=True,
+    )
+
+
+@pytest.mark.asyncio
+async def test_mark_notification_read_refuses_out_of_scope_and_reports_nonexistent_without_a_post() -> None:
+    requests: list[tuple[str, str]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        requests.append((request.method, request.url.path))
+        if request.method == "GET" and request.url.path == "/api/v3/notifications/11":
+            payload = _notification_payload(11, project_href="/api/v3/projects/2", project_title="Other")
+            return httpx.Response(200, json=payload, request=request)
+        if request.method == "GET" and request.url.path == "/api/v3/notifications/12":
+            return httpx.Response(404, json={"message": "Not found"}, request=request)
+        raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+
+    client = await started_client(_tst_only_notification_settings(), handler, _TST_AND_OTHER)
+
+    with pytest.raises(PermissionDeniedError, match="OPENPROJECT_READ_PROJECTS"):
+        await client.notification.mark_read(11, confirm=True)
+    with pytest.raises(PermissionDeniedError, match="OPENPROJECT_READ_PROJECTS"):
+        await client.notification.mark_read(11)
+    with pytest.raises(NotFoundError):
+        await client.notification.mark_read(12, confirm=True)
+
+    assert requests == [
+        ("GET", "/api/v3/notifications/11"),
+        ("GET", "/api/v3/notifications/11"),
+        ("GET", "/api/v3/notifications/12"),
+    ]
+
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_mark_notification_read_reads_then_marks_an_allowed_notification() -> None:
+    requests: list[tuple[str, str]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and request.url.path == "/api/v3/projects/1":
+            # Only the identifier matches TST, so the directory re-reads the project first.
+            return httpx.Response(200, json=_tst_project_payload(), request=request)
+        requests.append((request.method, request.url.path))
+        if request.method == "GET" and request.url.path == "/api/v3/notifications/10":
+            payload = _notification_payload(10, project_href="/api/v3/projects/1", project_title="Test")
+            return httpx.Response(200, json=payload, request=request)
+        if request.method == "POST" and request.url.path == "/api/v3/notifications/10/read_ian":
+            return httpx.Response(204, request=request)
+        raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+
+    client = await started_client(_tst_only_notification_settings(), handler, _TST_AND_OTHER)
+
+    result = await client.notification.mark_read(10, confirm=True)
+
+    assert result.state == "confirmed"
+    assert requests == [("GET", "/api/v3/notifications/10"), ("POST", "/api/v3/notifications/10/read_ian")]
+
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_mark_all_notifications_read_narrows_the_bulk_update_to_readable_projects() -> None:
+    posts: list[list] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST" and request.url.path == "/api/v3/notifications/read_ian":
+            posts.append(json.loads(request.url.params["filters"]))
+            return httpx.Response(204, request=request)
+        raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+
+    client = await started_client(_tst_only_notification_settings(), handler, _TST_AND_OTHER)
+
+    result = await client.notification.mark_all_read(confirm=True)
+
+    assert result.state == "confirmed"
+    assert posts == [
+        [
+            {"readIAN": {"operator": "=", "values": ["f"]}},
+            {"project": {"operator": "=", "values": ["1"]}},
+        ]
+    ]
 
     await client.aclose()
 

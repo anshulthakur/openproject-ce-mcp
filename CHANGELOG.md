@@ -36,6 +36,13 @@ development baseline.
   each such list the server now reads every project in its filter that no
   pattern matches by id, one request per page of projects, and leaves out any
   that no longer matches.
+- `mark_notifications_read` ignored `OPENPROJECT_READ_PROJECTS`. Without
+  `notification_id` it marked notifications about every project read; it now
+  marks only unread notifications about projects the read allowlist covers,
+  and refuses without sending a write request when no project is readable.
+  With `notification_id`, a notification about a project outside the
+  allowlist is now refused, in the preview too. Under `*` both behave as
+  before.
 
 ### Added
 
