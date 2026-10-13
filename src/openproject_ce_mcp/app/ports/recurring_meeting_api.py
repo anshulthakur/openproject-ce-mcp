@@ -56,6 +56,8 @@ from ...models import MeetingSummary, RecurringMeetingOccurrenceSummary, Recurri
 class RecurringMeetingRecord:
     summary: RecurringMeetingSummary
     project_link: dict[str, Any] | None
+    # Untrimmed, unlike summary.title: an update echoes it back verbatim.
+    raw_title: str
 
 
 @dataclass(frozen=True)

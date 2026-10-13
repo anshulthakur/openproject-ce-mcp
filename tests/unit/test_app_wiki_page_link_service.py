@@ -5,7 +5,12 @@ import dataclasses
 import pytest
 from _client_test_helpers import make_settings
 
-from openproject_ce_mcp.app.errors import InvalidInputError, NotFoundError, PermissionDeniedError
+from openproject_ce_mcp.app.errors import (
+    InvalidInputError,
+    NotFoundError,
+    OpenProjectServerError,
+    PermissionDeniedError,
+)
 from openproject_ce_mcp.app.ports.wiki_page_link_api import WikiPageLinkRecord
 from openproject_ce_mcp.app.services.wiki_page_link_service import WikiPageLinkService
 from openproject_ce_mcp.models import CurrentUser, WikiPageLinkSummary
@@ -282,6 +287,63 @@ async def test_delete_denies_write_even_without_confirm() -> None:
     assert api.delete_calls == []
 
 
+_INLINE_LINK_MESSAGE = (
+    "Wiki page link 9 on work package 42 is an inline link: OpenProject derives it from a wiki link in "
+    "the work package's description or from a wiki page that mentions the work package, and offers no "
+    "API to delete it. Remove the link from that text instead."
+)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("confirm", [True, False])
+async def test_delete_rejects_an_inline_link_before_the_request(confirm: bool) -> None:
+    api = _FakeWikiPageLinkApi([WikiPageLinkRecord(summary=_summary(link_id=9, link_type="inline"))])
+    service = _service(api=api)
+
+    with pytest.raises(InvalidInputError) as exc_info:
+        await service.delete(42, 9, confirm=confirm)
+
+    assert str(exc_info.value) == _INLINE_LINK_MESSAGE
+    assert api.delete_calls == []
+
+
+@pytest.mark.asyncio
+async def test_delete_judges_the_requested_link_not_another_inline_link_of_the_work_package() -> None:
+    api = _FakeWikiPageLinkApi(
+        [
+            WikiPageLinkRecord(summary=_summary(link_id=8, link_type="inline")),
+            WikiPageLinkRecord(summary=_summary(link_id=9, link_type="relation")),
+        ]
+    )
+    service = _service(api=api)
+
+    result = await service.delete(42, 9, confirm=True)
+
+    assert result.state == "confirmed"
+    assert api.delete_calls == [9]
+
+
+class _ForbiddenDeleteApi(_FakeWikiPageLinkApi):
+    """OpenProject 17.6+ for a user without manage_wiki_page_links: the DELETE answers 403."""
+
+    async def delete(self, link_id: int) -> None:
+        raise PermissionDeniedError(
+            "OpenProject denied access to this resource. (You are not authorized to access this resource.)"
+        )
+
+
+@pytest.mark.asyncio
+async def test_delete_without_the_manage_permission_reports_permission_denied_not_a_version() -> None:
+    service = _service(api=_ForbiddenDeleteApi())
+
+    with pytest.raises(PermissionDeniedError) as exc_info:
+        await service.delete(42, 9, confirm=True)
+
+    assert str(exc_info.value) == (
+        "OpenProject denied access to this resource. (You are not authorized to access this resource.)"
+    )
+
+
 # --- entity-scope regression --------------------------------------------------
 
 
@@ -299,3 +361,119 @@ async def test_identifier_hidden_by_wiki_page_link_scope_not_wiki_page_scope() -
     service_link_hidden = _service(settings=settings_link_hidden)
     result_link_hidden = await service_link_hidden.list_for_work_package(42)
     assert getattr(result_link_hidden.results[0], "_hidden_keys", frozenset()) == {"identifier"}
+
+
+# --- version floors -------------------------------------------------------------
+
+
+class _MissingRouteApi(_FakeWikiPageLinkApi):
+    """Answers like an OpenProject release that lacks the named routes: 404."""
+
+    def __init__(self, *missing: str) -> None:
+        super().__init__()
+        self._missing = set(missing)
+
+    def _route(self, name: str) -> None:
+        if name in self._missing:
+            raise NotFoundError("The requested resource could not be found.")
+
+    async def list_for_work_package(
+        self, work_package_id: int, *, offset: int, page_size: int
+    ) -> tuple[list[WikiPageLinkRecord], int]:
+        self._route("list")
+        return await super().list_for_work_package(work_package_id, offset=offset, page_size=page_size)
+
+    async def create(
+        self, work_package_id: int, *, identifier: str, provider: str, author_id: int
+    ) -> WikiPageLinkRecord:
+        self._route("create")
+        return await super().create(work_package_id, identifier=identifier, provider=provider, author_id=author_id)
+
+    async def delete(self, link_id: int) -> None:
+        self._route("delete")
+        await super().delete(link_id)
+
+
+@pytest.mark.asyncio
+async def test_list_on_a_server_without_the_route_names_17_5() -> None:
+    service = _service(api=_MissingRouteApi("list", "create", "delete"))
+
+    with pytest.raises(NotFoundError) as exc_info:
+        await service.list_for_work_package(42)
+
+    assert str(exc_info.value) == (
+        "Listing wiki page links requires OpenProject 17.5 or newer; this instance appears to be older."
+    )
+
+
+@pytest.mark.asyncio
+async def test_create_on_a_server_with_list_and_delete_only_names_17_7() -> None:
+    service = _service(api=_MissingRouteApi("create"))
+
+    with pytest.raises(NotFoundError) as exc_info:
+        await service.create(42, identifier="Home", provider="internal", confirm=True)
+
+    assert str(exc_info.value) == (
+        "Creating wiki page links requires OpenProject 17.7 or newer; this instance appears to be older."
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_on_a_server_with_list_only_names_17_6() -> None:
+    api = _MissingRouteApi("create", "delete")
+    service = _service(api=api)
+
+    with pytest.raises(NotFoundError) as exc_info:
+        await service.delete(42, 9, confirm=True)
+
+    assert str(exc_info.value) == (
+        "Deleting wiki page links requires OpenProject 17.6 or newer; this instance appears to be older."
+    )
+    assert api.list_calls == [(42, 1, 50)]
+
+
+@pytest.mark.asyncio
+async def test_delete_preview_on_a_server_without_any_route_names_17_6() -> None:
+    service = _service(api=_MissingRouteApi("list", "create", "delete"))
+
+    with pytest.raises(NotFoundError) as exc_info:
+        await service.delete(42, 9, confirm=False)
+
+    assert str(exc_info.value) == (
+        "Deleting wiki page links requires OpenProject 17.6 or newer; this instance appears to be older."
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_of_an_untyped_link_on_a_server_with_list_only_names_17_6() -> None:
+    """OpenProject 17.5 renders no link type for a reverse inline link, and has no DELETE route."""
+    api = _MissingRouteApi("create", "delete")
+    api._records = [WikiPageLinkRecord(summary=_summary(link_id=9, link_type=None))]
+    service = _service(api=api)
+
+    with pytest.raises(NotFoundError) as exc_info:
+        await service.delete(42, 9, confirm=True)
+
+    assert str(exc_info.value) == (
+        "Deleting wiki page links requires OpenProject 17.6 or newer; this instance appears to be older."
+    )
+
+
+class _BrokenListApi(_MissingRouteApi):
+    """OpenProject 17.5: GET 500s on a work package whose links do not resolve, DELETE is missing."""
+
+    async def list_for_work_package(
+        self, work_package_id: int, *, offset: int, page_size: int
+    ) -> tuple[list[WikiPageLinkRecord], int]:
+        raise OpenProjectServerError("OpenProject returned a server error.")
+
+
+@pytest.mark.asyncio
+async def test_delete_on_a_server_whose_list_fails_reports_the_server_error() -> None:
+    api = _BrokenListApi("create", "delete")
+    service = _service(api=api)
+
+    with pytest.raises(OpenProjectServerError, match=r"^OpenProject returned a server error\.$"):
+        await service.delete(42, 9, confirm=True)
+
+    assert api.delete_calls == []

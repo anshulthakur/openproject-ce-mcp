@@ -27,6 +27,7 @@ from ...models import (
     QueryFilterSummary,
     QueryOperatorSummary,
     QuerySortBySummary,
+    SortCriterion,
 )
 
 
@@ -75,7 +76,7 @@ class QueryMetadataApi(Protocol):
 
     async def get_operator(self, operator_id: str) -> QueryOperatorRecord: ...
 
-    async def get_sort_by(self, sort_by_id: str) -> QuerySortByRecord: ...
+    async def get_sort_by(self, criterion: SortCriterion, *, requested_id: str) -> QuerySortByRecord: ...
 
     async def list_filter_instance_schemas(
         self, *, project_id: int | None

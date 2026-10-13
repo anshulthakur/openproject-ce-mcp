@@ -18,7 +18,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import TypeVar
 
-from .errors import NotFoundError
+from .errors import InvalidInputError, NotFoundError
 
 _T = TypeVar("_T")
 
@@ -41,4 +41,22 @@ async def call_version_gated(call: Callable[[], Awaitable[_T]], *, feature: str,
     except NotFoundError as exc:
         raise NotFoundError(
             f"{feature} requires OpenProject {floor} or newer; this instance appears to be older."
+        ) from exc
+
+
+async def call_query_version_gated(call: Callable[[], Awaitable[_T]], *, feature: str, floor: str) -> _T:
+    """Await `call()`; on `InvalidInputError`, add the version floor to OpenProject's own message.
+
+    For a query filter operator the server does not know yet, OpenProject
+    answers 400 InvalidQuery, not 404, and on a new enough instance that same
+    error also reports any other invalid filter or sort of the request. The
+    server's reason therefore comes first and the floor is only offered as a
+    condition, never as the diagnosis.
+    """
+    try:
+        return await call()
+    except InvalidInputError as exc:
+        raise InvalidInputError(
+            f"{exc} If this instance is older than OpenProject {floor}, {feature} is the cause: "
+            f"it requires {floor} or newer."
         ) from exc

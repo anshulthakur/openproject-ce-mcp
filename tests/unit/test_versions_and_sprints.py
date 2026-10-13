@@ -8,6 +8,7 @@ import pytest
 from _client_test_helpers import make_settings, started_client
 
 from openproject_ce_mcp.client import (
+    InvalidInputError,
     NotFoundError,
     OpenProjectClient,
     _paginate_client,
@@ -396,6 +397,70 @@ async def test_list_work_packages_version_status_builds_filter() -> None:
     assert version_filter["version_id"]["operator"] == "c"
     assert version_filter["version_id"]["values"] == []
 
+    await client.aclose()
+
+
+# OpenProject 16.3.2's literal answer to a version_id filter with operator "o".
+_UNKNOWN_VERSION_OPERATOR = {
+    "_type": "Error",
+    "errorIdentifier": "urn:openproject-org:api:v3:errors:InvalidQuery",
+    "message": "Version Operator is not set to one of the allowed values.",
+}
+
+
+# OpenProject 17.9.1's literal answer to version_id "o" plus a status_id filter with operator "~".
+_UNRELATED_INVALID_FILTER = {
+    "_type": "Error",
+    "errorIdentifier": "urn:openproject-org:api:v3:errors:InvalidQuery",
+    "message": "Status Operator is not set to one of the allowed values. and filter has invalid values.",
+}
+
+
+def _invalid_query_client(error: dict[str, str] = _UNKNOWN_VERSION_OPERATOR) -> OpenProjectClient:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/v3/work_packages" and request.method == "GET":
+            return httpx.Response(400, json=error, request=request)
+        raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+
+    return OpenProjectClient(make_settings(), transport=httpx.MockTransport(handler))
+
+
+@pytest.mark.asyncio
+async def test_list_work_packages_version_status_rejection_names_the_16_4_floor() -> None:
+    client = _invalid_query_client()
+
+    with pytest.raises(InvalidInputError) as exc_info:
+        await client.work_package.list(version_status="open")
+
+    assert str(exc_info.value) == (
+        "Version Operator is not set to one of the allowed values. If this instance is older than "
+        "OpenProject 16.4, version_status is the cause: it requires 16.4 or newer."
+    )
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_list_work_packages_unrelated_rejection_with_version_status_keeps_the_reason_first() -> None:
+    client = _invalid_query_client(_UNRELATED_INVALID_FILTER)
+
+    with pytest.raises(InvalidInputError) as exc_info:
+        await client.work_package.list(version_status="open")
+
+    assert str(exc_info.value) == (
+        "Status Operator is not set to one of the allowed values. and filter has invalid values. "
+        "If this instance is older than OpenProject 16.4, version_status is the cause: it requires 16.4 or newer."
+    )
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_list_work_packages_rejection_without_version_status_keeps_the_server_message() -> None:
+    client = _invalid_query_client()
+
+    with pytest.raises(InvalidInputError) as exc_info:
+        await client.work_package.list(open_only=True)
+
+    assert str(exc_info.value) == "Version Operator is not set to one of the allowed values."
     await client.aclose()
 
 

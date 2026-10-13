@@ -19,10 +19,13 @@ returns the SAME first page regardless of the `offset` this client sends.
 The Service's `scan_records_and_paginate`/`paginate_all` repeated-page guard
 prevents an infinite loop from this (a second identical page is detected and
 treated as exhaustion), but it also means any links beyond the first server
-page are silently unreachable through this endpoint until fixed upstream --
-not currently independently verifiable since OP-19928 (see
-tests/integration/test_wiki_page_links.py) already 500s the same endpoint
-whenever any link exists at all.
+page are silently unreachable through this endpoint until fixed upstream.
+
+A second server bug (OP-19928, opf/openproject#24770; unfixed through
+17.9.1) makes the same endpoint 500 when none of the work package's links
+resolves to a visible wiki page: the metadata join becomes `LEFT JOIN
+(VALUES )`. On 17.5/17.6 that includes a work package without links, as the
+`relation.any?` guard only arrived in 17.7. Not worked around client-side.
 
 `create` POSTs to the same work-package-scoped path, not the global
 `POST /wiki_page_links`: the scoped endpoint sets `linkable` from the URL

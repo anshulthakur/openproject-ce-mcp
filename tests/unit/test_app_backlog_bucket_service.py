@@ -210,7 +210,7 @@ async def test_list_rewraps_not_found_with_backlogs_message() -> None:
     api = _FakeBacklogBucketApi(not_found=True)
     service = _service(api)
 
-    with pytest.raises(NotFoundError, match="Backlogs module"):
+    with pytest.raises(NotFoundError, match=r"Backlogs module and OpenProject 17\.6 or newer"):
         await service.list()
 
 
@@ -305,7 +305,7 @@ async def test_list_for_project_rewraps_not_found_with_backlogs_message() -> Non
     api = _FakeBacklogBucketApi(not_found=True)
     service = _service(api)
 
-    with pytest.raises(NotFoundError, match="Backlogs module"):
+    with pytest.raises(NotFoundError, match=r"Backlogs module and OpenProject 17\.6 or newer"):
         await service.list_for_project("demo")
 
 
@@ -384,5 +384,5 @@ async def test_get_rewraps_not_found_with_backlog_bucket_message() -> None:
     api = _FakeBacklogBucketApi(not_found=True)
     service = _service(api)
 
-    with pytest.raises(NotFoundError, match="Backlogs module"):
+    with pytest.raises(NotFoundError, match=r"Backlogs module and OpenProject 17\.6 or newer"):
         await service.get(1)

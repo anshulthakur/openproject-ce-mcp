@@ -5,7 +5,8 @@ import dataclasses
 import pytest
 from _client_test_helpers import make_settings
 
-from openproject_ce_mcp.app.errors import PermissionDeniedError, ProjectLinkPrefixError
+from openproject_ce_mcp import policy_observation
+from openproject_ce_mcp.app.errors import PermissionDeniedError, ProjectLinkPrefixError, ProjectScopeDeniedError
 from openproject_ce_mcp.app.ports.notification_api import NotificationPage, NotificationRecord
 from openproject_ce_mcp.app.services.notification_service import NotificationService
 from openproject_ce_mcp.models import NotificationSummary
@@ -50,22 +51,49 @@ def _record_that_crashes_if_normalized(
 
 
 class _FakeNotificationApi:
-    def __init__(self, records: list[NotificationRecord] | None = None, *, total: int | None = None) -> None:
+    def __init__(
+        self,
+        records: list[NotificationRecord] | None = None,
+        *,
+        total: int | None = None,
+        by_id: dict[int, NotificationRecord] | None = None,
+    ) -> None:
         self._records = records if records is not None else [_record()]
         self._total = total if total is not None else len(self._records)
+        self._by_id = by_id or {}
         self.list_all_calls: list[tuple[bool, int, int]] = []
+        self.get_calls: list[int] = []
         self.mark_read_calls: list[int] = []
-        self.mark_all_read_calls = 0
+        self.mark_all_read_calls: list[frozenset[int] | None] = []
 
     async def list_all(self, *, unread_only: bool, offset: int, limit: int) -> NotificationPage:
         self.list_all_calls.append((unread_only, offset, limit))
         return NotificationPage(records=list(self._records), total=self._total, exhausted=True)
 
+    async def get(self, notification_id: int, **kwargs) -> NotificationRecord:
+        self.get_calls.append(notification_id)
+        return self._by_id[notification_id]
+
     async def mark_read(self, notification_id: int) -> None:
         self.mark_read_calls.append(notification_id)
 
-    async def mark_all_read(self) -> None:
-        self.mark_all_read_calls += 1
+    async def mark_all_read(self, **kwargs) -> None:
+        self.mark_all_read_calls.append(kwargs["project_ids"])
+
+
+class _FakeReadableProjects:
+    def __init__(self, ids: frozenset[int] | None = None, *, error: Exception | None = None) -> None:
+        self._ids = ids
+        self._error = error
+        self.calls = 0
+
+    async def current_readable_project_ids(self, **kwargs) -> frozenset[int]:
+        self.calls += 1
+        if self._error is not None:
+            raise self._error
+        if self._ids is None:
+            raise AssertionError("the readable project set must not be read here")
+        return self._ids
 
 
 def _work_package_project_allowed_from(allowed_hrefs: set[str]):
@@ -119,6 +147,7 @@ def _service(
     settings=None,
     work_package_project_allowed=None,
     work_package_project_allowed_bulk=None,
+    readable_projects: _FakeReadableProjects | None = None,
 ) -> NotificationService:
     return NotificationService(
         api=api or _FakeNotificationApi(),
@@ -127,6 +156,7 @@ def _service(
         work_package_project_allowed=work_package_project_allowed or _work_package_project_allowed_from(set()),
         work_package_project_allowed_bulk=work_package_project_allowed_bulk
         or _work_package_project_allowed_bulk_from(set()),
+        readable_projects=readable_projects or _FakeReadableProjects(),
     )
 
 
@@ -510,7 +540,7 @@ async def test_mark_all_read_previews_without_confirm() -> None:
 
     assert result.state == "preview"
     assert result.notification_id is None
-    assert api.mark_all_read_calls == 0
+    assert api.mark_all_read_calls == []
 
 
 @pytest.mark.asyncio
@@ -523,7 +553,179 @@ async def test_mark_all_read_calls_api_after_confirmation() -> None:
 
     assert result.state == "confirmed"
     assert result.notification_id is None
-    assert api.mark_all_read_calls == 1
+    assert api.mark_all_read_calls == [None]
+
+
+def _restricted_write_settings():
+    return dataclasses.replace(
+        make_settings(), enable_personal_read=True, enable_personal_write=True, read_projects=("demo",)
+    )
+
+
+_DEMO_LINK = {"href": "/api/v3/projects/1", "title": "Demo"}
+_OTHER_LINK = {"href": "/api/v3/projects/2", "title": "Other"}
+
+
+@pytest.mark.asyncio
+async def test_mark_read_under_wildcard_scope_marks_without_reading_the_notification() -> None:
+    api = _FakeNotificationApi()
+    settings = dataclasses.replace(make_settings(), enable_personal_write=True)
+    service = _service(api=api, settings=settings)
+
+    await service.mark_read(10, confirm=True)
+
+    assert api.get_calls == []
+    assert api.mark_read_calls == [10]
+
+
+@pytest.mark.asyncio
+async def test_mark_read_under_restricted_scope_marks_a_notification_about_an_allowed_project() -> None:
+    api = _FakeNotificationApi(by_id={10: _record(10, project_link=_DEMO_LINK)})
+    service = _service(api=api, settings=_restricted_write_settings())
+
+    result = await service.mark_read(10, confirm=True)
+
+    assert result.state == "confirmed"
+    assert api.get_calls == [10]
+    assert api.mark_read_calls == [10]
+
+
+@pytest.mark.parametrize("confirm", [False, True])
+@pytest.mark.asyncio
+async def test_mark_read_refuses_a_notification_about_a_project_outside_the_read_allowlist(confirm: bool) -> None:
+    api = _FakeNotificationApi(by_id={10: _record(10, project_link=_OTHER_LINK)})
+    service = _service(api=api, settings=_restricted_write_settings())
+
+    policy_observation.reset()
+    with pytest.raises(ProjectScopeDeniedError, match="notification is disabled by OPENPROJECT_READ_PROJECTS"):
+        await service.mark_read(10, confirm=confirm)
+
+    assert policy_observation.current_policy_decision() == "project_scope_read_denied"
+    assert policy_observation.current_project_scope() == "other"
+    assert api.get_calls == [10]
+    assert api.mark_read_calls == []
+
+
+@pytest.mark.parametrize("confirm", [False, True])
+@pytest.mark.asyncio
+async def test_mark_read_refuses_a_notification_without_project_or_work_package_link(confirm: bool) -> None:
+    """The list path passes such a record through; a write must not."""
+    api = _FakeNotificationApi(by_id={10: _record(10, resource_link={"href": "/api/v3/meetings/4"})})
+    service = _service(api=api, settings=_restricted_write_settings())
+
+    policy_observation.reset()
+    with pytest.raises(ProjectScopeDeniedError, match="notification is disabled by OPENPROJECT_READ_PROJECTS"):
+        await service.mark_read(10, confirm=confirm)
+
+    assert policy_observation.current_policy_decision() == "project_scope_read_denied"
+    assert policy_observation.current_project_scope() is None
+    assert api.mark_read_calls == []
+
+
+@pytest.mark.asyncio
+async def test_mark_read_decides_a_notification_without_project_link_by_its_work_package() -> None:
+    allowed_href = "/api/v3/work_packages/9"
+    denied_href = "/api/v3/work_packages/8"
+    api = _FakeNotificationApi(
+        by_id={
+            10: _record(10, resource_link={"href": allowed_href}),
+            11: _record(11, resource_link={"href": denied_href}),
+        }
+    )
+    check = _work_package_project_allowed_bulk_from({allowed_href})
+    service = _service(api=api, settings=_restricted_write_settings(), work_package_project_allowed_bulk=check)
+
+    await service.mark_read(10, confirm=True)
+    policy_observation.reset()
+    with pytest.raises(ProjectScopeDeniedError, match="OPENPROJECT_READ_PROJECTS"):
+        await service.mark_read(11, confirm=True)
+
+    assert policy_observation.current_policy_decision() == "project_scope_read_denied"
+
+    assert check.calls == [[allowed_href], [denied_href]]  # type: ignore[attr-defined]
+    assert api.mark_read_calls == [10]
+
+
+@pytest.mark.asyncio
+async def test_mark_read_raises_a_failed_work_package_decision() -> None:
+    href = "/api/v3/work_packages/9"
+    api = _FakeNotificationApi(by_id={10: _record(10, resource_link={"href": href})})
+    check = _work_package_project_allowed_bulk_from({href}, errors={href: RuntimeError("lookup failed")})
+    service = _service(api=api, settings=_restricted_write_settings(), work_package_project_allowed_bulk=check)
+
+    with pytest.raises(RuntimeError, match="lookup failed"):
+        await service.mark_read(10, confirm=True)
+
+    assert api.mark_read_calls == []
+
+
+@pytest.mark.asyncio
+async def test_mark_all_read_under_wildcard_scope_never_reads_the_readable_projects() -> None:
+    api = _FakeNotificationApi()
+    readable = _FakeReadableProjects()
+    settings = dataclasses.replace(make_settings(), enable_personal_write=True)
+    service = _service(api=api, settings=settings, readable_projects=readable)
+
+    result = await service.mark_all_read(confirm=True)
+
+    assert result.message == "All unread notifications marked read."
+    assert readable.calls == 0
+    assert api.mark_all_read_calls == [None]
+
+
+@pytest.mark.asyncio
+async def test_mark_all_read_under_restricted_scope_passes_the_readable_projects() -> None:
+    api = _FakeNotificationApi()
+    readable = _FakeReadableProjects(frozenset({1}))
+    service = _service(api=api, settings=_restricted_write_settings(), readable_projects=readable)
+
+    result = await service.mark_all_read(confirm=True)
+
+    assert result.state == "confirmed"
+    assert "OPENPROJECT_READ_PROJECTS" in result.message
+    assert api.mark_all_read_calls == [frozenset({1})]
+
+
+@pytest.mark.asyncio
+async def test_mark_all_read_refuses_when_no_project_is_readable() -> None:
+    api = _FakeNotificationApi()
+    readable = _FakeReadableProjects(frozenset())
+    service = _service(api=api, settings=_restricted_write_settings(), readable_projects=readable)
+
+    policy_observation.reset()
+    with pytest.raises(ProjectScopeDeniedError, match="OPENPROJECT_READ_PROJECTS"):
+        await service.mark_all_read(confirm=True)
+
+    assert policy_observation.current_policy_decision() == "project_scope_read_denied"
+    assert policy_observation.current_project_scope() is None
+
+    assert api.mark_all_read_calls == []
+
+
+@pytest.mark.asyncio
+async def test_mark_all_read_raises_when_the_readable_projects_cannot_be_read() -> None:
+    api = _FakeNotificationApi()
+    readable = _FakeReadableProjects(error=RuntimeError("re-read failed"))
+    service = _service(api=api, settings=_restricted_write_settings(), readable_projects=readable)
+
+    with pytest.raises(RuntimeError, match="re-read failed"):
+        await service.mark_all_read(confirm=True)
+
+    assert api.mark_all_read_calls == []
+
+
+@pytest.mark.asyncio
+async def test_mark_all_read_preview_under_restricted_scope_names_the_rule_without_io() -> None:
+    api = _FakeNotificationApi()
+    readable = _FakeReadableProjects()
+    service = _service(api=api, settings=_restricted_write_settings(), readable_projects=readable)
+
+    result = await service.mark_all_read()
+
+    assert result.state == "preview"
+    assert "OPENPROJECT_READ_PROJECTS" in result.message
+    assert readable.calls == 0
+    assert api.mark_all_read_calls == []
 
 
 # --- entity-scope regression --------------------------------------------------

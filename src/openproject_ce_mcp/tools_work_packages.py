@@ -246,7 +246,9 @@ async def list_work_packages(
     status, assignee, the date filters, etc.), listed below.
 
     version_status filters by the status of a work package's assigned version:
-    one of 'open', 'closed', or 'locked'.
+    one of 'open', 'closed', or 'locked'. It requires OpenProject 16.4 or
+    newer. A work package with several target versions matches version and
+    version_status when any one of them matches.
 
     observed_in_version filters by a version a bug was observed in (name or id;
     OpenProject 17.9+, rejected by older servers).
@@ -269,8 +271,8 @@ async def list_work_packages(
     due_date in [today, today+N days]. Neither can be combined with each
     other or with due_on/due_between (all four constrain the same field).
 
-    sort_by accepts a list of sort criteria in format "field:direction"
-    (e.g., ["status:desc", "priority:asc"]). Direction defaults to "asc" if omitted.
+    sort_by accepts a list of sort criteria in format "field:direction" or "field-direction"
+    (e.g., ["status:desc", "priority-asc"]). Direction defaults to "asc" if omitted.
     Each field is checked against OpenProject's real sortable work-package
     columns (id, project, subject, type, status, priority, author, assigned_to,
     responsible, updated_at, category, version, start_date, due_date,
@@ -950,11 +952,12 @@ async def bulk_create_work_packages(
 
     select restricts each item's nested result to the given fields (e.g.
     ["ready", "work_package_id"]); an invalid name returns the allowed set.
-    Fields of the written work package are selected as result.<field> (e.g.
-    ["work_package_id", "result.status"]). The
-    index/success/error fields on each item are always included regardless of
-    select, so you can still tell which items succeeded; listing them in select
-    is accepted and changes nothing. For batches with many
+    These are write-result fields (work_package_id, ready, state, ...); fields
+    of the written work package are selected as result.<field> (e.g.
+    ["work_package_id", "result.display_id"]). The index/success/error fields
+    on each item are always included regardless of select, so you can still
+    tell which items succeeded; listing them in select is accepted and changes
+    nothing. For batches with many
     items or long descriptions, set select proactively — an unconfirmed preview
     echoes each item's full proposed payload, and an unbounded batch can exceed
     the tool-result size limit and get redirected to a file.
@@ -1108,7 +1111,9 @@ async def bulk_update_work_packages(
     due_date's non-working-day shift, the confirm/preview contract, select's item-trimming
     behavior, and cancellation/atomicity semantics all work exactly as documented on
     bulk_create_work_packages — only the affected result field differs
-    (`result.result.due_date` here too).
+    (`result.result.due_date` here too). As there, select names write-result
+    fields (work_package_id, ready, state, ...); fields of the written work
+    package are selected as result.<field> (e.g. "result.display_id").
     """
     client = _client_from_context(ctx)
     if not items:

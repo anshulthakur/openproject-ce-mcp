@@ -938,16 +938,18 @@ async def test_a_project_created_through_the_client_is_in_scope_without_a_restar
             return httpx.Response(201, json=_project_json(50, "demo-new", "Demo new"), request=request)
         if request.method == "GET" and request.url.path == "/api/v3/work_packages/9":
             return httpx.Response(200, json=_work_package_json(9, 50), request=request)
+        if request.method == "GET" and request.url.path == "/api/v3/projects/50":
+            return httpx.Response(200, json=_project_json(50, "demo-new", "Demo new"), request=request)
         raise AssertionError(f"Unexpected request: {request.method} {request.url}")
 
     settings = _base_settings(read_projects=("demo*",), write_projects=("demo*",), enable_project_write=True)
     client = await started_client(settings, handler, [(1, "demo", "Demo")])
 
     await client.project.create(name="Demo new", identifier="demo-new", confirm=True)
-    work_package = await client.work_package.get(9)
 
-    assert work_package.id == 9
+    assert client._project_id_to_identifier[50] == "demo-new"
     assert ("GET", "/api/v3/projects/50") not in requests
+    assert (await client.work_package.get(9)).id == 9
     await client.aclose()
 
 
@@ -1006,7 +1008,9 @@ async def test_a_project_created_elsewhere_joins_the_global_work_package_filter(
             return httpx.Response(200, json={"total": 0, "_embedded": {"elements": []}}, request=request)
         raise AssertionError(f"Unexpected request: {request.method} {request.url}")
 
-    client = await started_client(_base_settings(read_projects=("demo*",)), handler, [(1, "demo", "Demo")])
+    projects = [(1, "demo", "Demo")]
+    client = await started_client(_base_settings(read_projects=("demo*",)), handler, projects)
+    projects.append((60, identifier, "Created in the web UI"))
 
     if listed:
         await client.work_package.get(9)

@@ -12,6 +12,7 @@ from _client_test_helpers import (
     _make_wp_form_response,
     _projects_search_handler,
     make_settings,
+    serving_projects,
     started_client,
 )
 from _tools_test_helpers import FakeContext
@@ -1018,4 +1019,298 @@ async def test_get_project_tool_reads_a_renamed_project_by_its_former_identifier
     result = await tool.run({"project": "FIDOLD"}, context=FakeContext(client))
 
     assert (result.id, result.identifier) == (42, "FIDNEW")
+    await client.aclose()
+
+
+def _fid_project(identifier: str) -> dict:
+    return {
+        "_type": "Project",
+        "id": 42,
+        "identifier": identifier,
+        "name": "Fid Project",
+        "active": True,
+        "_links": {"self": {"href": "/api/v3/projects/42", "title": "Fid Project"}},
+    }
+
+
+_FID_LINK = {"href": "/api/v3/projects/42", "title": "Fid Project"}
+
+_FID_WORK_PACKAGE = {
+    "_type": "WorkPackage",
+    "id": 7,
+    "subject": "Linked",
+    "lockVersion": 1,
+    "_links": {"self": {"href": "/api/v3/work_packages/7"}, "project": _FID_LINK},
+}
+
+_FID_VERSION = {
+    "_type": "Version",
+    "id": 3,
+    "name": "v1",
+    "status": "open",
+    "sharing": "none",
+    "_links": {"self": {"href": "/api/v3/versions/3"}, "definingProject": _FID_LINK},
+}
+
+# The directory recorded project 42 as FIDOLD at startup.
+_FID_SCAN = [(42, "FIDOLD", "Fid Project")]
+
+
+def _linked_content_handler(seen: list[str], projects: list[httpx.Response | dict]):
+    """Serves content of project 42; each GET /projects/42 answers with the next of `projects`."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(f"{request.method} {request.url.path}")
+        path = request.url.path
+        if request.method == "GET" and path == "/api/v3/projects/42":
+            answer = projects.pop(0)
+            return answer if isinstance(answer, httpx.Response) else httpx.Response(200, json=answer, request=request)
+        if request.method == "GET" and path == "/api/v3/work_packages/7":
+            return httpx.Response(200, json=_FID_WORK_PACKAGE, request=request)
+        if request.method == "GET" and path == "/api/v3/versions/3":
+            return httpx.Response(200, json=_FID_VERSION, request=request)
+        if request.method == "GET" and path == "/api/v3/work_packages":
+            collection = {"_type": "WorkPackageCollection", "total": 1, "count": 1, "pageSize": 20, "offset": 1}
+            collection["_embedded"] = {"elements": [_FID_WORK_PACKAGE]}
+            return httpx.Response(200, json=collection, request=request)
+        raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+
+    return handler
+
+
+async def _run_tool(settings, handler, tool_name: str, arguments: dict):
+    client = await started_client(settings, handler, _FID_SCAN)
+    tool = create_app(settings)._tool_manager.get_tool(tool_name)
+    assert tool is not None
+    try:
+        return await tool.run(arguments, context=FakeContext(client))
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.parametrize(
+    ("tool_name", "arguments", "content_request", "scope", "denied_by"),
+    [
+        (
+            "get_work_package",
+            {"work_package_id": 7},
+            "GET /api/v3/work_packages/7",
+            {"read_projects": ("FIDOLD",)},
+            "OPENPROJECT_READ_PROJECTS",
+        ),
+        (
+            "get_version",
+            {"version_id": 3},
+            "GET /api/v3/versions/3",
+            {"read_projects": ("FIDOLD",)},
+            "OPENPROJECT_READ_PROJECTS",
+        ),
+        (
+            "update_work_package",
+            {"work_package_id": 7, "subject": "Renamed"},
+            "GET /api/v3/work_packages/7",
+            {"read_projects": ("*",), "write_projects": ("FIDOLD",), "enable_work_package_write": True},
+            "OPENPROJECT_WRITE_PROJECTS",
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_content_of_a_project_renamed_after_the_directory_recorded_it_is_denied_by_its_former_identifier(
+    tool_name: str, arguments: dict, content_request: str, scope: dict, denied_by: str
+) -> None:
+    seen: list[str] = []
+    handler = _linked_content_handler(seen, [_fid_project("FIDNEW")])
+
+    with pytest.raises(ToolError, match=rf"\[PROJECT_SCOPE_DENIED\].*{denied_by}"):
+        await _run_tool(_base_settings(**scope), handler, tool_name, arguments)
+
+    assert seen == [content_request, "GET /api/v3/projects/42"]
+
+
+@pytest.mark.parametrize(("pattern", "confirmed"), [("FIDOLD", True), ("Fid*", False), ("42", False)])
+@pytest.mark.asyncio
+async def test_a_linked_project_is_re_read_only_when_its_recorded_identifier_alone_admits_the_link(
+    pattern: str, confirmed: bool
+) -> None:
+    seen: list[str] = []
+    handler = _linked_content_handler(seen, [_fid_project("FIDOLD")])
+
+    result = await _run_tool(
+        _base_settings(read_projects=(pattern,)), handler, "get_work_package", {"work_package_id": 7}
+    )
+
+    assert result["id"] == 7
+    assert seen == ["GET /api/v3/work_packages/7"] + (["GET /api/v3/projects/42"] if confirmed else [])
+
+
+@pytest.mark.asyncio
+async def test_a_failed_re_read_denies_by_the_recorded_identifier_and_the_next_link_reads_again() -> None:
+    settings = _base_settings(read_projects=("FIDOLD",))
+    seen: list[str] = []
+    failure = httpx.Response(500, json={"_type": "Error", "message": "boom"})
+    client = await started_client(settings, _linked_content_handler(seen, [failure, _fid_project("FIDOLD")]), _FID_SCAN)
+    tool = create_app(settings)._tool_manager.get_tool("get_work_package")
+    assert tool is not None
+
+    with pytest.raises(ToolError, match=r"\[PROJECT_SCOPE_DENIED\].*OPENPROJECT_READ_PROJECTS"):
+        await tool.run({"work_package_id": 7}, context=FakeContext(client))
+    result = await tool.run({"work_package_id": 7}, context=FakeContext(client))
+
+    assert result["id"] == 7
+    assert seen == ["GET /api/v3/work_packages/7", "GET /api/v3/projects/42"] * 2
+    await client.aclose()
+
+
+def _q_work_package() -> dict:
+    return {
+        "_type": "WorkPackage",
+        "id": 8,
+        "subject": "Readable",
+        "lockVersion": 1,
+        "_links": {
+            "self": {"href": "/api/v3/work_packages/8"},
+            "project": {"href": "/api/v3/projects/43", "title": "Q Project"},
+        },
+    }
+
+
+def _aggregates_handler(seen: list[str], projects: list[tuple]):
+    """The server's total, groups and sums count the 27 work packages of
+    project 42 whenever the work-package filter names it."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(f"{request.method} {request.url.path}")
+        path = request.url.path
+        if request.method == "GET" and path.startswith("/api/v3/projects/"):
+            project = next(p for p in projects if str(p[0]) == path.rsplit("/", 1)[1])
+            return httpx.Response(200, json=_project_payload(*project), request=request)
+        if request.method == "GET" and path == "/api/v3/work_packages":
+            filters = json.loads(request.url.params["filters"])
+            project_ids = next(f["project_id"]["values"] for f in filters if "project_id" in f)
+            count = 30 if "42" in project_ids else 3
+            body = {
+                "_type": "WorkPackageCollection",
+                "total": count,
+                "count": 1,
+                "pageSize": 1,
+                "offset": 1,
+                "groups": [{"value": "New", "count": count, "sums": {"estimatedTime": f"PT{count}H"}}],
+                "totalSums": {"estimatedTime": f"PT{count}H"},
+                "_embedded": {"elements": [_q_work_package()] if project_ids else []},
+            }
+            return httpx.Response(200, json=body, request=request)
+        raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+
+    return handler
+
+
+def _project_payload(project_id: int, identifier: str, name: str) -> dict:
+    return {
+        "_type": "Project",
+        "id": project_id,
+        "identifier": identifier,
+        "name": name,
+        "active": True,
+        "_links": {"self": {"href": f"/api/v3/projects/{project_id}", "title": name}},
+    }
+
+
+async def _list_after_a_rename(
+    read_projects: tuple[str, ...], renamed: tuple, arguments: dict, seen: list[str]
+) -> dict:
+    """Starts with 42 (FIDOLD, "Fid Project") and 43 (QQ, "Q Project"), then
+    OpenProject changes 42 to `renamed` before the list is requested."""
+    projects = [(42, "FIDOLD", "Fid Project"), (43, "QQ", "Q Project")]
+    settings = _base_settings(read_projects=read_projects)
+    handler = _aggregates_handler(seen, projects)
+
+    def recording(request: httpx.Request):
+        if request.url.path == "/api/v3/projects":
+            seen.append(f"GET /api/v3/projects {request.url.params.get('filters')}")
+        return serving_projects(handler, projects)(request)
+
+    client = OpenProjectClient(settings, transport=httpx.MockTransport(recording))
+    await client.initialize()
+    seen.clear()
+    projects[0] = renamed
+    tool = create_app(settings)._tool_manager.get_tool("list_work_packages")
+    assert tool is not None
+    try:
+        return await tool.run(arguments, context=FakeContext(client))
+    finally:
+        await client.aclose()
+
+
+_ID_FILTER_42_43 = 'GET /api/v3/projects [{"id":{"operator":"=","values":["42","43"]}}]'
+
+
+@pytest.mark.parametrize(
+    ("read_projects", "renamed"),
+    [
+        (("FIDOLD", "QQ"), (42, "FIDNEW", "Fid Project")),
+        (("Fid Project", "QQ"), (42, "FIDOLD", "Other Project")),
+    ],
+    ids=["identifier", "name"],
+)
+@pytest.mark.asyncio
+async def test_list_work_packages_counts_and_sums_leave_out_a_project_renamed_after_the_directory_recorded_it(
+    read_projects: tuple, renamed: tuple
+) -> None:
+    seen: list[str] = []
+
+    result = await _list_after_a_rename(
+        read_projects, renamed, {"limit": 1, "include_sums": True, "group_by": "status"}, seen
+    )
+
+    assert (result["total"], result["next_offset"]) == (3, 2)
+    assert result["groups"] == [{"value": "New", "count": 3, "sums": {"estimatedTime": "PT3H"}}]
+    assert result["total_sums"] == {"estimatedTime": "PT3H"}
+    assert [item["id"] for item in result["results"]] == [8]
+    assert seen[:2] == [_ID_FILTER_42_43, "GET /api/v3/work_packages"]
+
+
+@pytest.mark.asyncio
+async def test_list_work_packages_re_reads_no_project_its_id_alone_admits() -> None:
+    seen: list[str] = []
+
+    result = await _list_after_a_rename(("42", "43"), (42, "FIDNEW", "Other Project"), {"limit": 1}, seen)
+
+    assert result["total"] == 30
+    assert seen == ["GET /api/v3/work_packages"]
+
+
+@pytest.mark.asyncio
+async def test_list_work_packages_denies_when_the_only_readable_project_was_renamed() -> None:
+    seen: list[str] = []
+
+    with pytest.raises(ToolError, match=r"\[PROJECT_SCOPE_DENIED\].*OPENPROJECT_READ_PROJECTS"):
+        await _list_after_a_rename(("FIDOLD",), (42, "FIDNEW", "Fid Project"), {}, seen)
+
+    assert seen == ['GET /api/v3/projects [{"id":{"operator":"=","values":["42"]}}]']
+
+
+@pytest.mark.asyncio
+async def test_list_work_packages_fails_without_a_filter_when_the_re_read_fails() -> None:
+    settings = _base_settings(read_projects=("FIDOLD", "QQ"))
+    seen: list[str] = []
+    handler = _aggregates_handler(seen, [(43, "QQ", "Q Project")])
+    projects = [(42, "FIDOLD", "Fid Project"), (43, "QQ", "Q Project")]
+    scanned = False
+
+    def failing_re_read(request: httpx.Request):
+        nonlocal scanned
+        if request.url.path == "/api/v3/projects" and scanned:
+            return httpx.Response(500, json={"_type": "Error", "message": "boom"}, request=request)
+        scanned = scanned or request.url.path == "/api/v3/projects"
+        return serving_projects(handler, projects)(request)
+
+    client = OpenProjectClient(settings, transport=httpx.MockTransport(failing_re_read))
+    await client.initialize()
+    tool = create_app(settings)._tool_manager.get_tool("list_work_packages")
+    assert tool is not None
+
+    with pytest.raises(ToolError, match=r"\[OPENPROJECT_UNAVAILABLE\]"):
+        await tool.run({}, context=FakeContext(client))
+
+    assert "GET /api/v3/work_packages" not in seen
     await client.aclose()

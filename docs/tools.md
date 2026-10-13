@@ -105,7 +105,7 @@ default tool set and save context.
 | `get_project_admin_context` | Return project admin metadata such as lifecycle statuses, parent project options, and writable fields |
 | `get_project_configuration` | Return project-scoped configuration such as internal comment support |
 | `list_sprints` | List Backlogs sprints (requires Backlogs/OpenProject 17.3+), with an optional project filter and name search filter — omit `project` to list every sprint visible to the current token, or pass it to list only that project's sprints |
-| `get_sprint` | Fetch a Backlogs sprint by id |
+| `get_sprint` | Fetch a Backlogs sprint by id (requires OpenProject 17.3+) |
 | `list_backlog_buckets` | List Backlogs backlog buckets (requires Backlogs/OpenProject 17.6+), with an optional project filter and name search filter — omit `project` to list every backlog bucket visible to the current token, or pass it to list only that project's backlog buckets |
 | `get_backlog_bucket` | Fetch a Backlogs backlog bucket by id (requires OpenProject 17.6+) |
 | `create_project` | Validate and then create a project; only writes when called again with `confirm=true` |
@@ -232,7 +232,7 @@ user exists.
 | Tool | Description |
 | --- | --- |
 | `list_notifications` | List the current user's unread notifications |
-| `mark_notifications_read` | Mark a single notification as read (pass `notification_id`), or every unread notification as read (omit it) |
+| `mark_notifications_read` | Mark a single notification as read (pass `notification_id`), or every unread notification as read (omit it); under a restricted `OPENPROJECT_READ_PROJECTS`, only notifications about projects it covers |
 
 ## Actions & capabilities
 
@@ -248,7 +248,7 @@ user exists.
 | `get_query_filter` | Fetch a single query filter definition by id such as `assignee` |
 | `get_query_column` | Fetch a single query column definition by id such as `subject` |
 | `get_query_operator` | Fetch a single query operator definition by id such as `=` |
-| `get_query_sort_by` | Fetch a single query sort-by definition by id such as `id-asc` |
+| `get_query_sort_by` | Fetch a single query sort-by definition by id such as `id:asc` or `id-asc` |
 | `list_query_filter_instance_schemas` | List query filter-instance schemas globally or for a specific project |
 | `get_query_filter_instance_schema` | Fetch a single query filter-instance schema by id |
 
@@ -291,28 +291,42 @@ user exists.
 | Tool | Description |
 | --- | --- |
 | `get_wiki_page` | Fetch a single wiki page by id |
-| `list_work_package_wiki_links` | List wiki pages linked to a work package (requires OpenProject 17.6+; the collection endpoint exists from 17.6, but see the pagination note below) |
-| `create_work_package_wiki_link` | Validate and then create a link from a work package to a wiki page; only writes when called again with `confirm=true` (requires OpenProject 17.7+ — the server's `POST work_packages/{id}/wiki_page_links` handler does not exist at all on 17.6 or earlier) |
-| `delete_work_package_wiki_link` | Validate and then delete a work package's wiki page link; only deletes when called again with `confirm=true` (requires OpenProject 17.7+, for the same reason as `create_work_package_wiki_link` above) |
+| `list_work_package_wiki_links` | List wiki pages linked to a work package (requires OpenProject 17.5+; see the server bug note below) |
+| `create_work_package_wiki_link` | Validate and then create a link from a work package to a wiki page; only writes when called again with `confirm=true` (requires OpenProject 17.7+: `POST work_packages/{id}/wiki_page_links` does not exist on 17.6 or earlier) |
+| `delete_work_package_wiki_link` | Validate and then delete a work package's wiki page link; only deletes when called again with `confirm=true` (requires OpenProject 17.6+: `DELETE wiki_page_links/{id}` does not exist on 17.5 or earlier) |
 
 > **Note:** OpenProject API v3 does not provide a collection endpoint for wiki pages
 > (`GET /api/v3/projects/{id}/wiki_pages` is not implemented). `list_wiki_pages`
 has
 > therefore been removed. Individual pages can be fetched by id via `get_wiki_page`.
 >
-> **Note:** the `wiki_page_links` endpoint (`list_work_package_wiki_links`/
-> `create_work_package_wiki_link`/`delete_work_package_wiki_link`) requires
-> OpenProject 17.6 or later — earlier versions return a `[OPENPROJECT_UNAVAILABLE]`.
+> **Note:** on a server older than the version a wiki page link tool
+> requires (list 17.5, delete 17.6, create 17.7), the tool returns a
+> `[RESOURCE_NOT_FOUND]` that names the required version. On 17.5,
+> `delete_work_package_wiki_link` usually fails earlier with an
+> `[OPENPROJECT_UNAVAILABLE]`, because its link check runs into the server
+> bug below.
 >
-> **Note:** `list_work_package_wiki_links` returns a `[OPENPROJECT_UNAVAILABLE]` whenever
-> the work package actually has one or more wiki page links due to an
-> OpenProject server bug in 16.6/17.6/17.7.1. Only the
-> empty-list case reliably works. `delete_work_package_wiki_link` is affected
-> too: it verifies `link_id` actually belongs to `work_package_id` before
-> deleting (a real authorization check, not skippable) by listing the work
-> package's links internally first, so it hits the same bug whenever the
-> link being deleted actually exists. `create_work_package_wiki_link` is
+> **Note:** an OpenProject server bug (17.5 to at least 17.9.1) makes
+> `list_work_package_wiki_links` return an `[OPENPROJECT_UNAVAILABLE]` when
+> none of the work package's links resolves to a wiki page the user can see;
+> on 17.5 and 17.6 this also happens when the work package has no links. A
+> link to the internal wiki resolves when its `identifier` is the page's
+> numeric id (the `wiki_page_id` of `get_wiki_page`); OpenProject accepts any
+> other string when the link is created. `delete_work_package_wiki_link` is
+> affected too: it verifies `link_id` actually belongs to `work_package_id`
+> before deleting (a real authorization check, not skippable) by listing the
+> work package's links internally first. `create_work_package_wiki_link` is
 > unaffected.
+>
+> **Note:** `delete_work_package_wiki_link` deletes relation links only
+> (`link_type` `relation`). An inline link comes from a wiki link in the work
+> package's description or from a wiki page that mentions the work package;
+> OpenProject offers no API to delete it, so the tool rejects it with a
+> `[VALIDATION_FAILED]` without sending the delete request, and the link goes
+> away only when that text changes. Deleting needs the "Manage wiki page
+> links" permission in the work package's project; without it the tool
+> returns `[OPENPROJECT_PERMISSION_DENIED]`.
 
 ## Forums
 
@@ -348,7 +362,7 @@ has
 | `list_categories` | List work-package categories configured for a project |
 | `get_category` | Fetch a single category from a project's category list |
 | `get_project_work_package_context` | Return project metadata plus the writable work-package schema for an optional type, including custom fields, project phases, and allowed values |
-| `list_work_packages` | List work packages with structured filters such as `project`, `type`, `version`, `version_status` (open/closed/locked), `assignee`, `status`, `priority`, and `custom_field_filters` (filter by custom field value, keyed by `cf_<N>`/`customField<N>` — see [filters.md](filters.md#custom-field-filters)) |
+| `list_work_packages` | List work packages with structured filters such as `project`, `type`, `version`, `version_status` (open/closed/locked, requires OpenProject 16.4+), `assignee`, `status`, `priority`, and `custom_field_filters` (filter by custom field value, keyed by `cf_<N>`/`customField<N>` — see [filters.md](filters.md#custom-field-filters)) |
 | `search_work_packages` | Search work packages by free-text query matching only subject/ID (not version); optional `project`, `status`, `open_only`, `assignee_me`, and `custom_field_filters` filters — for version-based filtering use `list_work_packages(version=...)` instead. Also resolves the query directly, in parallel, when it is a numeric id or display id (e.g. `PROJ-42`) and not shaped like a date; a match satisfying every other active filter is returned separately as `exact_match`, never merged into `results`/`total`/pagination |
 | `get_work_package` | Fetch a detailed work package summary by id or `displayId` reference |
 | `get_work_packages` | Fetch multiple work packages by ID in parallel (max 100 IDs per batch) |
@@ -512,6 +526,10 @@ needs credentials the MCP client does not carry.
 | `create_board` | Validate and then create a saved OpenProject board/query; only writes when called again with `confirm=true` |
 | `update_board` | Validate and then update a saved OpenProject board/query; only writes when called again with `confirm=true` |
 | `delete_board` | Validate and then delete a saved OpenProject board/query; only deletes when called again with `confirm=true` |
+
+On `create_board` and `update_board`, `sort_by` takes criteria as `field:direction` or `field-direction`, the same
+form as `list_work_packages`; the direction defaults to `asc`. OpenProject reports an unknown field as a validation
+error in the preview.
 
 ## Meetings
 

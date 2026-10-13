@@ -1280,3 +1280,115 @@ async def test_target_versions_write_not_stripped_by_echo_workaround_live(
 
     wp = await client.work_package.get(created.work_package_id)
     assert wp.target_versions == ["Seed Version 1.0"]
+
+
+async def _work_packages_per_version_status(
+    client: OpenProjectClient, test_project: str, version_ids: list[int], wp_ids: list[int]
+) -> dict[str, int]:
+    """One new version per status with one work package in it. A closed or
+    locked version takes no new work package, so each one is closed or
+    locked only after its work package is in it."""
+    suffix = uuid.uuid4().hex[:8]
+    work_packages: dict[str, int] = {}
+    for status in ("open", "closed", "locked"):
+        name = f"[integration-test] {status} {suffix}"
+        version = await client.version.create(project=test_project, name=name, confirm=True)
+        assert version.ready, version.validation_errors
+        version_ids.append(version.version_id)
+        created = await client.work_package.create(
+            project=test_project, type="Task", subject=f"{_SUBJECT} in {status} version", version=name, confirm=True
+        )
+        assert created.ready, created.validation_errors
+        wp_ids.append(created.work_package_id)
+        work_packages[status] = created.work_package_id
+        if status != "open":
+            updated = await client.version.update(version_id=version.version_id, status=status, confirm=True)
+            assert updated.ready, updated.validation_errors
+    return work_packages
+
+
+async def _ids_with_version_status(client: OpenProjectClient, test_project: str, status: str) -> set[int]:
+    ids: set[int] = set()
+    offset: int | None = 1
+    while offset is not None:
+        page = await client.work_package.list(project=test_project, version_status=status, offset=offset, limit=50)
+        ids.update(wp.id for wp in page.results)
+        offset = page.next_offset
+    return ids
+
+
+async def _assert_version_status_matches(
+    client: OpenProjectClient, test_project: str, work_packages: dict[str, int]
+) -> None:
+    for status, wp_id in work_packages.items():
+        found = await _ids_with_version_status(client, test_project, status)
+        others = {other for other_status, other in work_packages.items() if other_status != status}
+        assert wp_id in found
+        assert found.isdisjoint(others)
+
+
+async def test_version_status_filters_by_the_version_status(
+    client: OpenProjectClient,
+    test_project: str,
+    openproject_version: tuple[int, int],
+    version_ids: list[int],
+    wp_ids: list[int],
+) -> None:
+    if openproject_version < (16, 4):
+        floor_condition = (
+            r"If this instance is older than OpenProject 16\.4, version_status is the cause: "
+            r"it requires 16\.4 or newer\.$"
+        )
+        with pytest.raises(InvalidInputError, match=floor_condition):
+            await client.work_package.list(project=test_project, version_status="open")
+        return
+    work_packages = await _work_packages_per_version_status(client, test_project, version_ids, wp_ids)
+    await _assert_version_status_matches(client, test_project, work_packages)
+
+
+async def test_version_status_filters_with_multiple_versions_disabled(
+    multi_target_versions_disabled,
+    client: OpenProjectClient,
+    test_project: str,
+    version_ids: list[int],
+    wp_ids: list[int],
+) -> None:
+    """From 17.8 OpenProject offers the version_id filter only while multiple
+    versions are off; this and the enabled test below cover both states."""
+    work_packages = await _work_packages_per_version_status(client, test_project, version_ids, wp_ids)
+    await _assert_version_status_matches(client, test_project, work_packages)
+
+
+async def test_version_status_filters_with_multiple_versions_enabled(
+    multi_target_versions_enabled,
+    client: OpenProjectClient,
+    test_project: str,
+    version_ids: list[int],
+    wp_ids: list[int],
+) -> None:
+    """With multiple versions on, OpenProject maps version_id to its
+    target_version_id filter, which matches any one of a work package's
+    target versions."""
+    suffix = uuid.uuid4().hex[:8]
+    open_name, closed_name = f"[integration-test] open {suffix}", f"[integration-test] closed {suffix}"
+    version_by_name: dict[str, int] = {}
+    for name in (open_name, closed_name):
+        version = await client.version.create(project=test_project, name=name, confirm=True)
+        assert version.ready, version.validation_errors
+        version_ids.append(version.version_id)
+        version_by_name[name] = version.version_id
+    created = await client.work_package.create(
+        project=test_project,
+        type="Task",
+        subject=f"{_SUBJECT} in open and closed version",
+        target_versions=[open_name, closed_name],
+        confirm=True,
+    )
+    assert created.ready, created.validation_errors
+    wp_ids.append(created.work_package_id)
+    updated = await client.version.update(version_id=version_by_name[closed_name], status="closed", confirm=True)
+    assert updated.ready, updated.validation_errors
+
+    assert created.work_package_id in await _ids_with_version_status(client, test_project, "open")
+    assert created.work_package_id in await _ids_with_version_status(client, test_project, "closed")
+    assert created.work_package_id not in await _ids_with_version_status(client, test_project, "locked")

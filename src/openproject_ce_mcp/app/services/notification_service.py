@@ -40,6 +40,18 @@ single-flat-method precedent for the same reason.
 Read/write scope uses `"personal"` (not `"work_package"` or a dedicated
 `"notification"` scope).
 
+Both writes also honor `OPENPROJECT_READ_PROJECTS`, since marking a
+notification read is acting on what it is about. Under a restricted scope
+`mark_read()` first reads the notification and applies the list path's
+decision, except that a notification with neither a project nor a
+work-package link is refused rather than passed through: a write must not
+inherit the read path's leniency. The check runs before the preview return,
+so a preview never promises a write that the confirmed call refuses.
+`mark_all_read()` narrows the server-side bulk update to the readable
+projects (`ReadableProjects`) instead of listing and marking one by one, so
+its cost does not grow with the inbox and the update stays one atomic
+request. Under `*` both behave as without an allowlist.
+
 `mark_read()`/`mark_all_read()` both call `access.ensure_write_enabled("personal",
 ...)` unconditionally, BEFORE the `if not confirm:` preview return -- not gated
 inside the confirmed branch like Document's update(). Matches User
@@ -51,15 +63,24 @@ confirmed branch would silently loosen that preview-time behavior.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import NoReturn
 
+from ... import policy_observation
 from ...config import Settings
 from ...models import NotificationListResult, NotificationMarkResult, NotificationSummary
+from ..errors import ProjectScopeDeniedError
 from ..pagination import effective_limit
 from ..policies import access, hidden_fields
 from ..policies import scope as scope_policy
 from ..ports.notification_api import NotificationApi, NotificationRecord
+from ..ports.readable_projects import ReadableProjects
 from ..ports.work_package_ref import WorkPackageProjectAllowedBulkCheck, WorkPackageProjectAllowedCheck
 from ..ports.work_package_resolution import WorkPackageAllowedContext
+
+_NOTIFICATION_READ_DENIED = "OpenProject access to this notification is disabled by OPENPROJECT_READ_PROJECTS."
+_NO_READABLE_PROJECT = (
+    "OpenProject access to notifications is disabled by OPENPROJECT_READ_PROJECTS: it covers no readable project."
+)
 
 
 class NotificationService:
@@ -71,12 +92,14 @@ class NotificationService:
         project_id_to_identifier: Mapping[int, str],
         work_package_project_allowed: WorkPackageProjectAllowedCheck,
         work_package_project_allowed_bulk: WorkPackageProjectAllowedBulkCheck,
+        readable_projects: ReadableProjects,
     ) -> None:
         self._api = api
         self._settings = settings
         self._project_id_to_identifier = project_id_to_identifier
         self._work_package_project_allowed = work_package_project_allowed
         self._work_package_project_allowed_bulk = work_package_project_allowed_bulk
+        self._readable_projects = readable_projects
 
     async def list_all(
         self, *, unread_only: bool = False, limit: int | None = None, offset: int = 1
@@ -213,8 +236,8 @@ class NotificationService:
         for record in records:
             if record.project_link is not None:
                 continue
-            resource_href = record.resource_link.get("href") if isinstance(record.resource_link, dict) else None
-            if isinstance(resource_href, str) and "work_packages/" in resource_href:
+            resource_href = _work_package_href(record)
+            if resource_href is not None:
                 hrefs.append(resource_href)
         bulk_outcomes = await self._work_package_project_allowed_bulk(hrefs, context=cache) if hrefs else {}
 
@@ -230,8 +253,8 @@ class NotificationService:
                     )
                 )
                 continue
-            resource_href = record.resource_link.get("href") if isinstance(record.resource_link, dict) else None
-            if isinstance(resource_href, str) and "work_packages/" in resource_href:
+            resource_href = _work_package_href(record)
+            if resource_href is not None:
                 results.append(bulk_outcomes[resource_href])
                 continue
             results.append(True)  # no project link and no work-package resource link: genuinely personal/global
@@ -240,8 +263,22 @@ class NotificationService:
     def _stamp(self, summary: NotificationSummary) -> NotificationSummary:
         return hidden_fields.apply_hidden_fields("notification", summary, settings=self._settings)
 
+    async def _ensure_readable(self, notification_id: int) -> None:
+        record = await self._api.get(notification_id)
+        if record.project_link is None and _work_package_href(record) is None:
+            _deny_read(_NOTIFICATION_READ_DENIED)
+        (outcome,) = await self._resolve_page_allowed([record], cache=WorkPackageAllowedContext())
+        if isinstance(outcome, Exception):
+            raise outcome
+        if not outcome:
+            # The project check already recorded project_scope; a work package 404 records nothing.
+            policy_observation.record_policy_decision("project_scope_read_denied")
+            raise ProjectScopeDeniedError(_NOTIFICATION_READ_DENIED)
+
     async def mark_read(self, notification_id: int, *, confirm: bool = False) -> NotificationMarkResult:
         access.ensure_write_enabled("personal", settings=self._settings)
+        if not scope_policy.scope_allows_all(self._settings.read_projects):
+            await self._ensure_readable(notification_id)
         if not confirm:
             # No OpenProject dry-run endpoint exists for this action -- this
             # is a client-side preview only: ready=True means the request is
@@ -268,22 +305,42 @@ class NotificationService:
 
     async def mark_all_read(self, *, confirm: bool = False) -> NotificationMarkResult:
         access.ensure_write_enabled("personal", settings=self._settings)
+        allows_all = scope_policy.scope_allows_all(self._settings.read_projects)
+        covered = "" if allows_all else " about projects OPENPROJECT_READ_PROJECTS covers"
         if not confirm:
             return NotificationMarkResult(
                 action="mark_all_read",
                 state="preview",
                 ready=True,
                 message=(
-                    "Marks all currently unread notifications read. Ask for confirmation, "
+                    f"Marks all currently unread notifications{covered} read. Ask for confirmation, "
                     "then call again with confirm=true to apply it."
                 ),
                 notification_id=None,
             )
-        await self._api.mark_all_read()
+        project_ids: frozenset[int] | None = None
+        if not allows_all:
+            project_ids = await self._readable_projects.current_readable_project_ids()
+            if not project_ids:
+                _deny_read(_NO_READABLE_PROJECT)
+        await self._api.mark_all_read(project_ids=project_ids)
         return NotificationMarkResult(
             action="mark_all_read",
             state="confirmed",
             ready=True,
-            message="All unread notifications marked read.",
+            message=f"All unread notifications{covered} marked read.",
             notification_id=None,
         )
+
+
+def _deny_read(message: str) -> NoReturn:
+    # No project is in question here (a notification without links, or no
+    # readable project at all), so no scope.py check has recorded one.
+    policy_observation.record_project_scope(None)
+    policy_observation.record_policy_decision("project_scope_read_denied")
+    raise ProjectScopeDeniedError(message)
+
+
+def _work_package_href(record: NotificationRecord) -> str | None:
+    href = record.resource_link.get("href") if isinstance(record.resource_link, dict) else None
+    return href if isinstance(href, str) and "work_packages/" in href else None

@@ -7,8 +7,7 @@ from typing import Protocol
 
 
 class ReadableProjects(Protocol):
-    async def ensure_fresh(self) -> None:
-        """Rescan when the last scan is old enough that a new project could be missing."""
+    async def current_readable_project_ids(self) -> frozenset[int]:
+        """Rescanned when the last scan is old enough that a new project could
+        be missing; every project its id alone does not match is re-read."""
         ...
-
-    def readable_project_ids(self) -> frozenset[int]: ...

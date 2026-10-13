@@ -35,14 +35,13 @@ async def test_get_query_operator(client: OpenProjectClient) -> None:
     assert operator.id == "="
 
 
-async def test_get_query_sort_by_resolves_colon_form_id(client: OpenProjectClient) -> None:
-    """OpenProject's sort_bys route is queries/sort_bys/:id-:direction
-    (hyphen-joined), not a bare id segment. A request built from the
-    caller-facing colon-separated id ("subject:asc") must resolve against a
-    real instance, and the public id contract must stay the caller's
-    colon-form regardless of the server's own hyphen-form self-link."""
-    result = await client.query_metadata.get_sort_by("subject:asc")
-    assert result.id == "subject:asc"
+@pytest.mark.parametrize("sort_by_id", ["subject:asc", "subject-asc", "subject"])
+async def test_get_query_sort_by_resolves_each_id_form(client: OpenProjectClient, sort_by_id: str) -> None:
+    """OpenProject's sort_bys route is queries/sort_bys/:id-:direction, not a
+    bare id segment. Every accepted form must resolve against a real instance,
+    and the public id is the caller's whatever the server's self-link says."""
+    result = await client.query_metadata.get_sort_by(sort_by_id)
+    assert result.id == sort_by_id
     assert result.direction is not None
 
 

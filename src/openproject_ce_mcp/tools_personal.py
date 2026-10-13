@@ -61,6 +61,9 @@ async def mark_notifications_read(
 
     notification_id: mark just this notification read. Omit it (default) to
     mark every currently unread notification read instead.
+    Under a restricted OPENPROJECT_READ_PROJECTS, a notification about a
+    project outside it is refused (in the preview too), and omitting
+    notification_id marks only notifications about the projects it covers.
     Set confirm=true to write, or call without confirm=true first for a preview.
     """
     client = _client_from_context(ctx)

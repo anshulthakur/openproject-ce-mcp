@@ -220,7 +220,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "bulk_create_work_packages": {
-        "description_hash": "0c36427e6393f1f6b1b0eb3d3366cc482730e33f20c98847c8d93be2be19a212",
+        "description_hash": "9d0764d0c961440cefc8b3fa629c9a36c1ac0f0d737e87c7828bd35bd2df1aac",
         "input_schema": {
             "properties": {
                 "items": {"items": {"additionalProperties": True, "type": "object"}, "title": "Items", "type": "array"},
@@ -242,7 +242,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "bulk_update_work_packages": {
-        "description_hash": "5a4fc00a9160307aa508497a687abcc7a2aa6c1946fdc709c0bdfe122ccc9870",
+        "description_hash": "ea23c200cca4b2d7d67bb95f7c590916bec5cdb4c0d8ce8d4290021b99cdfbc8",
         "input_schema": {
             "properties": {
                 "items": {"items": {"additionalProperties": True, "type": "object"}, "title": "Items", "type": "array"},
@@ -319,7 +319,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_WRITE", "OPENPROJECT_ENABLE_PROJECT_READ"),
     },
     "create_board": {
-        "description_hash": "7135762d0c1f79dcf94a7ab4f37ea117a884168895cee1511e69725fb05ac489",
+        "description_hash": "bb5549ef7b4ca6027861ee4228c264566f27fc7f5a94f717cc91e567a250dbc4",
         "input_schema": {
             "properties": {
                 "name": {"title": "Name", "type": "string"},
@@ -1145,7 +1145,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "create_work_package_wiki_link": {
-        "description_hash": "7c6ffb99702215614bb6c0ae8a22038765ce41b0a32191f06506ad79b702b5ac",
+        "description_hash": "b1e1e6573fab14efc5c0df265f08a2a070309de65656c9fcfebb1622e3788b93",
         "input_schema": {
             "properties": {
                 "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
@@ -1595,7 +1595,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "delete_work_package_wiki_link": {
-        "description_hash": "3d1a4e1c09e1796938e9c72568303b41097f58570845fa9d468e6d00f9f6aa20",
+        "description_hash": "fe3b1ec85b893c37bf324db2b11f7157d1f04d9560d491e9659e6cc2fc8198c2",
         "input_schema": {
             "properties": {
                 "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
@@ -3408,7 +3408,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_EXTENDED_READ", "OPENPROJECT_ENABLE_BOARD_READ"),
     },
     "get_query_sort_by": {
-        "description_hash": "34890f309bd974c5ffa71891ff4421223e16fc75ba42cc75bf710da1ef241b85",
+        "description_hash": "89c06264a9d903c5d85d103b02eb390eb1c1dcb9ca67871d4b6a9225549df2c1",
         "input_schema": {
             "properties": {"sort_by_id": {"title": "Sort By Id", "type": "string"}},
             "required": ["sort_by_id"],
@@ -3499,7 +3499,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_READ",),
     },
     "get_sprint": {
-        "description_hash": "c411eb75141875a804cf5027901d89a79582cedd4920909e24b143d3d60e7d56",
+        "description_hash": "e1640d0a6930654d30c5ceff50459caab9a81a706df91528e0a987a2bc53dc91",
         "input_schema": {
             "properties": {"sprint_id": {"title": "Sprint Id", "type": "integer"}},
             "required": ["sprint_id"],
@@ -4733,7 +4733,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEMBERSHIP_READ",),
     },
     "list_sprints": {
-        "description_hash": "1a9a73a21f5164b0477893720f4b31ffaea0b23a5a722fdd68de8043b7b3fd2d",
+        "description_hash": "677c8a5443ec08dfbcee2d804b1f78f27047e5fefa09c6c652bd92a0c09a147e",
         "input_schema": {
             "properties": {
                 "project": {
@@ -5169,7 +5169,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_work_package_wiki_links": {
-        "description_hash": "ca46760c1eee68b9653a0ab3838f609d46281cc9fbea9e54770d5c0028e2a5cf",
+        "description_hash": "7ef01d3e14c8614dccaec5d0e00bc4c5183702b4304befa9b9e5ee4dc89559b0",
         "input_schema": {
             "properties": {
                 "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
@@ -5187,7 +5187,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_work_packages": {
-        "description_hash": "5203b45d05e03ccfabdb3aee2212d5c45ed0c8c9a2a2ec747c6f63bf90c6fbf0",
+        "description_hash": "e136c767c7aaac8cab5ff237595df9496a76dbebf553763c599c044a74fff53c",
         "input_schema": {
             "properties": {
                 "project": {
@@ -5302,7 +5302,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_EXTENDED_READ",),
     },
     "mark_notifications_read": {
-        "description_hash": "9c2ad2e303e98aee627a713622be7dae0bde14415969af953d1a292769ea34af",
+        "description_hash": "d3572d6f2c8033b060ba8c7868b90510c5736f1955cbbc48cd4d90ac915b5382",
         "input_schema": {
             "properties": {
                 "notification_id": {
@@ -5602,7 +5602,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "update_board": {
-        "description_hash": "84c9683b1170cd23245d80fddb9b762fbb29cf592224d26988885c9217ed95d5",
+        "description_hash": "33129919a0e7ae8baafcad9f990e42e325d032e229b0fac82f3e9415829c5bd3",
         "input_schema": {
             "properties": {
                 "board_id": {"title": "Board Id", "type": "integer"},

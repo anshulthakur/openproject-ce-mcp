@@ -62,7 +62,8 @@ async def list_sprints(
     to the current token across all projects; pass it to list only sprints for that
     project.
 
-    Requires the OpenProject Backlogs module; unavailable instances return a clear not-found message.
+    Requires the OpenProject Backlogs module and OpenProject 17.3 or newer;
+    unavailable instances return a clear not-found message.
 
     select fields: id, name (see server instructions for select's general semantics).
 
@@ -88,7 +89,7 @@ async def get_sprint(
     ctx: Context,
     sprint_id: int,
 ) -> SprintDetail:
-    """Get a Backlogs sprint by id."""
+    """Get a Backlogs sprint by id. Requires OpenProject 17.3 or newer."""
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(sprint_id, field_name="sprint_id")
     return await _run_tool(client.sprint.get(safe_id))

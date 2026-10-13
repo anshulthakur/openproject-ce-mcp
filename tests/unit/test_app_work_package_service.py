@@ -362,12 +362,10 @@ def _bulk_from_single(single):
 class _ReadableIds:
     def __init__(self, readable: Iterable[int]) -> None:
         self._readable = frozenset(readable)
-        self.ensure_fresh_calls = 0
+        self.calls = 0
 
-    async def ensure_fresh(self) -> None:
-        self.ensure_fresh_calls += 1
-
-    def readable_project_ids(self) -> frozenset[int]:
+    async def current_readable_project_ids(self) -> frozenset[int]:
+        self.calls += 1
         return self._readable
 
 
@@ -615,7 +613,7 @@ async def test_list_filters_on_freshly_readable_projects_not_on_every_known_one(
 
     await service.list(limit=2)
 
-    assert readable_projects.ensure_fresh_calls == 1
+    assert readable_projects.calls == 1
     assert {"project_id": {"operator": "=", "values": ["1"]}} in api.list_calls[0]["filters"]
 
 

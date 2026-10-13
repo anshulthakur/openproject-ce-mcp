@@ -803,6 +803,11 @@ def test_validate_sort_by_rejects_unknown_field_with_valid_list() -> None:
         _validate_sort_by(["assignedto:asc"])
 
 
+def test_validate_sort_by_accepts_the_hyphen_form_and_keeps_none_for_empty() -> None:
+    assert _validate_sort_by(["status-desc"]) == [SortCriterion(field="status", direction="desc")]
+    assert _validate_sort_by([]) is None
+
+
 def test_validate_group_by_accepts_real_groupable_columns() -> None:
     assert _validate_group_by("status") == "status"
     assert _validate_group_by("assigned_to") == "assigned_to"

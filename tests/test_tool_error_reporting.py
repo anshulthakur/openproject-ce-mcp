@@ -117,6 +117,7 @@ async def test_client_sees_why_a_confirmed_bulk_write_rejects_its_select(call_to
         f"[VALIDATION_FAILED] select field '{field}' is a field of the WorkPackageDetail in 'result'; select it as 'result.{field}'."
         in _text(result)
     )
+    assert _text(result).endswith("No request was sent.")
 
 
 async def test_categorised_errors_stay_value_and_runtime_errors_for_python_callers():

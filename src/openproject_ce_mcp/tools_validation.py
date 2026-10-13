@@ -17,6 +17,7 @@ from typing import Any
 
 from .config import TEXT_LIMIT_MAX
 from .models import SortCriterion
+from .sort_criteria import parse_sort_by
 from .work_package_reference import canonical_work_package_ref, is_numeric_ref
 
 PROJECT_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -765,53 +766,26 @@ def _describe_valid_fields(allowed: frozenset[str]) -> str:
 
 
 def _validate_sort_by(values: list[str] | None) -> list[SortCriterion] | None:
-    """Validate and parse sort_by list into list of SortCriterion objects.
-
-    Validates format, field name pattern, and parses each item.
-    Returns None if input is None.
-    Raises ValueError if any item is invalid.
+    """Parse sort_by into SortCriterion objects, each field checked against
+    OpenProject's sortable work-package columns. Returns None for None or an
+    empty list. Raises ValueError if any item is invalid.
     """
     if values is None:
         return None
     if not isinstance(values, list):
         raise ValueError("sort_by must be a list of strings")
 
-    result = []
-    for i, item in enumerate(values):
-        if not isinstance(item, str):
-            raise ValueError(f"sort_by[{i}] must be a string, got {type(item).__name__}")
-
-        item = item.strip()
-        if not item:
-            raise ValueError(f"sort_by[{i}] cannot be empty")
-
-        if ":" in item:
-            parts = item.split(":", 1)
-            field = parts[0].strip()
-            direction = parts[1].strip().lower()
-
-            if not field:
-                raise ValueError(f"sort_by[{i}]: field name cannot be empty")
-            if direction not in ("asc", "desc"):
-                raise ValueError(f"sort_by[{i}]: direction must be 'asc' or 'desc', got '{direction}'")
-        else:
-            field = item
-            direction = "asc"
-
-        if not field.replace("_", "").replace(".", "").isalnum():
+    criteria = parse_sort_by(values, field_name="sort_by")
+    for i, criterion in enumerate(criteria):
+        if criterion.field not in _SORTABLE_WORK_PACKAGE_FIELDS and not _CUSTOM_FIELD_PATTERN.fullmatch(
+            criterion.field
+        ):
             raise ValueError(
-                f"sort_by[{i}]: field name '{field}' contains invalid characters "
-                "(only alphanumeric, underscore, and dot allowed)"
-            )
-        if field not in _SORTABLE_WORK_PACKAGE_FIELDS and not _CUSTOM_FIELD_PATTERN.fullmatch(field):
-            raise ValueError(
-                f"sort_by[{i}]: unknown field '{field}'. "
+                f"sort_by[{i}]: unknown field '{criterion.field}'. "
                 f"Valid fields are: {_describe_valid_fields(_SORTABLE_WORK_PACKAGE_FIELDS)}."
             )
 
-        result.append(SortCriterion(field=field, direction=direction))
-
-    return result if result else None
+    return criteria or None
 
 
 def _validate_group_by(value: str | None) -> str | None:
@@ -921,6 +895,8 @@ def _clearable_duration(value: str | None, *, field_name: str, sentinel: object)
 BULK_ITEM_WRAPPER_FIELDS = frozenset({"index", "success", "error"})
 BATCH_READ_ITEM_WRAPPER_FIELDS = frozenset({"id", "success", "error"})
 
+_SELECT_NOTHING_SENT = "No request was sent."
+
 
 def _validate_select(
     select: list[str] | None,
@@ -931,11 +907,12 @@ def _validate_select(
 ) -> list[str] | None:
     """Validate a field-selection list against a result-row dataclass.
 
-    Called in the tool body so invalid field names raise [VALIDATION_FAILED] before
-    the client call. Returns the cleaned list of entity fields (or None); names in
+    Call it in the tool body before any request: the error says no request was
+    sent, so a rejected confirmed write is known to have written nothing.
+    Returns the cleaned list of entity fields (or None); names in
     ``wrapper_fields`` are accepted but not returned. The trimming wrapper
-    (tools_runtime._normalize_select) reads the same ``select`` kwarg and applies
-    it after the result resolves.
+    (tools_runtime._normalize_select) reads the same ``select`` kwarg and
+    applies it after the result resolves.
 
     ``nested`` maps a field of ``row_type`` that holds another entity to that
     entity's dataclass; its fields are selected one level deep as
@@ -958,19 +935,22 @@ def _validate_select(
             wrapper_only = True
         elif inner and prefix in nested_valid:
             allowed = ", ".join(f"{prefix}.{field}" for field in sorted(nested_valid[prefix]))
-            raise ValueError(f"select field '{name}' is not a valid {prefix} field. Allowed: {allowed}.")
+            raise ValueError(
+                f"select field '{name}' is not a valid {prefix} field. Allowed: {allowed}. {_SELECT_NOTHING_SENT}"
+            )
         else:
             owner = next((p for p, fields in nested_valid.items() if not inner and name in fields), None)
             if owner is not None:
                 raise ValueError(
                     f"select field '{name}' is a field of the {nested[owner].__name__} in '{owner}'; "
-                    f"select it as '{owner}.{name}'."
+                    f"select it as '{owner}.{name}'. {_SELECT_NOTHING_SENT}"
                 )
             allowed = ", ".join(sorted(valid | wrapper_fields))
             hint = "".join(f" Fields of '{p}' are selected as '{p}.<field>'." for p in sorted(nested_valid))
             raise ValueError(
-                f"select field '{name}' is not a valid {row_type.__name__} field. Allowed: {allowed}.{hint}"
+                f"select field '{name}' is not a valid {row_type.__name__} field. Allowed: {allowed}.{hint} "
+                f"{_SELECT_NOTHING_SENT}"
             )
     if not chosen and not wrapper_only:
-        raise ValueError("select must contain at least one field name.")
+        raise ValueError(f"select must contain at least one field name. {_SELECT_NOTHING_SENT}")
     return chosen

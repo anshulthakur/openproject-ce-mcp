@@ -6,6 +6,9 @@ from `app/adapters/_text.py`, used by `normalize_notification` for
 `trim_text` (subject/reason truncation), `link_title` (project/reason link
 titles), and `id_from_href` (project/work-package ids from their links).
 
+`mark_all_read`'s `project` filter matches the work package's own project
+only; subprojects are not included.
+
 `mark_read`/`mark_all_read` use `Transport.request_raw`, not `post_json`:
 both endpoints return 204/200/201 with no JSON body to parse.
 `HttpxTransport._request` already raises via `raise_for_status` on any
@@ -25,6 +28,12 @@ from ._text import SUBJECT_LIMIT
 from ._text import id_from_href as _id_from_href
 from ._text import link_title as _link_title
 from ._text import trim_text as _trim_text
+
+_UNREAD_IN_APP_FILTER: dict[str, Any] = {"readIAN": {"operator": "=", "values": ["f"]}}
+
+
+def _filters_param(filters: list[dict[str, Any]]) -> str:
+    return json.dumps(filters, separators=(",", ":"))
 
 
 def normalize_notification(payload: dict[str, Any]) -> NotificationSummary:
@@ -84,7 +93,7 @@ class HttpxNotificationApi:
     async def list_all(self, *, unread_only: bool, offset: int, limit: int) -> NotificationPage:
         params: dict[str, str] = {"offset": str(offset), "pageSize": str(limit)}
         if unread_only:
-            params["filters"] = json.dumps([{"readIAN": {"operator": "=", "values": ["f"]}}], separators=(",", ":"))
+            params["filters"] = _filters_param([_UNREAD_IN_APP_FILTER])
         payload = await self._transport.get_json("notifications", params=params)
         elements = payload.get("_embedded", {}).get("elements", [])
         records = [self._record(item) for item in elements if isinstance(item, dict)]
@@ -100,5 +109,25 @@ class HttpxNotificationApi:
         # (same class of bug as UserApi.commit_lock).
         await self._transport.request_raw("POST", f"notifications/{notification_id}/read_ian", json_body={})
 
-    async def mark_all_read(self) -> None:
-        await self._transport.request_raw("POST", "notifications/read_ian", json_body={})
+    async def get(self, notification_id: int) -> NotificationRecord:
+        return self._record(await self._transport.get_json(f"notifications/{notification_id}"))
+
+    async def mark_all_read(self, *, project_ids: frozenset[int] | None) -> None:
+        # Unfiltered, the bulk route sets read_ian and updated_at on every
+        # visible notification, so each call would rewrite the already-read
+        # ones and move their updatedAt. OpenProject's own mark-all also
+        # touches only unread ones.
+        filters: list[dict[str, Any]] = [_UNREAD_IN_APP_FILTER]
+        if project_ids is not None:
+            if not project_ids:
+                # An empty "=" list is not "no project": refuse rather than
+                # rely on how OpenProject reads it.
+                raise ValueError("project_ids must name at least one project")
+            values = [str(project_id) for project_id in sorted(project_ids)]
+            filters.append({"project": {"operator": "=", "values": values}})
+        await self._transport.request_raw(
+            "POST",
+            "notifications/read_ian",
+            params={"filters": _filters_param(filters)},
+            json_body={},
+        )

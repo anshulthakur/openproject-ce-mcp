@@ -64,7 +64,7 @@ async def get_query_sort_by(
     ctx: Context,
     sort_by_id: str,
 ) -> QuerySortBySummary:
-    """Get a single query sort-by definition by id."""
+    """Get a single query sort-by definition by id, "field:direction" or "field-direction" (e.g. "subject:asc")."""
     client = _client_from_context(ctx)
     safe_sort_by_id = _validate_required_query(sort_by_id, field_name="sort_by_id", max_length=100)
     return await _run_tool(client.query_metadata.get_sort_by(safe_sort_by_id))

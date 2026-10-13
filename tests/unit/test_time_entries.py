@@ -4,7 +4,13 @@ import json
 
 import httpx
 import pytest
-from _client_test_helpers import _base_settings, _write_enabled_settings, make_settings, started_client
+from _client_test_helpers import (
+    _base_settings,
+    _make_project_response,
+    _write_enabled_settings,
+    make_settings,
+    started_client,
+)
 
 from openproject_ce_mcp.client import (
     OpenProjectClient,
@@ -179,6 +185,8 @@ async def test_time_entry_crud_and_activity_listing() -> None:
             )
         if request.url.path == "/api/v3/time_entries/10" and request.method == "DELETE":
             return httpx.Response(204, request=request)
+        if request.url.path == "/api/v3/projects/6" and request.method == "GET":
+            return _make_project_response(request, 6)
         raise AssertionError(f"Unexpected request: {request.method} {request.url}")
 
     settings = Settings(

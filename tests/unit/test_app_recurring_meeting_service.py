@@ -70,6 +70,7 @@ class _FakeRecurringMeetingApi:
             RecurringMeetingRecord(
                 summary=_recurring_summary(),
                 project_link=project_link or {"href": "/api/v3/projects/6", "title": "Demo"},
+                raw_title="Weekly Standup",
             )
         ]
         self.list_calls: list[tuple[int, int, int | None]] = []
@@ -98,7 +99,9 @@ class _FakeRecurringMeetingApi:
     async def update(self, recurring_meeting_id: int, payload: dict) -> RecurringMeetingRecord:
         self.update_calls.append((recurring_meeting_id, payload))
         return RecurringMeetingRecord(
-            summary=_recurring_summary(title="Updated"), project_link={"href": "/api/v3/projects/6", "title": "Demo"}
+            summary=_recurring_summary(title="Updated"),
+            project_link={"href": "/api/v3/projects/6", "title": "Demo"},
+            raw_title="Updated",
         )
 
     async def delete(self, recurring_meeting_id: int) -> None:
@@ -242,6 +245,55 @@ async def test_update_denies_write_outside_write_allowlist() -> None:
     api = _FakeRecurringMeetingApi()
     with pytest.raises(PermissionDeniedError):
         await _service(api=api, settings=settings).update(recurring_meeting_id=51, title="Updated", confirm=True)
+    assert api.update_calls == []
+
+
+def _api_with_raw_title(raw_title: str) -> _FakeRecurringMeetingApi:
+    return _FakeRecurringMeetingApi(
+        [
+            RecurringMeetingRecord(
+                summary=_recurring_summary(),
+                project_link={"href": "/api/v3/projects/6", "title": "Demo"},
+                raw_title=raw_title,
+            )
+        ]
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_without_title_sends_the_current_untrimmed_series_title() -> None:
+    raw_title = "Weekly  Standup " + "x" * 300
+    api = _api_with_raw_title(raw_title)
+    result = await _service(api=api).update(recurring_meeting_id=51, iterations=8, confirm=True)
+    assert result.state == "confirmed"
+    assert api.update_calls == [(51, {"iterations": 8, "title": raw_title})]
+    assert result.payload == {"iterations": 8}
+
+
+@pytest.mark.asyncio
+async def test_update_without_title_echoes_a_hidden_title_without_exposing_it() -> None:
+    settings = dataclasses.replace(make_settings(), hidden_fields={"recurring_meeting": ("title",)})
+    api = _api_with_raw_title("Secret Series")
+    preview = await _service(api=api, settings=settings).update(recurring_meeting_id=51, interval=2, confirm=False)
+    assert preview.payload == {"interval": 2}
+    result = await _service(api=api, settings=settings).update(recurring_meeting_id=51, interval=2, confirm=True)
+    assert api.update_calls == [(51, {"interval": 2, "title": "Secret Series"})]
+    assert result.payload == {"interval": 2}
+
+
+@pytest.mark.asyncio
+async def test_update_with_title_sends_the_caller_title() -> None:
+    api = _api_with_raw_title("Weekly Standup")
+    await _service(api=api).update(recurring_meeting_id=51, title="Renamed", interval=2, confirm=True)
+    assert api.update_calls == [(51, {"title": "Renamed", "interval": 2})]
+
+
+@pytest.mark.asyncio
+async def test_update_with_hidden_title_is_still_rejected() -> None:
+    settings = dataclasses.replace(make_settings(), hidden_fields={"recurring_meeting": ("title",)})
+    api = _api_with_raw_title("Weekly Standup")
+    with pytest.raises(InvalidInputError):
+        await _service(api=api, settings=settings).update(recurring_meeting_id=51, title="Renamed", confirm=True)
     assert api.update_calls == []
 
 

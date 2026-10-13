@@ -122,6 +122,21 @@ async def test_get_requests_the_recurring_meeting_id() -> None:
 
 
 @pytest.mark.asyncio
+async def test_record_carries_the_untrimmed_title() -> None:
+    title = "Weekly  Standup " + "x" * 300
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=_recurring_meeting_payload(title=title), request=request)
+
+    async with _client(handler) as http_client:
+        api = HttpxRecurringMeetingApi(HttpxTransport(http_client))
+        record = await api.get(51)
+
+    assert record.raw_title == title
+    assert record.summary.title != title
+
+
+@pytest.mark.asyncio
 async def test_create_posts_to_recurring_meetings() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v3/recurring_meetings"

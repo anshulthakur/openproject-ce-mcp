@@ -298,8 +298,11 @@ class RecurringMeetingService:
         )
 
         async def _commit(p: dict[str, Any]) -> RecurringMeetingSummary:
+            # OpenProject 17.4+ copies a PATCH's title onto every instantiated
+            # future occurrence even when the key is absent, writing NULL.
+            request_body = p if title is not None else {**p, "title": current.raw_title}
             record = await call_version_gated(
-                lambda: self._api.update(recurring_meeting_id, p), feature="Recurring meetings", floor="17.4"
+                lambda: self._api.update(recurring_meeting_id, request_body), feature="Recurring meetings", floor="17.4"
             )
             return self._stamp(record.summary)
 

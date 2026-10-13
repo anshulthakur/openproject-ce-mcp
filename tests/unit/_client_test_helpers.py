@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import inspect
+import json
 from collections.abc import Callable, Sequence
 
 import httpx
@@ -215,7 +216,16 @@ def _projects_search_handler(matches: list[dict], *, page_size: int = 50):
 
 
 def _project_index_response(request: httpx.Request, projects: Sequence[tuple]) -> httpx.Response:
-    """`projects` holds (id, identifier, name) or (id, identifier, name, active)."""
+    """`projects` holds (id, identifier, name) or (id, identifier, name, active).
+    Of the filters, only the id filter is applied."""
+    ids = {
+        int(value)
+        for spec in json.loads(request.url.params.get("filters", "[]"))
+        if "id" in spec
+        for value in spec["id"]["values"]
+    }
+    if ids:
+        projects = [project for project in projects if project[0] in ids]
     offset = int(request.url.params.get("offset", "1"))
     size = int(request.url.params.get("pageSize", "50"))
     start = (offset - 1) * size
@@ -240,7 +250,8 @@ def _project_index_response(request: httpx.Request, projects: Sequence[tuple]) -
 def serving_projects(handler: Callable, projects: Sequence[tuple]) -> Callable:
     """Answer the project index the way the server would, so the client's
     allowlist directory knows these projects; every other request goes to
-    `handler`, which therefore never sees the scan."""
+    `handler`, which therefore never sees the scan. `projects` is read on
+    every request, so a test can change a project in between."""
 
     async def wrapped(request: httpx.Request) -> httpx.Response:
         if request.method == "GET" and request.url.path == "/api/v3/projects":

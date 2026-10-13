@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import os
 import uuid
+from collections.abc import Callable
 
 import pytest
 
@@ -818,6 +819,48 @@ async def test_recurring_meeting_occurrence_init_and_cancel(
 
     cancelled = await client.recurring_meeting.list_occurrences(recurring_meeting_id, filter="cancelled")
     assert any(o.start_time == cancel_target.start_time for o in cancelled.results)
+
+
+async def test_update_recurring_meeting_without_title_keeps_occurrence_titles(
+    client: OpenProjectClient,
+    test_project: str,
+    recurring_meeting_ids: list[int],
+    meeting_ids: list[int],
+    meeting_title_in_database: Callable[[int], str | None],
+) -> None:
+    # Two spaces: a whitespace-normalized echo would rename the series.
+    title = f"[integration-test]  keep-titles {uuid.uuid4().hex[:8]}"
+    try:
+        result = await client.recurring_meeting.create(
+            project=test_project,
+            title=title,
+            frequency="weekly",
+            start_time="2030-08-05T09:00:00Z",
+            end_after="iterations",
+            iterations=6,
+            confirm=True,
+        )
+    except NotFoundError:
+        pytest.skip("Recurring meetings not available, or OpenProject < 17.4, on this instance")
+    assert result.ready, result.validation_errors
+    recurring_meeting_id = result.recurring_meeting_id
+    recurring_meeting_ids.append(recurring_meeting_id)
+
+    upcoming = await client.recurring_meeting.list_occurrences(recurring_meeting_id, filter="upcoming", limit=1)
+    init_result = await client.recurring_meeting.init_occurrence(
+        recurring_meeting_id=recurring_meeting_id, start_time=upcoming.results[0].start_time, confirm=True
+    )
+    assert init_result.result is not None
+    occurrence_id = init_result.result.id
+    meeting_ids.append(occurrence_id)
+    assert meeting_title_in_database(occurrence_id) == title
+
+    update_result = await client.recurring_meeting.update(
+        recurring_meeting_id=recurring_meeting_id, iterations=8, confirm=True
+    )
+    assert update_result.state == "confirmed", update_result.validation_errors
+
+    assert meeting_title_in_database(occurrence_id) == title
 
 
 async def test_cancel_already_materialized_occurrence_fails(

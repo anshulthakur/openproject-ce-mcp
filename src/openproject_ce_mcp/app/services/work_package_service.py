@@ -94,7 +94,7 @@ import dataclasses
 import datetime
 import logging
 import re
-from collections.abc import Mapping
+from collections.abc import Awaitable, Mapping
 from typing import Any
 
 from ... import policy_observation
@@ -154,6 +154,7 @@ from ..ports.work_package_ref import (
     work_package_ref,
 )
 from ..ports.work_package_resolution import WorkPackageAllowedContext
+from ..version_gate import call_query_version_gated
 from ._work_package_write_helpers import (
     resolve_custom_field_key,
     resolve_custom_field_links,
@@ -1171,8 +1172,7 @@ class WorkPackageService:
             filters.append({"project_id": {"operator": "=", "values": [str(project_id)]}})
             total_is_scope_safe = True
         elif not total_is_scope_safe:
-            await self._readable_projects.ensure_fresh()
-            allowed_ids = [str(pid) for pid in sorted(self._readable_projects.readable_project_ids())]
+            allowed_ids = [str(pid) for pid in sorted(await self._readable_projects.current_readable_project_ids())]
             if not allowed_ids:
                 # No single project targeted (no `project` filter) and the
                 # allowlist has resolved to nothing readable at all --
@@ -1226,16 +1226,22 @@ class WorkPackageService:
             overdue_only=overdue_only,
             due_within_days=due_within_days,
         )
-        return await self._list_collection(
-            project_id=project_id,
-            filters=filters,
-            offset=offset,
-            limit=effective,
-            sort_by=sort_by,
-            group_by=group_by,
-            total_is_scope_safe=total_is_scope_safe,
-            include_sums=include_sums,
-        )
+
+        def list_collection() -> Awaitable[WorkPackageListResult]:
+            return self._list_collection(
+                project_id=project_id,
+                filters=filters,
+                offset=offset,
+                limit=effective,
+                sort_by=sort_by,
+                group_by=group_by,
+                total_is_scope_safe=total_is_scope_safe,
+                include_sums=include_sums,
+            )
+
+        if version_status:
+            return await call_query_version_gated(list_collection, feature="version_status", floor="16.4")
+        return await list_collection()
 
     async def list_my_open(self, *, offset: int = 1, limit: int | None = None) -> WorkPackageListResult:
         access.ensure_read_enabled("work_package", settings=self._settings)

@@ -394,12 +394,24 @@ directory reads only the server's own resources in a body (the response itself,
 everything under `_embedded`, and a job status's `payload`), never a free-form
 property such as a grid's `options`. A project representation there is recorded
 as is; a linked id the last scan never saw is looked up with
-`GET /projects/{id}`, at most ten at a time. Out-of-scope projects are
-remembered for five minutes, then re-checked. The global `list_work_packages`
-filters on the projects the directory reports as readable (read scope matched,
-not archived) and rescans when the last scan is older than five minutes. A test
-asserts that every adapter holds the one `LearningTransport`; only the
-directory's own project lookups bypass it.
+`GET /projects/{id}`, at most ten at a time. A known project is looked up again
+whenever its recorded identifier alone would admit a link to it and was read
+before the response arrived, since a link carries no identifier and the recorded
+one may predate a rename. Every entry carries the moment the read it came from
+began, for a project shown in a response the moment its request was sent
+(`LearningTransport` asks the directory before each request): older data never
+overwrites newer, and a response shares only a lookup that started after it
+arrived. A failed lookup, or one that returns no identifier, forgets the project
+unless a read that began later has recorded it since, so a stale identifier
+never admits. Out-of-scope projects are remembered for five minutes, then
+re-checked. The global `list_work_packages` filters on the projects the
+directory reports as readable (read scope matched, not archived), rescans when
+the last scan is older than five minutes, and first re-reads every one of them
+the read scope does not match by id with `GET /projects` filtered by id, one
+request per page of projects: OpenProject computes the total, groups and sums
+over everything the filter names, so a stale entry would count a project that is
+no longer readable. A test asserts that every adapter holds the one
+`LearningTransport`; only the directory's own project lookups bypass it.
 
 ### Project links
 
@@ -431,6 +443,13 @@ the slug semantic (`PROJ`) or classic (`my-proj`), which is what
 `WorkPackage.find` resolves; anything else is rejected before a request. The
 same module's `is_numeric_ref` is the one rule for when any reference is an
 id: ASCII digits only, shared by the tool validators and the resolvers.
+
+Sort criteria follow the same idea in `sort_criteria.py`: `"field:direction"`,
+`"field-direction"` or a bare field (ascending), the direction
+case-insensitive. The board and query-metadata services parse their string
+input with it, the work-package tools before their service;
+`api_href.sort_by_path` builds OpenProject's
+`queries/sort_bys/<field>-<direction>` path.
 
 An `ast`-based test (`tests/test_architecture_boundaries.py`) enforces the layer
 directions above, confines `httpx` to `HttpxTransport`, forbids importing the
@@ -727,11 +746,19 @@ Important properties of the current model:
   available and not gated by any read flag; a rarely-used subset (query schema
   tools, `render_text`, `get_custom_option`, help texts, working days) is off by
   default behind `OPENPROJECT_ENABLE_EXTENDED_READ` to save context
-- `list_notifications` filters by `OPENPROJECT_READ_PROJECTS`, but under a
-  restricted (non-empty, non-`*`) scope this only filters the current
-  server-side page — an empty filtered page does not guarantee no further
-  allowed notifications exist on later pages, since the notifications endpoint
-  has no server-side project filter to paginate against
+- notifications honor `OPENPROJECT_READ_PROJECTS` on every path. Under a
+  restricted (non-`*`) scope, `list_notifications` re-scans server pages from
+  the start and keeps only notifications about allowed projects, so a page
+  is filled across server pages. `mark_notifications_read` with a
+  `notification_id` reads that notification first and refuses one about a
+  project outside the allowlist, or one that names no project at all, in the
+  preview too. Without a `notification_id` it sends one bulk update narrowed
+  by OpenProject's `project` filter to the readable projects (the directory's
+  current set, rescanned when stale), and refuses when no project is
+  readable. Known limitation: the readable project ids travel in the query
+  string, as for `list_work_packages`, so a very large allowlist can exceed
+  the server's URL length limit; the request then fails without marking
+  anything
 
 ## Supported scope (Community Edition)
 
@@ -744,7 +771,8 @@ areas are in scope:
   subtasks, attachments, watchers, activities
 - Versions, boards/queries, views
 - Backlogs sprints (read, plus assigning/unassigning a work package's sprint;
-  requires the Backlogs module)
+  requires the Backlogs module and OpenProject 17.3+) and backlog buckets
+  (read; requires OpenProject 17.6+)
 - News, documents (read/update only), wiki pages (single-page fetch only — no
   list endpoint in OpenProject v3)
 - Time entries, Nextcloud file links (CE feature, degrades gracefully)

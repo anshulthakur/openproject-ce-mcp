@@ -100,6 +100,26 @@ Thanks to our contributors: [@feci](https://github.com/feci) ([#35](https://gith
   written through its former identifier when only that identifier matched
   `OPENPROJECT_READ_PROJECTS` or `OPENPROJECT_WRITE_PROJECTS`. A project now
   matches only by its id, current identifier and name.
+- Content of a project renamed in OpenProject while the server ran, such as
+  listed work packages, versions or time entries, was still admitted when only
+  the project's former identifier matched `OPENPROJECT_READ_PROJECTS` or
+  `OPENPROJECT_WRITE_PROJECTS`, until the server next rescanned its projects.
+  When only a linked project's identifier decides the check, the server now
+  reads the project's current identifier first, one request per project and
+  response.
+- `list_work_packages` without a `project` could count the work packages of
+  a project renamed out of `OPENPROJECT_READ_PROJECTS`, by identifier or by
+  name, in `total`, `groups` and `total_sums` for up to five minutes. Before
+  each such list the server now reads every project in its filter that no
+  pattern matches by id, one request per page of projects, and leaves out any
+  that no longer matches.
+- `mark_notifications_read` ignored `OPENPROJECT_READ_PROJECTS`. Without
+  `notification_id` it marked notifications about every project read; it now
+  marks only unread notifications about projects the read allowlist covers,
+  and refuses without sending a write request when no project is readable.
+  With `notification_id`, a notification about a project outside the
+  allowlist is now refused, in the preview too. Under `*` both behave as
+  before.
 
 ### Added
 
@@ -168,6 +188,12 @@ Thanks to our contributors: [@feci](https://github.com/feci) ([#35](https://gith
   occurrence can be restored. `create_storage`, `delete_storage`,
   `update_user_non_working_time` and `set_work_package_watcher` describe their
   checks and effects correctly.
+- The `list_work_packages` description and the installation guide now say
+  that `version_status` needs OpenProject 16.4 or later. When OpenProject
+  rejects a `list_work_packages` call that uses `version_status`, the error
+  keeps OpenProject's own message, for example "Version Operator is not set to
+  one of the allowed values", and adds that an instance older than 16.4 does
+  not support `version_status`.
 - `OPENPROJECT_VERIFY_SSL=false` and the proxy settings now take effect while
   retries are enabled, which is the default. They used to apply only with
   `OPENPROJECT_MAX_RETRIES=0`. Proxies come from `HTTP_PROXY`, `HTTPS_PROXY`
@@ -200,6 +226,69 @@ Thanks to our contributors: [@feci](https://github.com/feci) ([#35](https://gith
   incomplete or broken entry is no longer hidden by another client's entry or
   by the shell running doctor, and the connection check uses the entry's own
   proxy and certificate settings.
+- `create_board` and `update_board` apply a `sort_by` criterion written as
+  `"field:direction"`, for example `"id:asc"`, or as a bare field name, which
+  sorts ascending. OpenProject used to drop such criteria without an error.
+- A board `sort_by` direction written in upper or mixed case, such as
+  `"id-DESC"`, now sorts in that direction instead of ascending, and an
+  invalid direction such as `"id-up"` is rejected instead of sorting
+  ascending.
+- `list_work_packages` and `search_work_packages` accept a `sort_by` criterion
+  written as `"field-direction"`, for example `"status-desc"`, as well as
+  `"field:direction"`.
+- `get_query_sort_by` accepts the id as `"field:direction"`,
+  `"field-direction"` or a bare field name; a bare field name used to fail
+  with not found.
+- `create_work_package_wiki_link` needs OpenProject 17.7; on 17.6 it now says
+  so instead of claiming the server is older than 17.6.
+  `list_work_package_wiki_links` works from 17.5 and
+  `delete_work_package_wiki_link` from 17.6, and on an older server each of
+  these tools names the version it needs; on 17.5 an OpenProject bug usually
+  makes `delete_work_package_wiki_link` fail earlier with a server error.
+  Their descriptions and the tool reference state these versions and
+  describe when OpenProject fails to list a work package's links, instead of
+  naming versions where the tools do not exist.
+- The `list_sprints` and `get_sprint` descriptions and the tool reference now
+  say that sprints need OpenProject 17.3 or later. When `get_sprint`,
+  `get_backlog_bucket` or a sprint given by id to `update_work_package` or
+  `bulk_update_work_packages` is not found, the error now names the version
+  the sprint API (17.3) or the backlog bucket API (17.6) needs.
+- `update_recurring_meeting` without `title` no longer erases the titles of
+  already materialized future occurrences. On OpenProject 17.4 and later such
+  an update, for example of `iterations` or `start_time`, left those
+  occurrences without a title, while the API could keep showing the old one
+  for a while. The update now sends the series' current title along.
+- `mark_notifications_read` without `notification_id` changes only unread
+  notifications, as OpenProject's own "mark all as read" does. It used to
+  write every notification again, so already-read notifications got a new
+  `updatedAt` on each call; they now keep it, and a repeated call changes
+  nothing.
+- `delete_work_package_wiki_link` with the id of an inline link, which comes
+  from a wiki link in the work package's description or from a wiki page that
+  mentions the work package, no longer claims that the server is older than
+  OpenProject 17.6. OpenProject cannot delete inline links through its API,
+  so the tool now rejects one without sending the delete request and says to
+  edit that text instead. The tool description and the tool reference say
+  that only relation links can be deleted and that deleting needs the "Manage
+  wiki page links" permission.
+- The configuration guide listed the sprint tools under
+  `OPENPROJECT_ENABLE_WORK_PACKAGE_READ` and left out the backlog bucket
+  tools; both are switched by `OPENPROJECT_ENABLE_PROJECT_READ`. Several other
+  tool group rows also left out tools they switch, among them news, wiki,
+  views, grids, statuses, time entries, reminders, watchers and project
+  copies. A new table in the guide lists every tool per setting, and another
+  lists the tools that also need a second setting.
+- The README said that the read tools of the projects, work packages,
+  memberships, versions, boards and meetings groups are registered by default.
+  Their project-bound tools are registered only while
+  `OPENPROJECT_READ_PROJECTS` is non-empty; the README, the security policy
+  and the configuration guide now say so, and the guide lists the core read
+  tools registered without it.
+- An invalid `select` error now says that no request was sent, so a rejected
+  confirmed bulk write is known to have written nothing. The
+  `bulk_create_work_packages` and `bulk_update_work_packages` descriptions say
+  that `select` names write-result fields and that `display_id` and the other
+  work package fields come with `result`.
 
 Thanks to our contributors: [@webadmin-stattreisen](https://github.com/webadmin-stattreisen) ([#45](https://github.com/jtauschl/openproject-ce-mcp/pull/45)).
 

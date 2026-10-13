@@ -161,7 +161,9 @@ def test_get_board_schema() -> None:
 
 def test_create_board_schema() -> None:
     tool = _tools(create_app(_make_settings()))["create_board"]
-    assert tool.description == "Prepare or create a saved OpenProject board/query."
+    assert tool.description == (
+        'Prepare or create a saved OpenProject board/query.\n\nsort_by: each "field:direction" or "field-direction" (e.g. "id:asc"); direction defaults to asc.\n'
+    )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
@@ -257,7 +259,9 @@ def test_create_board_schema() -> None:
 
 def test_update_board_schema() -> None:
     tool = _tools(create_app(_make_settings()))["update_board"]
-    assert tool.description == "Prepare or update a saved OpenProject board/query."
+    assert tool.description == (
+        'Prepare or update a saved OpenProject board/query.\n\nsort_by: each "field:direction" or "field-direction" (e.g. "id:asc"); direction defaults to asc.\n'
+    )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {

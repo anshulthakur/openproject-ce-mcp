@@ -310,10 +310,13 @@ class HttpxProjectApi:
         server_page_size: int,
         search: str | None,
         text_limit: int | None = FORMATTABLE_LIMIT,
+        ids: Sequence[int] | None = None,
     ) -> ProjectPage:
         filters: list[dict[str, Any]] = []
         if search:
             filters.append({"name_and_identifier": {"operator": "~", "values": [search]}})
+        if ids is not None:
+            filters.append({"id": {"operator": "=", "values": [str(project_id) for project_id in ids]}})
         payload = await self._transport.get_json(
             "projects",
             params={

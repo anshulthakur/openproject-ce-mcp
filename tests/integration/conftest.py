@@ -21,10 +21,13 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import json
 import os
 import subprocess
 import uuid
+from collections.abc import Callable
 
+import httpx
 import pytest
 
 from openproject_ce_mcp.client import NotFoundError, OpenProjectClient
@@ -260,6 +263,20 @@ async def start_scoped_client():
 @pytest.fixture
 def test_project() -> str:
     return _resolve_test_project()
+
+
+@pytest.fixture
+async def openproject_version() -> tuple[int, int]:
+    """The instance's (major, minor), read from the API root's `coreVersion`,
+    which OpenProject shows to admins only -- the integration token is one."""
+    settings = _integration_settings()
+    if settings is None:
+        pytest.skip("OPENPROJECT_BASE_URL / OPENPROJECT_API_TOKEN not set")
+    async with httpx.AsyncClient(auth=("apikey", settings.api_token), timeout=settings.timeout) as http:
+        response = await http.get(f"{settings.base_url.rstrip('/')}/api/v3")
+    response.raise_for_status()
+    major, minor = response.json()["coreVersion"].split(".")[:2]
+    return int(major), int(minor)
 
 
 @pytest.fixture
@@ -641,6 +658,29 @@ def seed_wiki_page_id(test_project: str) -> int:
 
 
 @pytest.fixture
+def internal_wiki_provider_id() -> int:
+    """Returns the numeric id of OpenProject's internal wiki provider.
+
+    The inline wiki link macro in a description, `[[[<provider id>:<identifier>]]]`,
+    names the provider by this id, which the REST API never exposes (it links
+    providers by their universal identifier, e.g. "internal"). Requires
+    OPENPROJECT_DOCKER_SERVICE; skips cleanly if unset.
+    """
+    service = os.environ.get("OPENPROJECT_DOCKER_SERVICE")
+    if not service:
+        pytest.skip("OPENPROJECT_DOCKER_SERVICE not set (needed to look up the internal wiki provider id)")
+
+    script = """
+        provider = defined?(Wikis::InternalProvider) ? Wikis::InternalProvider.first : nil
+        puts "PROVIDER_ID=#{provider&.id}"
+    """
+    value = _run_rails_script(script, result_key="PROVIDER_ID")
+    if value == "":
+        pytest.skip("this instance has no internal wiki provider (OpenProject 17.4+)")
+    return int(value)
+
+
+@pytest.fixture
 def seed_post_id(test_project: str) -> int:
     """Returns the id of test_project's seeded forum post (Message).
 
@@ -691,6 +731,30 @@ def seed_project_phase_id(test_project: str) -> int:
     if value == "":
         pytest.skip(f"test_project {test_project!r} has no project phase (unexpected -- check docker/test/seed.rb ran)")
     return int(value)
+
+
+@pytest.fixture
+def meeting_title_in_database() -> Callable[[int], str | None]:
+    """Returns a reader for a meeting's title straight from the database.
+
+    The meeting representer cache keys on updated_at, which an `update_all`
+    leaves untouched, so the API can keep serving a title the database no
+    longer holds. Requires OPENPROJECT_DOCKER_SERVICE; skips cleanly if unset.
+    """
+    if not os.environ.get("OPENPROJECT_DOCKER_SERVICE"):
+        pytest.skip("OPENPROJECT_DOCKER_SERVICE not set (needed to read a meeting title from the database)")
+
+    script = """
+        puts "TITLE=#{Meeting.where(id: Integer(ENV.fetch("MEETING_ID"))).pick(:title).to_json}"
+    """
+
+    def read(meeting_id: int) -> str | None:
+        value: str | None = json.loads(
+            _run_rails_script(script, result_key="TITLE", env={"MEETING_ID": str(meeting_id)})
+        )
+        return value
+
+    return read
 
 
 @pytest.fixture
