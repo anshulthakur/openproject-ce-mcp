@@ -121,6 +121,76 @@ async def test_delete_relation_denied_outside_write_allowlist(
     await client.relation.delete(relation_id=relation_id, confirm=True)
 
 
+async def test_update_and_delete_relation_denied_when_target_outside_allowlist(
+    client: OpenProjectClient, test_project: str, wp_ids: list[int], project_refs: list[str], start_scoped_client
+) -> None:
+    """update_relation and delete_relation are refused when either work package is outside the allowlists."""
+    unrestricted = await start_scoped_client(read_projects=("*",), write_projects=("*",))
+
+    other_identifier = disposable_project_identifier()
+    create_project_result = await unrestricted.project.create(
+        name=f"[integration-test] {other_identifier}", identifier=other_identifier, confirm=True
+    )
+    assert create_project_result.ready, create_project_result.validation_errors
+    project_refs.append(other_identifier)
+
+    inside = await client.work_package.create(
+        project=test_project, type="Task", subject="[integration-test] relation inside", confirm=True
+    )
+    assert inside.ready
+    wp_ids.append(inside.work_package_id)
+    outside = await unrestricted.work_package.create(
+        project=other_identifier, type="Task", subject="[integration-test] relation outside", confirm=True
+    )
+    assert outside.ready
+    # OpenProject refuses a second relation between the same two work packages.
+    outside_source = await unrestricted.work_package.create(
+        project=other_identifier, type="Task", subject="[integration-test] relation outside source", confirm=True
+    )
+    assert outside_source.ready
+
+    inside_to_outside = await unrestricted.relation.create(
+        work_package_id=inside.work_package_id,
+        related_to_work_package_id=outside.work_package_id,
+        relation_type="relates",
+        confirm=True,
+    )
+    assert inside_to_outside.ready
+    relation_id = inside_to_outside.result.id
+    outside_to_inside = await unrestricted.relation.create(
+        work_package_id=outside_source.work_package_id,
+        related_to_work_package_id=inside.work_package_id,
+        relation_type="relates",
+        confirm=True,
+    )
+    assert outside_to_inside.ready
+
+    for confirm in (False, True):
+        with pytest.raises(PermissionDeniedError, match="OPENPROJECT_READ_PROJECTS"):
+            await client.relation.update(
+                relation_id=relation_id, description="changed", relation_type="blocks", confirm=confirm
+            )
+        with pytest.raises(PermissionDeniedError, match="OPENPROJECT_READ_PROJECTS"):
+            await client.relation.delete(relation_id=relation_id, confirm=confirm)
+    with pytest.raises(PermissionDeniedError, match="OPENPROJECT_READ_PROJECTS"):
+        await client.relation.update(relation_id=outside_to_inside.result.id, description="changed", confirm=False)
+
+    reads_outside = await start_scoped_client(
+        read_projects=(test_project, other_identifier), write_projects=(test_project,)
+    )
+    with pytest.raises(PermissionDeniedError, match="OPENPROJECT_WRITE_PROJECTS"):
+        await reads_outside.relation.update(relation_id=relation_id, description="changed", confirm=True)
+    with pytest.raises(PermissionDeniedError, match="OPENPROJECT_WRITE_PROJECTS"):
+        await reads_outside.relation.delete(relation_id=relation_id, confirm=True)
+
+    remaining = await unrestricted.relation.list_for_work_package(inside.work_package_id)
+    matches = [r for r in remaining.results if r.id == relation_id]
+    assert len(matches) == 1, "relation must survive the denied writes"
+    relation = matches[0]
+    assert relation.type == "relates"
+    assert relation.description is None
+
+
 async def test_update_relation_changes_description_and_type(
     client: OpenProjectClient, test_project: str, wp_ids: list[int]
 ) -> None:

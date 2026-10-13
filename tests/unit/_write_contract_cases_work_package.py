@@ -529,6 +529,12 @@ def _delete_relation_handler(request: httpx.Request) -> httpx.Response:
             json={"id": 42, "_links": {"project": {"href": "/api/v3/projects/1", "title": "Demo"}}},
             request=request,
         )
+    if request.method == "GET" and request.url.path == "/api/v3/work_packages/43":
+        return httpx.Response(
+            200,
+            json={"id": 43, "_links": {"project": {"href": "/api/v3/projects/1", "title": "Demo"}}},
+            request=request,
+        )
     if request.method == "DELETE" and request.url.path == "/api/v3/relations/99":
         return httpx.Response(204, request=request)
     raise AssertionError(f"Unexpected request: {request.method} {request.url}")
@@ -552,6 +558,12 @@ def _update_relation_handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
             200,
             json={"id": 42, "_links": {"project": {"href": "/api/v3/projects/1", "title": "Demo"}}},
+            request=request,
+        )
+    if request.method == "GET" and request.url.path == "/api/v3/work_packages/43":
+        return httpx.Response(
+            200,
+            json={"id": 43, "_links": {"project": {"href": "/api/v3/projects/1", "title": "Demo"}}},
             request=request,
         )
     if request.method == "PATCH" and request.url.path == "/api/v3/relations/99":
