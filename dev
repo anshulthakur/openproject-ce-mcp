@@ -5,7 +5,7 @@ cmd="${1:-}"
 shift || true
 
 usage() {
-    echo "Usage: ./dev {bootstrap|lint|test|build|ci}" >&2
+    echo "Usage: ./dev {bootstrap|lint|shell-lint|test|build|ci}" >&2
     exit 1
 }
 
@@ -16,13 +16,7 @@ bootstrap() {
 shell_scripts=(dev docker/test/up.sh docker/test/down.sh tools/api-check/fetch-sources.sh tools/install-mcp-publisher.sh)
 required_shfmt_version="3.14.1"
 
-lint() {
-    uv run ruff check .
-    uv run ruff format --check .
-    uv run mypy
-    uvx bandit -r src/openproject_ce_mcp -ll
-    uvx semgrep --config auto --error src/openproject_ce_mcp
-    uvx pip-licenses --python .venv/bin/python3 --fail-on="GPL;LGPL;AGPL"
+shell_lint() {
     shellcheck "${shell_scripts[@]}"
     local actual_shfmt_version
     actual_shfmt_version="$(shfmt --version)"
@@ -34,6 +28,16 @@ lint() {
     for f in "${shell_scripts[@]}"; do
         bash -n "$f"
     done
+}
+
+lint() {
+    uv run ruff check .
+    uv run ruff format --check .
+    uv run mypy
+    uvx bandit -r src/openproject_ce_mcp -ll
+    uvx semgrep --config auto --error src/openproject_ce_mcp
+    uvx pip-licenses --python .venv/bin/python3 --fail-on="GPL;LGPL;AGPL"
+    shell_lint
     if ! command -v actionlint >/dev/null 2>&1; then
         echo "actionlint not found — install: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12" >&2
         exit 1
@@ -61,6 +65,7 @@ build() {
 case "$cmd" in
 bootstrap) bootstrap ;;
 lint) lint ;;
+shell-lint) shell_lint ;;
 test) test_ "$@" ;;
 build) build ;;
 ci)

@@ -1,3 +1,14 @@
+# Recorded deviations from the handbook's local-first CI (03-build/ci.md):
+# - lint, test-linux, build and shell-scripts re-run every ./dev ci check
+#   except actionlint, which stays local-only, on pushes to main and the
+#   release branches and on every PR: Actions minutes are free on this
+#   public repo, and main's ruleset requires the lint, build and Python 3.12
+#   test-linux results before a merge. macOS and Windows stay release-time
+#   only.
+# - The integration tests (tests/integration) need live OpenProject
+#   instances, one per supported version (docker/test), and run at release
+#   time, not before every push. Any API or payload behavior the unit tests'
+#   mocks do not model surfaces only at the next release review.
 name: Tests
 
 on:
@@ -146,43 +157,35 @@ jobs:
   test-lowest-deps:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Job-wide, not a sync flag: a plain `uv run` would otherwise re-lock at
-    # the newest versions and test those instead.
+    # uv pip into a venv outside the project, never uv sync or uv run: those
+    # re-lock, writing the lowest versions into uv.lock.
     env:
       UV_RESOLUTION: lowest-direct
+      # Not measure: the tests stub out tiktoken, so its floor would be installed but never exercised.
+      EXTRA: dev
+      GROUP: dev
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
+          # uv pip's --group support and lowest-direct semantics vary between uv releases.
+          version: "0.12.24"
           python-version: "3.10"
 
       - name: Install direct dependencies at their lowest allowed versions
-        run: uv sync --dev
+        run: |
+          uv venv "$RUNNER_TEMP/lowest-deps"
+          uv pip install --python "$RUNNER_TEMP/lowest-deps" --editable ".[$EXTRA]" --group "$GROUP"
 
       - name: Check every direct dependency sits on its declared lower bound
-        run: |
-          uv run python - <<'EOF'
-          import importlib.metadata as metadata
-
-          from packaging.requirements import Requirement
-          from packaging.version import Version
-
-          off_floor = []
-          for raw in metadata.requires("openproject-ce-mcp") or []:
-              requirement = Requirement(raw)
-              if requirement.marker and not requirement.marker.evaluate({"extra": "dev"}):
-                  continue
-              floor = next((spec.version for spec in requirement.specifier if spec.operator == ">="), None)
-              installed = metadata.version(requirement.name)
-              print(f"{requirement.name} {installed} (floor {floor})")
-              if floor is not None and Version(installed) != Version(floor):
-                  off_floor.append(f"{requirement.name} {installed} (floor {floor})")
-          assert not off_floor, f"not at the declared lower bound: {off_floor}"
-          EOF
+        run: '"$RUNNER_TEMP/lowest-deps/bin/python" tools/check_dependency_floors.py --extra "$EXTRA" --group "$GROUP"'
 
       - name: Run tests
-        run: uv run pytest
+        run: '"$RUNNER_TEMP/lowest-deps/bin/python" -m pytest'
+
+      - name: Check uv.lock is untouched
+        run: git diff --exit-code -- uv.lock
 
   build:
     runs-on: ubuntu-latest
@@ -216,26 +219,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-        with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: uv sync --dev
-
-      - name: Check shell scripts syntax (bash -n)
-        run: |
-          for f in dev docker/test/up.sh docker/test/down.sh tools/api-check/fetch-sources.sh; do
-            bash -n "$f"
-          done
-
-      - name: shellcheck
-        run: shellcheck dev docker/test/up.sh docker/test/down.sh tools/api-check/fetch-sources.sh
-
       - name: Install shfmt
         run: |
           go install mvdan.cc/sh/v3/cmd/shfmt@v3.14.1
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-      - name: shfmt
-        run: shfmt -l dev docker/test/up.sh docker/test/down.sh tools/api-check/fetch-sources.sh
+      # ./dev holds the script list and the required shfmt version.
+      - name: shellcheck, shfmt and bash -n
+        run: ./dev shell-lint
