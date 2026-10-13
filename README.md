@@ -169,6 +169,14 @@ See [SECURITY.md](https://github.com/jtauschl/openproject-ce-mcp/blob/main/SECUR
 
 ---
 
+## Questions and bug reports
+
+Ask questions in [GitHub Discussions](https://github.com/jtauschl/openproject-ce-mcp/discussions).
+Report bugs and request features in [GitHub Issues](https://github.com/jtauschl/openproject-ce-mcp/issues/new/choose).
+Report security vulnerabilities privately as described in [SECURITY.md](https://github.com/jtauschl/openproject-ce-mcp/blob/main/SECURITY.md).
+
+---
+
 ## Development
 
 `main` is a frozen snapshot of the last release, not the active development

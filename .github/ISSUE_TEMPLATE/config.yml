@@ -1,5 +1,11 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Questions
+    url: https://github.com/jtauschl/openproject-ce-mcp/discussions
+    about: Ask questions in Discussions; use Issues for bugs and feature requests.
+  - name: Report a security vulnerability
+    url: https://github.com/jtauschl/openproject-ce-mcp/security/advisories/new
+    about: Report vulnerabilities privately, not as a public issue.
   - name: OpenProject API Documentation
     url: https://www.openproject.org/docs/api/
     about: OpenProject v3 REST API reference

@@ -45,7 +45,7 @@ jobs:
     timeout-minutes: 15
     environment: pypi
     permissions:
-      contents: write       # actions/checkout, plus gh release create/upload (GITHUB_TOKEN)
+      contents: write       # actions/checkout, plus gh release create/upload/edit (GITHUB_TOKEN)
       id-token: write       # required for PyPI trusted publishing (OIDC) and attestation signing
       attestations: write   # required to publish a build-provenance attestation
 
@@ -119,30 +119,85 @@ jobs:
           cd ..
 
       - name: Create GitHub Release with wheel, sdist, and checksums
-        # Idempotent re-run: `gh release create <tag> <files>...` makes
-        # several separate API calls under the hood (create the release as
-        # a draft, upload each asset, then publish) -- if an asset upload
-        # fails partway through, an incomplete release is left behind, and
-        # a re-run's plain `gh release create` fails outright with "release
-        # already exists" before it can ever finish uploading the missing
-        # assets, even though the now-idempotent `uv publish` step above
-        # would otherwise let the whole job be safely retried. Split into
-        # "create the release if it doesn't already exist" (no assets yet)
-        # followed by "upload/replace all three assets" (`--clobber`,
-        # unconditionally, so this is correct whether the release is
-        # brand new or a retry of an incomplete one) instead of one
-        # combined call.
+        # Every asset goes onto a draft and the draft is published last, so
+        # the flow also holds with Immutable Releases on, where a published
+        # release's assets are locked. A re-run completes an existing draft;
+        # a published release is never changed, only checked.
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if ! gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
-            gh release create "$GITHUB_REF_NAME" \
+          tag="$GITHUB_REF_NAME"
+          assets=(dist/*.whl dist/*.tar.gz dist/SHA256SUMS)
+          expected_names="$(for asset in "${assets[@]}"; do basename "$asset"; done | jq -R . | jq -sc .)"
+
+          # Listed through the REST API rather than looked up by tag: gh's tag
+          # lookup reports "release not found" when one of its lookups fails
+          # transiently, which would create a second draft. The tag is
+          # validated as vX.Y.Z above, so it is safe inside the filter.
+          list_releases() {
+            gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+              --jq ".[] | select(.tag_name == \"$tag\") | {id, draft, assets: [.assets[] | {name, digest}]}"
+          }
+
+          releases="$(list_releases)"
+          if [ "$(jq -s length <<< "$releases")" -eq 0 ]; then
+            gh release create "$tag" \
+              --draft \
               --verify-tag \
-              --title "$GITHUB_REF_NAME" \
+              --title "$tag" \
               --notes-file release-notes.md
+            releases="$(list_releases)"
           fi
-          gh release upload "$GITHUB_REF_NAME" --clobber \
-            dist/*.whl dist/*.tar.gz dist/SHA256SUMS
+          count="$(jq -s length <<< "$releases")"
+          if [ "$count" -ne 1 ]; then
+            echo "::error::Found $count releases for $tag, expected exactly one; resolve by hand." >&2
+            exit 1
+          fi
+          release_id="$(jq -r '.id' <<< "$releases")"
+
+          if [ "$(jq -r '.draft' <<< "$releases")" = true ]; then
+            unexpected="$(jq -r --argjson expected "$expected_names" \
+              '[.assets[].name | select(IN($expected[]) | not)] | join(" ")' <<< "$releases")"
+            if [ -n "$unexpected" ]; then
+              echo "::error::Draft release for $tag holds unexpected assets: $unexpected; resolve by hand." >&2
+              exit 1
+            fi
+            gh release upload "$tag" --clobber "${assets[@]}"
+            # Publishing a draft whose tag is gone would make GitHub create the
+            # tag on the default branch's head, and a moved tag would publish
+            # these assets under other code.
+            tag_sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/refs/tags/$tag" --jq .sha)" || tag_sha=""
+            if [ "$tag_sha" != "$GITHUB_SHA" ]; then
+              echo "::error::Tag $tag does not exist or could not be verified to point at $GITHUB_SHA; not publishing the draft release." >&2
+              exit 1
+            fi
+            # Without tag_name the API detaches the draft from its tag.
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" \
+              -F draft=false -F tag_name="$tag" --silent
+          else
+            problems=()
+            for asset in "${assets[@]}"; do
+              name="$(basename "$asset")"
+              local_digest="sha256:$(sha256sum -- "$asset" | cut -d ' ' -f 1)"
+              release_digest="$(jq -r --arg name "$name" \
+                '[.assets[] | select(.name == $name)] | if length == 0 then "" else .[0].digest // "none" end' <<< "$releases")"
+              if [ -z "$release_digest" ]; then
+                problems+=("$name is missing")
+              elif [ "$release_digest" = none ]; then
+                problems+=("$name has no digest")
+              elif [ "$release_digest" != "$local_digest" ]; then
+                problems+=("$name has digest $release_digest, this build has $local_digest")
+              fi
+            done
+            if [ "${#problems[@]}" -gt 0 ]; then
+              for problem in "${problems[@]}"; do
+                echo "::error::Published release $tag: $problem" >&2
+              done
+              echo "::error::This workflow never changes a published release; see RELEASE.md step 12 (Published release missing an asset)." >&2
+              exit 1
+            fi
+            echo "Release $tag is already published with matching assets; nothing to do."
+          fi
 
   # Split into two jobs, deliberately -- NOT for readability, but because
   # `brew update-python-resources` (below) executes the `setup.py` of every

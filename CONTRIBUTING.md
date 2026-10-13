@@ -4,6 +4,14 @@
   <img src="img/development.jpg" alt="A Python development pipeline passing source modules through tests and containers into a verified package." width="960">
 </p>
 
+Bug reports and feature requests are welcome via
+[GitHub Issues](https://github.com/jtauschl/openproject-ce-mcp/issues/new/choose);
+the issue templates ask for the details needed to reproduce a bug or evaluate a
+request. Questions belong in
+[GitHub Discussions](https://github.com/jtauschl/openproject-ce-mcp/discussions).
+Report security vulnerabilities privately, as described in
+[SECURITY.md](SECURITY.md).
+
 ## Where to send a pull request
 
 `main` is frozen at the last release. Base your PR on the branch that
