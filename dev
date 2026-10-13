@@ -19,7 +19,9 @@ required_shfmt_version="3.14.1"
 shell_lint() {
     shellcheck "${shell_scripts[@]}"
     local actual_shfmt_version
+    # A `go install` build prints a leading "v", a Homebrew build does not.
     actual_shfmt_version="$(shfmt --version)"
+    actual_shfmt_version="${actual_shfmt_version#v}"
     if [ "$actual_shfmt_version" != "$required_shfmt_version" ]; then
         echo "shfmt $required_shfmt_version required; found $actual_shfmt_version" >&2
         exit 1
