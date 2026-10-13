@@ -43,6 +43,16 @@ development baseline.
   With `notification_id`, a notification about a project outside the
   allowlist is now refused, in the preview too. Under `*` both behave as
   before.
+- `update_relation` and `delete_relation` checked `OPENPROJECT_READ_PROJECTS`
+  and `OPENPROJECT_WRITE_PROJECTS` only against a relation's source work
+  package. A relation from a work package in the allowlists to one outside
+  them could be changed, including its type (which could make the outside
+  work package the relation's source), or deleted, and the preview and
+  result showed the outside work package's id and subject. Both work
+  packages must now be covered by both allowlists, checked before the
+  preview. When both allowlists are `*`, both tools behave as before,
+  apart from one more request; a relation without a target link is
+  refused.
 
 ### Added
 

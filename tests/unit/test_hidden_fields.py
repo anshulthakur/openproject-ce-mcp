@@ -986,6 +986,12 @@ async def test_hidden_relation_type_field_is_rejected_on_update() -> None:
                 json={"id": 42, "_links": {"project": {"href": "/api/v3/projects/1", "title": "Demo"}}},
                 request=request,
             )
+        if request.url.path == "/api/v3/work_packages/43" and request.method == "GET":
+            return httpx.Response(
+                200,
+                json={"id": 43, "_links": {"project": {"href": "/api/v3/projects/1", "title": "Demo"}}},
+                request=request,
+            )
         raise AssertionError(f"Unexpected request: {request.method} {request.url}")
 
     settings = _base_settings(hidden_fields={"relation": ("type",)}, enable_work_package_write=True)
@@ -1043,6 +1049,12 @@ async def test_hidden_relation_field_is_rejected_on_update() -> None:
             return httpx.Response(
                 200,
                 json={"id": 42, "_links": {"project": {"href": "/api/v3/projects/1", "title": "Demo"}}},
+                request=request,
+            )
+        if request.url.path == "/api/v3/work_packages/43" and request.method == "GET":
+            return httpx.Response(
+                200,
+                json={"id": 43, "_links": {"project": {"href": "/api/v3/projects/1", "title": "Demo"}}},
                 request=request,
             )
         raise AssertionError(f"Unexpected request: {request.method} {request.url}")

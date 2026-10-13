@@ -20,11 +20,10 @@ directly, on `WorkPackageIdResolver`, and on `WorkPackageProjectAllowedCheck`
   contract must also hold for the `to` target (a caller with write on one
   project must not be able to link it to a work package in a project they
   can only read).
-- `update()`/`delete()` both need the relation's OWN `from` work package
-  first (an already-concrete href once the relation is fetched, not a
-  caller-supplied reference) -- uses `WorkPackageLookupApi.get_by_href()` +
-  a direct `scope_policy.ensure_project_write_link_allowed` call, the same
-  shape as Reminders' update()/delete().
+- `update()`/`delete()` authorize BOTH of the relation's own work packages
+  against the read and write allowlists, before the preview: the list views
+  hide a relation with any out-of-scope end, and a type change can make the
+  outside work package the relation's source.
 
 No shared `_write_outcome.py` state machine: create()/update()/delete() are
 structurally too different from each other to share one state machine --
@@ -285,10 +284,20 @@ class RelationService:
             filters=filters, offset=offset, limit=resolved_limit, queried_work_package_id=resolved_id
         )
 
-    async def _fetch_source_work_package(self, from_link: dict[str, Any] | None) -> dict[str, Any]:
-        if not isinstance(from_link, dict) or not from_link.get("href"):
-            raise OpenProjectServerError("OpenProject relation is missing its source work package link.")
-        return await self._work_package_lookup_api.get_by_href(from_link["href"])
+    async def _ensure_relation_writable(self, record: RelationRecord) -> None:
+        hrefs: list[str] = []
+        for link, role in ((record.from_link, "source"), (record.to_link, "target")):
+            if not isinstance(link, dict) or not link.get("href"):
+                raise OpenProjectServerError(f"OpenProject relation is missing its {role} work package link.")
+            hrefs.append(link["href"])
+        # Sequential, not concurrent: a denied source must not trigger the target's GET.
+        for href in hrefs:
+            work_package = await self._work_package_lookup_api.get_by_href(href)
+            scope_policy.ensure_project_write_link_allowed(
+                work_package.get("_links", {}).get("project"),
+                settings=self._settings,
+                project_id_to_identifier=self._project_id_to_identifier,
+            )
 
     async def create(
         self,
@@ -357,12 +366,7 @@ class RelationService:
         confirm: bool = False,
     ) -> RelationUpdateResult:
         current = await self._api.get(relation_id)
-        work_package = await self._fetch_source_work_package(current.from_link)
-        scope_policy.ensure_project_write_link_allowed(
-            work_package.get("_links", {}).get("project"),
-            settings=self._settings,
-            project_id_to_identifier=self._project_id_to_identifier,
-        )
+        await self._ensure_relation_writable(current)
         existing = self._stamp(current.summary())
         body: dict[str, Any] = {}
         if relation_type is not None:
@@ -396,12 +400,7 @@ class RelationService:
 
     async def delete(self, *, relation_id: int, confirm: bool = False) -> RelationWriteResult:
         current = await self._api.get(relation_id)
-        work_package = await self._fetch_source_work_package(current.from_link)
-        scope_policy.ensure_project_write_link_allowed(
-            work_package.get("_links", {}).get("project"),
-            settings=self._settings,
-            project_id_to_identifier=self._project_id_to_identifier,
-        )
+        await self._ensure_relation_writable(current)
         normalized = self._stamp(current.summary())
         payload = {
             "id": normalized.id,

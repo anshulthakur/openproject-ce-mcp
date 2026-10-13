@@ -11,6 +11,10 @@ from openproject_ce_mcp.app.services.relation_service import RelationService
 from openproject_ce_mcp.models import RelationSummary
 
 PROJECT_ID_TO_IDENTIFIER = {1: "demo", 20: "other"}
+FROM_HREF = "/api/v3/work_packages/1"
+TO_HREF = "/api/v3/work_packages/2"
+INSIDE_PROJECT = {"href": "/api/v3/projects/1"}
+OUTSIDE_PROJECT = {"href": "/api/v3/projects/20"}
 
 
 def _summary(
@@ -113,9 +117,16 @@ class _FakeRelationApi:
 
 
 class _FakeWorkPackageLookupApi:
-    def __init__(self, project_link: dict | None = None, *, by_id: dict[str, dict] | None = None) -> None:
+    def __init__(
+        self,
+        project_link: dict | None = None,
+        *,
+        by_id: dict[str, dict] | None = None,
+        by_href: dict[str, dict] | None = None,
+    ) -> None:
         self._project_link = project_link or {"href": "/api/v3/projects/1"}
         self._by_id = by_id
+        self._by_href = by_href or {}
         self.get_calls: list[str] = []
         self.get_by_href_calls: list[str] = []
 
@@ -127,7 +138,7 @@ class _FakeWorkPackageLookupApi:
 
     async def get_by_href(self, href: str) -> dict:
         self.get_by_href_calls.append(href)
-        return {"_links": {"project": self._project_link}}
+        return {"_links": {"project": self._by_href.get(href, self._project_link)}}
 
 
 def _resolve_work_package_id_ok(resolved_id: int = 55):
@@ -734,14 +745,17 @@ async def test_update_allows_an_empty_body_preview() -> None:
 
 
 @pytest.mark.asyncio
-async def test_update_denies_write_outside_source_project_allowlist() -> None:
+async def test_update_denies_write_when_source_outside_write_allowlist() -> None:
     api = _FakeRelationApi()
-    lookup = _FakeWorkPackageLookupApi(project_link={"href": "/api/v3/projects/1"})
-    settings = dataclasses.replace(make_settings(), write_projects=("other",))
+    lookup = _FakeWorkPackageLookupApi(project_link=INSIDE_PROJECT, by_href={FROM_HREF: OUTSIDE_PROJECT})
+    settings = dataclasses.replace(make_settings(), write_projects=("demo",))
     service = _service(api=api, work_package_lookup_api=lookup, settings=settings)
 
-    with pytest.raises(PermissionDeniedError):
+    with pytest.raises(PermissionDeniedError, match="OPENPROJECT_WRITE_PROJECTS"):
         await service.update(relation_id=7, description="updated", confirm=True)
+
+    assert api.update_calls == []
+    assert lookup.get_by_href_calls == [FROM_HREF]
 
 
 @pytest.mark.asyncio
@@ -768,11 +782,9 @@ async def test_update_raises_when_source_link_is_missing() -> None:
 
 
 @pytest.mark.asyncio
-async def test_update_uses_the_relations_own_from_href_not_a_hardcoded_one() -> None:
-    """Regression (test-contract self-audit): assert the EXACT href passed to
-    get_by_href, mirroring the equivalent Reminders test -- every fixture in
-    this file happens to share the same from_href, so a hardcoded-href or
-    argument-swap bug would otherwise slip through undetected."""
+async def test_update_looks_up_the_relations_own_from_and_to_hrefs_in_order() -> None:
+    """Every other fixture shares the same hrefs, so a hardcoded-href,
+    duplicated-href or argument-swap bug would otherwise slip through."""
     record = _record(7, from_href="/api/v3/work_packages/99", to_href="/api/v3/work_packages/2")
     api = _FakeRelationApi(records=[record])
     lookup = _FakeWorkPackageLookupApi()
@@ -780,7 +792,7 @@ async def test_update_uses_the_relations_own_from_href_not_a_hardcoded_one() -> 
 
     await service.update(relation_id=7, description="updated", confirm=True)
 
-    assert lookup.get_by_href_calls == ["/api/v3/work_packages/99"]
+    assert lookup.get_by_href_calls == ["/api/v3/work_packages/99", "/api/v3/work_packages/2"]
 
 
 # --- delete -----------------------------------------------------------------
@@ -811,14 +823,17 @@ async def test_delete_commits_when_confirmed() -> None:
 
 
 @pytest.mark.asyncio
-async def test_delete_denies_write_outside_source_project_allowlist() -> None:
+async def test_delete_denies_write_when_source_outside_write_allowlist() -> None:
     api = _FakeRelationApi()
-    lookup = _FakeWorkPackageLookupApi(project_link={"href": "/api/v3/projects/1"})
-    settings = dataclasses.replace(make_settings(), write_projects=("other",))
+    lookup = _FakeWorkPackageLookupApi(project_link=INSIDE_PROJECT, by_href={FROM_HREF: OUTSIDE_PROJECT})
+    settings = dataclasses.replace(make_settings(), write_projects=("demo",))
     service = _service(api=api, work_package_lookup_api=lookup, settings=settings)
 
-    with pytest.raises(PermissionDeniedError):
+    with pytest.raises(PermissionDeniedError, match="OPENPROJECT_WRITE_PROJECTS"):
         await service.delete(relation_id=7, confirm=True)
+
+    assert api.delete_calls == []
+    assert lookup.get_by_href_calls == [FROM_HREF]
 
 
 @pytest.mark.asyncio
@@ -835,7 +850,7 @@ async def test_delete_denies_write_even_without_confirm() -> None:
 @pytest.mark.asyncio
 async def test_delete_denies_malformed_from_link_even_under_open_scope() -> None:
     """Mirrors Reminders' equivalent malformed-link-under-wide-open-scope
-    test -- delete()'s _fetch_source_work_package guard shares its code with
+    test -- delete()'s _ensure_relation_writable guard shares its code with
     update()'s, but only update() had a test proving the missing-link case
     fails closed even when both allowlists are wide open."""
     record = _record(7, from_href=None)
@@ -845,3 +860,124 @@ async def test_delete_denies_malformed_from_link_even_under_open_scope() -> None
 
     with pytest.raises(OpenProjectServerError):
         await service.delete(relation_id=7, confirm=True)
+
+
+# --- update/delete: both ends authorized -------------------------------------
+
+
+def _scoped_service(
+    *, read_projects: tuple[str, ...], write_projects: tuple[str, ...], by_href: dict[str, dict] | None = None
+) -> tuple[RelationService, _FakeRelationApi, _FakeWorkPackageLookupApi]:
+    api = _FakeRelationApi()
+    lookup = _FakeWorkPackageLookupApi(project_link=INSIDE_PROJECT, by_href=by_href)
+    settings = dataclasses.replace(make_settings(), read_projects=read_projects, write_projects=write_projects)
+    return _service(api=api, work_package_lookup_api=lookup, settings=settings), api, lookup
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("confirm", [False, True])
+async def test_update_and_delete_allowed_when_both_ends_inside_allowlists(confirm: bool) -> None:
+    service, api, lookup = _scoped_service(read_projects=("demo",), write_projects=("demo",))
+
+    updated = await service.update(relation_id=7, description="updated", confirm=confirm)
+    deleted = await service.delete(relation_id=7, confirm=confirm)
+
+    assert updated.state == deleted.state == ("confirmed" if confirm else "preview")
+    assert api.update_calls == ([(7, {"description": "updated"})] if confirm else [])
+    assert api.delete_calls == ([7] if confirm else [])
+    assert lookup.get_by_href_calls == [FROM_HREF, TO_HREF, FROM_HREF, TO_HREF]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("confirm", [False, True])
+async def test_update_refuses_when_target_outside_read_allowlist(confirm: bool) -> None:
+    service, api, _ = _scoped_service(
+        read_projects=("demo",), write_projects=("demo",), by_href={TO_HREF: OUTSIDE_PROJECT}
+    )
+
+    with pytest.raises(PermissionDeniedError, match="OPENPROJECT_READ_PROJECTS"):
+        await service.update(relation_id=7, description="updated", confirm=confirm)
+
+    assert api.update_calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("confirm", [False, True])
+async def test_delete_refuses_when_target_outside_read_allowlist(confirm: bool) -> None:
+    service, api, _ = _scoped_service(
+        read_projects=("demo",), write_projects=("demo",), by_href={TO_HREF: OUTSIDE_PROJECT}
+    )
+
+    with pytest.raises(PermissionDeniedError, match="OPENPROJECT_READ_PROJECTS"):
+        await service.delete(relation_id=7, confirm=confirm)
+
+    assert api.delete_calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("confirm", [False, True])
+async def test_update_and_delete_refuse_when_target_readable_but_outside_write_allowlist(confirm: bool) -> None:
+    service, api, _ = _scoped_service(
+        read_projects=("demo", "other"), write_projects=("demo",), by_href={TO_HREF: OUTSIDE_PROJECT}
+    )
+
+    with pytest.raises(PermissionDeniedError, match="OPENPROJECT_WRITE_PROJECTS"):
+        await service.update(relation_id=7, description="updated", confirm=confirm)
+    with pytest.raises(PermissionDeniedError, match="OPENPROJECT_WRITE_PROJECTS"):
+        await service.delete(relation_id=7, confirm=confirm)
+
+    assert api.update_calls == []
+    assert api.delete_calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("confirm", [False, True])
+async def test_update_and_delete_refuse_when_target_outside_write_allowlist_under_open_read(confirm: bool) -> None:
+    service, api, _ = _scoped_service(
+        read_projects=("*",), write_projects=("demo",), by_href={TO_HREF: OUTSIDE_PROJECT}
+    )
+
+    with pytest.raises(PermissionDeniedError, match="OPENPROJECT_WRITE_PROJECTS"):
+        await service.update(relation_id=7, description="updated", confirm=confirm)
+    with pytest.raises(PermissionDeniedError, match="OPENPROJECT_WRITE_PROJECTS"):
+        await service.delete(relation_id=7, confirm=confirm)
+
+    assert api.update_calls == []
+    assert api.delete_calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("confirm", [False, True])
+async def test_update_and_delete_refuse_when_source_outside_allowlist_without_fetching_target(
+    confirm: bool,
+) -> None:
+    service, api, lookup = _scoped_service(
+        read_projects=("demo",), write_projects=("demo",), by_href={FROM_HREF: OUTSIDE_PROJECT}
+    )
+
+    with pytest.raises(PermissionDeniedError, match="OPENPROJECT_READ_PROJECTS"):
+        await service.update(relation_id=7, description="updated", confirm=confirm)
+    with pytest.raises(PermissionDeniedError, match="OPENPROJECT_READ_PROJECTS"):
+        await service.delete(relation_id=7, confirm=confirm)
+
+    assert api.update_calls == []
+    assert api.delete_calls == []
+    assert lookup.get_by_href_calls == [FROM_HREF, FROM_HREF]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("to_href", [None, ""])
+async def test_update_and_delete_raise_when_target_link_missing_even_under_open_scope(to_href: str | None) -> None:
+    api = _FakeRelationApi(records=[_record(7, to_href=to_href)])
+    lookup = _FakeWorkPackageLookupApi()
+    settings = dataclasses.replace(make_settings(), read_projects=("*",), write_projects=("*",))
+    service = _service(api=api, work_package_lookup_api=lookup, settings=settings)
+
+    with pytest.raises(OpenProjectServerError, match="target work package link"):
+        await service.update(relation_id=7, description="updated", confirm=True)
+    with pytest.raises(OpenProjectServerError, match="target work package link"):
+        await service.delete(relation_id=7, confirm=True)
+
+    assert api.update_calls == []
+    assert api.delete_calls == []
+    assert lookup.get_by_href_calls == []
