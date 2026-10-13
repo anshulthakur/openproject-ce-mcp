@@ -528,7 +528,7 @@ def test_empty_attachment_root_is_accepted_at_config_time() -> None:
 
 # ── legacy project-scope env-var names ──────────────────────────────────────
 #
-# OPM-483 (0.5.0) removes this warn-only shim again. See config.py's
+# The 0.5.0 line removes this warn-only shim again. See config.py's
 # _LEGACY_PROJECT_SCOPE_ENV_VAR_MAP docstring for why it's back for one more
 # release and scoped to only these 3 names.
 
@@ -541,9 +541,9 @@ def test_legacy_project_scope_env_vars_have_no_effect_on_settings() -> None:
         "OPENPROJECT_API_TOKEN": "token-value",
         "OPENPROJECT_ALLOWED_PROJECTS_READ": "DEMO",
         "OPENPROJECT_ALLOWED_PROJECTS_WRITE": "DEMO",
-        # Confirms the OPM-136 scope (never-implemented/removed-outright names)
-        # still has zero effect and — unlike the 3 project-scope names above —
-        # produces no warning either; see the warning-content tests below.
+        # Never-implemented or outright-removed names still have zero effect
+        # and, unlike the 3 project-scope names above, produce no warning
+        # either; see the warning-content tests below.
         "OPENPROJECT_TOOLS": "projects,work-packages",
     }
     settings = Settings.from_env(env)
@@ -596,7 +596,7 @@ def test_legacy_env_warnings_one_line_per_detected_name_in_map_order() -> None:
 def test_legacy_env_warnings_ignores_never_implemented_or_removed_names() -> None:
     # OPENPROJECT_TOOLS was never implemented; the old auto-confirm/
     # personal-write/metadata-tools names are out of this narrower shim's
-    # scope entirely (OPM-136 already removed warnings for them). None of
+    # scope entirely (their warnings were removed earlier). None of
     # these should produce a warning.
     env = {
         "OPENPROJECT_TOOLS": "projects",
