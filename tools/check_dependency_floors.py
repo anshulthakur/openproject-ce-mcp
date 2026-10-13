@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import tomllib
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from importlib import metadata
 from pathlib import Path
@@ -26,11 +27,6 @@ from typing import Any
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
 from packaging.version import Version
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
 
 
 class FloorError(Exception):
