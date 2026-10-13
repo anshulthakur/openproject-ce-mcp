@@ -425,7 +425,7 @@ classifies a link through it before any wildcard shortcut, so a link to
 another host or another resource is denied under every scope; the directory,
 work package writes, capabilities, time entries and embedded projects read
 project ids through it too. A link with the right shape under another root
-path raises `ProjectLinkPrefixError`, reported as `[configuration_error]`, so a
+path raises `ProjectLinkPrefixError`, reported as `[CONFIGURATION_ERROR]`, so a
 base URL that does not match the server fails loudly instead of denying
 everything.
 
