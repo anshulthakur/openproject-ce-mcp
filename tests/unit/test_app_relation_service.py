@@ -5,7 +5,13 @@ import dataclasses
 import pytest
 from _client_test_helpers import make_settings
 
-from openproject_ce_mcp.app.errors import InvalidInputError, OpenProjectServerError, PermissionDeniedError
+from openproject_ce_mcp import policy_observation
+from openproject_ce_mcp.app.errors import (
+    InvalidInputError,
+    OpenProjectServerError,
+    PermissionDeniedError,
+    ProjectScopeDeniedError,
+)
 from openproject_ce_mcp.app.policies import scope as scope_policy
 from openproject_ce_mcp.app.ports.relation_api import RelationRecord
 from openproject_ce_mcp.app.services.relation_service import RelationService
@@ -944,6 +950,25 @@ async def test_delete_refuses_when_target_outside_read_allowlist(confirm: bool) 
         await service.delete(relation_id=7, confirm=confirm)
 
     assert api.delete_calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", ["update", "delete"])
+async def test_target_denial_records_the_target_project(operation: str) -> None:
+    # The outer write check overrides the inner read decision, so a read denial is recorded as a write denial.
+    service, _, _ = _scoped_service(
+        read_projects=("demo",), write_projects=("demo",), by_href={TO_HREF: OUTSIDE_PROJECT}
+    )
+
+    policy_observation.reset()
+    with pytest.raises(ProjectScopeDeniedError):
+        if operation == "update":
+            await service.update(relation_id=7, description="updated", confirm=True)
+        else:
+            await service.delete(relation_id=7, confirm=True)
+
+    assert policy_observation.current_project_scope() == "other"
+    assert policy_observation.current_policy_decision() == "project_scope_write_denied"
 
 
 @pytest.mark.asyncio
