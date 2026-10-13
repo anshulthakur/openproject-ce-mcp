@@ -1,4 +1,4 @@
-"""Structured stderr logging (OPM-2709).
+"""Structured stderr logging.
 
 `ToolCallLogRecord` is a closed schema -- the ONLY nine fields a tool-call log
 line may ever carry. This is enforced structurally, not by convention: the one

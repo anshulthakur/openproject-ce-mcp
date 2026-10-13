@@ -1,4 +1,4 @@
-"""OPM-2709: structured stderr logging of per-tool-call diagnostics.
+"""Structured stderr logging of per-tool-call diagnostics.
 
 Covers, table-driven where possible:
 - every one of the 9 ToolCallLogRecord fields is populated correctly on a

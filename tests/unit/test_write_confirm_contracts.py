@@ -139,7 +139,7 @@ async def test_write_tool_denies_when_its_write_scope_is_disabled(case: WriteToo
     could fail on the file-path/root check before ever reaching the
     write-scope gate, proving nothing about authorization ordering.
 
-    This is also OPM-2706's proof of "no admin/personal-data write without
+    This is also the proof of "no admin/personal-data write without
     the matching capability flag" -- generalized here to every write scope
     (not just admin/personal), so no separate capability-flag test exists.
     """

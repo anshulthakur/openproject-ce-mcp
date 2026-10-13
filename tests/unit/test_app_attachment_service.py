@@ -405,7 +405,7 @@ async def test_create_rejects_hidden_description_field_only_when_description_giv
 
 @pytest.mark.asyncio
 async def test_create_denies_upload_when_attachment_root_not_configured(tmp_path) -> None:
-    """OPM-2708: OPENPROJECT_ATTACHMENT_ROOT unset is a deployment-config
+    """OPENPROJECT_ATTACHMENT_ROOT unset is a deployment-config
     denial (CapabilityDisabledError), not a project-scope denial -- distinct
     from every other PermissionDeniedError-family assertion in this file,
     which are all project-allowlist/resolver denials."""
@@ -479,7 +479,7 @@ async def test_create_confirmed_payload_reflects_file_size_actually_uploaded(tmp
     """A file that grows between the preview-time stat and the confirm-time
     re-read (but stays under the size limit either way) must be uploaded
     with, AND report back, its real post-growth size/name -- not the
-    stale pre-commit stat (OPM-2705 fix: the confirmed response used to
+    stale pre-commit stat (the confirmed response used to
     echo the first, now-outdated `payload` unconditionally)."""
     report = tmp_path / "report.pdf"
     report.write_bytes(b"x" * 5)

@@ -1,8 +1,7 @@
-"""OPM-2709: stdout is reserved for MCP JSON-RPC traffic; all logging --
+"""Stdout is reserved for MCP JSON-RPC traffic; all logging --
 including the new structured tool-call log line -- must go to stderr only.
 
-This is a real, previously-unverified invariant: nothing before OPM-2709
-asserted it anywhere in the test suite. A regression here (e.g. a future
+This is a real invariant that no other test in the suite asserts. A regression here (e.g. a future
 `print()` debug statement, or a logging handler accidentally attached to
 `sys.stdout`) would corrupt the JSON-RPC stream for every client, silently.
 

@@ -75,8 +75,8 @@ here, since delete()'s prior GET means even the identity confirmation is
 withheld from a read-disabled-but-somehow-write-enabled caller (an
 unreachable combination given Settings.from_env's write-implies-read
 validation, but the ordering still matters for a directly-constructed
-Settings in a test). Wired via `_finalize_write`'s `gate_before_preview=True`
-(OPM-2705), same as Group and User.delete().
+Settings in a test). Wired via `_finalize_write`'s `gate_before_preview=True`,
+same as Group and User.delete().
 
 delete()'s prior GET and preview message deliberately surface a warning
 about OpenProject's own cascade behavior: Storages::Storages::DeleteService

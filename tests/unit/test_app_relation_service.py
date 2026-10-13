@@ -690,7 +690,7 @@ async def test_create_denies_write_outside_source_project_allowlist_even_without
 
 @pytest.mark.asyncio
 async def test_create_denies_write_when_target_work_package_project_not_write_allowed() -> None:
-    """OPM-2706: the RELATION TARGET's own project must be write-authorized
+    """The RELATION TARGET's own project must be write-authorized
     too, not just the source's -- a caller with write access to the source's
     project must not be able to link it to a work package in a project they
     can only read. Unlike the existing resolve-was-called-with-write-True

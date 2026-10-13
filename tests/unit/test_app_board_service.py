@@ -362,7 +362,7 @@ async def test_create_returns_preview_without_committing_when_not_confirmed() ->
 
 @pytest.mark.asyncio
 async def test_create_without_project_denies_under_restrictive_scope() -> None:
-    """OPM-2708: this is a scope-shaped denial (ProjectScopeDeniedError), not
+    """This is a scope-shaped denial (ProjectScopeDeniedError), not
     a capability-flag denial -- distinguishing it required reading the
     message text, since both used to raise the identical PermissionDeniedError."""
     settings = dataclasses.replace(make_settings(), read_projects=("demo",), write_projects=("demo",))

@@ -1,4 +1,4 @@
-"""Per-tool-call HTTP request counter (OPM-2709's `http_requests` log field).
+"""Per-tool-call HTTP request counter (the `http_requests` log field).
 
 A `contextvars.ContextVar`, not an instance attribute on `HttpxTransport` or
 `OpenProjectClient`: `CountingTransport.handle_async_request`

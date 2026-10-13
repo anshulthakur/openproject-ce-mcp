@@ -10,7 +10,7 @@ categorization, and the return-model/select-trimming machinery.
 Strictly one-directional: this module never imports from `tools.py`, any
 `tools_<domain>.py`, or `app/` -- it only imports from `.client`, `.models`,
 `.presentation`, `.tool_errors`, `.http_request_counter`/`.policy_observation`/
-`.logging_support` (OPM-2709's structured-logging plumbing, also
+`.logging_support` (the structured-logging plumbing, also
 package-root modules, not `app/`), and stdlib/`mcp`. Which tools exist and
 which scope/policy gates them is Catalog/Policy concern, owned by `tools.py`,
 not this module -- `register_selected_tools()` takes an already-decided
@@ -203,7 +203,7 @@ def _categorize_openproject_error(exc: OpenProjectError) -> ToolInputError | Too
     The returned exception carries `.code`/`.layer` attributes (copied from
     `exc`, not re-derived) so `_categorize_tool_errors`'s outer wrapper can
     read them straight off whatever it catches (a plain `RuntimeError`/
-    `ValueError` by the time it gets there) for OPM-2709's structured log
+    `ValueError` by the time it gets there) for the structured log
     line, without parsing the `[CODE]`-prefixed message string back apart.
     """
     translated: ToolInputError | ToolCallError

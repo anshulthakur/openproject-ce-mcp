@@ -62,7 +62,7 @@ from .app.adapters.httpx_work_package_lookup_api import HttpxWorkPackageLookupAp
 from .app.adapters.httpx_work_package_picker_api import HttpxWorkPackagePickerApi
 from .app.caches import SingletonCache
 
-# AuthenticationError/PermissionDeniedError/its three OPM-2708 subclasses
+# AuthenticationError/PermissionDeniedError/its three subclasses
 # (CapabilityDisabledError/ProjectScopeDeniedError/OpenProjectPermissionDeniedError)
 # /ConflictError/RateLimitedError: not referenced directly in this module, but
 # re-exported deliberately -- existing callers/tests import them from here
@@ -330,8 +330,9 @@ class OpenProjectClient:
             )
         else:
             # No caller-supplied transport -- CountingTransport still must be
-            # installed unconditionally (OPM-2709), but NEVER by passing an
-            # explicit `transport=`/`mounts=` to httpx.AsyncClient's own
+            # installed unconditionally (the `http_requests` log field must
+            # count every request), but NEVER by passing an explicit
+            # `transport=`/`mounts=` to httpx.AsyncClient's own
             # constructor here: either one, tried in earlier versions of
             # this code, silently broke httpx's own environment-variable-
             # based proxy resolution (`allow_env_proxies = trust_env and

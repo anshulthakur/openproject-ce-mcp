@@ -1,7 +1,7 @@
 """Tests for CountingTransport: http_request_counter must reflect every
 real wire-level HTTP attempt, independent of whether retries are enabled.
 
-Regression (Codex review round 8, OPM-2709): the counter used to increment
+Regression: the counter used to increment
 inside RetryTransport itself, which client.py only installs when
 OPENPROJECT_MAX_RETRIES > 0 -- a valid, documented configuration with
 MAX_RETRIES=0 meant every real request went uncounted (http_requests: 0 in

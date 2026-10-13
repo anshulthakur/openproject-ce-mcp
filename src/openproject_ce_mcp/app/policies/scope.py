@@ -221,7 +221,7 @@ def id_from_href(href: str | None) -> int | None:
 
 
 def _project_scope_display(link: Any, *, settings: Settings, project_id_to_identifier: Mapping[int, str]) -> str | None:
-    """A single, unambiguous display value for the OPM-2709 `project_scope`
+    """A single, unambiguous display value for the structured `project_scope`
     log field -- the project's own known identifier if this server has
     already learned it, else its numeric id from the link's own href. Never
     the link's `title` (a display name, not stable/unique) and never derived

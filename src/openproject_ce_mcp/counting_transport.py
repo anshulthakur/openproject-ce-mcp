@@ -1,7 +1,7 @@
 """HTTP transport wrapper that counts every real wire-level request.
 
 Deliberately its own transport layer, separate from `RetryTransport`: the
-`http_requests` structured-log field (OPM-2709) must reflect every real
+`http_requests` structured-log field must reflect every real
 network attempt regardless of whether retries are configured at all.
 `RetryTransport` is only installed when `OPENPROJECT_MAX_RETRIES > 0`
 (`client.py`) -- counting inside it, as an earlier version of this code did,

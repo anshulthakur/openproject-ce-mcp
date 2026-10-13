@@ -23,7 +23,7 @@ scopes differently:
 
 `create()`/`update()`/`delete()` share the same `ReminderWriteResult` shape
 and are wired onto the shared `_write_outcome._finalize_write` with
-`validation_errors={}` throughout (OPM-2705) -- like News/Group/Storage, this
+`validation_errors={}` throughout -- like News/Group/Storage, this
 domain has no `<domain>/form` endpoint the way Grid/Board do, but
 `_finalize_write` already supports the no-form case.
 

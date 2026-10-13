@@ -208,7 +208,7 @@ def test_ensure_project_write_link_allowed_if_present_denies_malformed_link_even
         )
 
 
-# --- OPM-2709: project_scope/policy_decision observation --------------------
+# --- project_scope/policy_decision observation ------------------------------
 
 
 def test_ensure_project_link_allowed_records_allowed_decision_and_scope_via_cache() -> None:

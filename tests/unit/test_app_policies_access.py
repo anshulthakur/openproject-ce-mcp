@@ -32,7 +32,7 @@ def test_ensure_write_enabled_noop_when_enabled() -> None:
     access.ensure_write_enabled("version", settings=settings)  # must not raise
 
 
-# ── OPM-2709: policy_decision observation ──────────────────────────────────
+# ── policy_decision observation ────────────────────────────────────────────
 
 
 def test_ensure_read_enabled_records_denied_decision() -> None:

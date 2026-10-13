@@ -790,7 +790,7 @@ async def test_copy_commits_and_derives_job_status_id_without_exposing_the_url()
 
 @pytest.mark.asyncio
 async def test_copy_confirmed_with_validation_errors_never_commits() -> None:
-    """OPM-2706: `copy()` is hand-rolled (no shared `_finalize_write`,
+    """`copy()` is hand-rolled (no shared `_finalize_write`,
     since it launches an async job rather than returning a detail record),
     so this invariant -- OpenProject's own form validation errors must never
     reach the mutating call, even with confirm=true -- needs its own direct

@@ -32,7 +32,7 @@ gate on the way `NewsService.update()` gates on its own prior GET. This means
 a caller without `OPENPROJECT_ENABLE_ADMIN_WRITE` is rejected immediately on
 `update()`, even for a pure preview, and can never see a member-diff preview
 -- deliberate, not News' more-permissive-preview pattern. Wired via
-`_finalize_write`'s `gate_before_preview=True` (OPM-2705), same as Storage and
+`_finalize_write`'s `gate_before_preview=True`, same as Storage and
 User.delete().
 
 `create()`/`update()` call `hidden_fields.ensure_field_writable("group",

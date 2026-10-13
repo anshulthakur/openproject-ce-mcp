@@ -46,7 +46,7 @@ def test_link_branch_delegates_to_ensure_project_link_allowed() -> None:
         )
 
 
-# ── OPM-2709 regression: policy_observation instrumentation ────────────────
+# ── Regression: policy_observation instrumentation ─────────────────────────
 #
 # Found during a Codex review of release/0.5.0: the embedded-payload branch
 # (payload already resolved, no link to delegate to scope.py's already-

@@ -1,4 +1,4 @@
-"""OPM-2706: what raise_for_status does and does NOT leak into an error message.
+"""What raise_for_status does and does NOT leak into an error message.
 
 Renamed from test_error_message_does_not_leak_upstream_details.py: that name
 overclaimed relative to this file's own contents -- one of the three tests

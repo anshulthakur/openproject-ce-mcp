@@ -1,4 +1,4 @@
-"""OPM-2707: schema-drift gate for the full MCP tool catalog.
+"""Schema-drift gate for the full MCP tool catalog.
 
 Treats the ~190-tool MCP surface as a de facto public API ahead of a future
 1.0. Captures name, inputSchema, output structure, read/write classification,
@@ -105,7 +105,7 @@ def _classify() -> dict[str, tuple[str, str, tuple[str, ...]]]:
     `enabled_tool_names()` additionally requires work_package AND version
     read). Omitting these env vars here would let a real capability-gate
     change to one of these tools drift unnoticed past this schema-drift gate
-    -- exactly what OPM-2707 exists to catch."""
+    -- exactly what this gate exists to catch."""
     classification: dict[str, tuple[str, str, tuple[str, ...]]] = {}
     for scope, names in tools.READ_TOOLS_BY_SCOPE.items():
         for name in names:

@@ -27,7 +27,7 @@ prior GET to piggyback the check on; delete checks before its preview GET,
 so a disabled admin write never reads the user (unlike e.g.
 `MembershipService.delete()`, which checks only inside `if confirm:` because
 its prior GET serves the allowlist check). `delete()` is wired via
-`_finalize_write`'s `gate_before_preview=True` (OPM-2705), same as Group and
+`_finalize_write`'s `gate_before_preview=True`, same as Group and
 Storage; lock/unlock keep their own `_finalize_action` (a genuinely different,
 form-less shape).
 

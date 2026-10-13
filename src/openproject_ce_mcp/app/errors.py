@@ -5,7 +5,7 @@ adapters, resolvers, services) without creating a layering violation, since it s
 outside the layer hierarchy entirely, like `config.py`/`models.py`.
 
 Every leaf exception carries its own `code`/`layer` class attributes -- the
-single source of truth for OPM-2708's agent-facing error codes and OPM-2709's
+single source of truth for the agent-facing error codes and the
 structured-logging `layer` field. This replaces a separate
 type-to-code/type-to-layer lookup table (which `tools_runtime.py` used to
 maintain as `_ERROR_CATEGORY`): a new exception class that forgets to declare

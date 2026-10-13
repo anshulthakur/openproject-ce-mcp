@@ -69,7 +69,7 @@ def test_ensure_project_create_target_allowed_matches_the_name_with_hyphens_like
     )  # must not raise
 
 
-# ── OPM-2709 regression: policy_observation instrumentation ────────────────
+# ── Regression: policy_observation instrumentation ─────────────────────────
 #
 # Found during a Codex review of release/0.5.0: this module's three
 # ensure_*_allowed functions are a SEPARATE family from scope.py's

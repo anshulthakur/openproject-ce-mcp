@@ -1781,7 +1781,7 @@ async def test_create_resolves_parent_with_write_true() -> None:
 
 @pytest.mark.asyncio
 async def test_create_denies_write_when_parent_project_not_write_allowed() -> None:
-    """OPM-2706: the PARENT's own project must be write-authorized too, not
+    """The PARENT's own project must be write-authorized too, not
     just the (about-to-be-created child's) `project` argument -- a caller
     with write access to "demo" must not be able to attach a new child under
     a parent work package in "other", which they can only read. Unlike
@@ -2619,7 +2619,7 @@ async def test_update_resolves_parent_with_write_true_and_clear_parent_passes_th
 
 @pytest.mark.asyncio
 async def test_update_denies_write_when_new_parent_project_not_write_allowed() -> None:
-    """OPM-2706: same reasoning as `test_create_denies_write_when_parent_project_not_write_allowed`,
+    """Same reasoning as `test_create_denies_write_when_parent_project_not_write_allowed`,
     for reparenting via update(). Uses the REAL `WorkPackageResolver.resolve_id`
     instead of a fake resolver that always succeeds."""
     api = _FakeWorkPackageApi()

@@ -1,4 +1,4 @@
-"""Per-tool-call policy-decision/project-scope observation (OPM-2709's
+"""Per-tool-call policy-decision/project-scope observation (the
 `policy_decision`/`project_scope` log fields).
 
 `access.py`'s `ensure_write_enabled`/`ensure_read_enabled` and `scope.py`'s

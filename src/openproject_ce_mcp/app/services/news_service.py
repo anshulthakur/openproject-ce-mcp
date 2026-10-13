@@ -13,7 +13,7 @@ access.ensure_read_enabled/ensure_write_enabled call here uses scope="project".
 Unlike MembershipService, News has no /form endpoint: create_news/update_news
 are hand-rolled POST/PATCH with no server-side validation round-trip -- wired
 onto the shared `_write_outcome._finalize_write` with `validation_errors={}`
-throughout (OPM-2705), the same no-form shape Group/Storage already use; a
+throughout, the same no-form shape Group/Storage already use; a
 previous News-local `_WriteOutcome`/`_preview`/`_committed`/`_to_write_result`
 duplicate has been removed now that the shared helper covers this shape too.
 """

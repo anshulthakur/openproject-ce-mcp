@@ -22,7 +22,7 @@ delete), Storage (create/update/delete), and User (delete only) -- have no
 prior GET to authorize an unauthorized preview request against, so they check
 `ensure_write_enabled` unconditionally, even for confirm=False, rather than
 only inside the confirmed branch every other domain uses. This is a real,
-audited, minority-but-recurring shape (OPM-2705), not a one-off bug: making
+audited, minority-but-recurring shape, not a one-off bug: making
 it an explicit parameter here keeps a single orchestration point for every
 domain instead of forcing those three to hand-roll their own copy or forcing
 every other domain to pay for a check it doesn't want. The gate still runs

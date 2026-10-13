@@ -374,7 +374,7 @@ async def test_retryable_response_closed_before_retry():
     assert close_called, "Response should have been closed before retry"
 
 
-# ── OPM-2709: http_requests counter must count every wire-level attempt,
+# ── http_requests counter must count every wire-level attempt,
 #    including each individual retry, not just "1" per logical call ──────────
 
 
@@ -383,6 +383,6 @@ async def test_retryable_response_closed_before_retry():
 # request is now counted, so retries are counted only when it's layered
 # outside CountingTransport, matching client.py's actual wiring. See that
 # file's own module docstring for why the counting responsibility moved
-# out of this transport (OPM-2709 / a Codex review round 8 finding: at
+# out of this transport (at
 # OPENPROJECT_MAX_RETRIES=0, RetryTransport was never installed at all, so
 # counting here undercounted every real request to 0).
