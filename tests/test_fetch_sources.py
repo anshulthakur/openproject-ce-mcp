@@ -17,11 +17,7 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.fixture
-def git_env(monkeypatch) -> dict[str, str]:
-    # A hook exports GIT_DIR and friends, which would point every git call
-    # below at the hooked repository instead of the temporary ones.
-    for name in [key for key in os.environ if key.startswith("GIT_")]:
-        monkeypatch.delenv(name)
+def git_env() -> dict[str, str]:
     return {
         **os.environ,
         "GIT_AUTHOR_NAME": "t",
