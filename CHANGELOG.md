@@ -16,6 +16,9 @@ to install and discover.
 
 ### Added
 
+- Every tool declares MCP tool annotations (read-only, destructive, idempotent,
+  open-world), so clients can tell reading tools from tools that change or
+  delete data.
 - `update_work_package_comment` previews and confirms replacement of an existing
   comment, including permission checks and warnings about notifications and
   irreversible text replacement.
@@ -43,14 +46,19 @@ to install and discover.
   request/response payload content.
 - `list_meetings` accepts a `title` filter (case-insensitive substring,
   also matching a recurring series' title) on OpenProject 17.9 and later.
-- `end_recurring_meeting` ends a recurring meeting series without deleting
-  it or its past occurrences (OpenProject 17.8 and later).
+- `end_recurring_meeting` ends a recurring meeting series and deletes its
+  already created future occurrences; the series and its past occurrences are
+  kept (OpenProject 17.8 and later).
 - Work packages expose `observed_in_versions` (OpenProject 17.9+): read on
   every work package, written through the create, update and bulk tools, and
   filterable with `list_work_packages(observed_in_version=...)`.
 
 ### Changed
 
+- Tool descriptions state each action and its consequences directly, delete
+  tools say when a deletion cannot be undone, and the parameters most tools
+  share describe themselves in the tool schema; `select` lists every field it
+  accepts.
 - A rejected status change on `update_work_package` and
   `bulk_update_work_packages` now lists, in its `status` validation error, the
   status values OpenProject's update form offers for that work package,

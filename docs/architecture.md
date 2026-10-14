@@ -31,6 +31,8 @@ src/openproject_ce_mcp/
 ├── tools.py              tool registration/classification infrastructure; the
 │                         handlers themselves live in per-domain tools_<domain>.py
 │                         modules (see "tools.py and the per-domain tool modules" below)
+├── tool_annotations.py   derives each tool's MCP annotations from its write effect
+├── tool_params.py        parameter types whose schema description is shared by many tools
 ├── server.py             MCPServer bootstrap and lifecycle management
 ├── setup_cli.py          the interactive `configure` command
 ├── doctor/               the `doctor` diagnostics command
@@ -102,8 +104,9 @@ src/openproject_ce_mcp/
   and normalizes user input before it reaches the client, and translates
   internal exceptions into MCP-safe tool errors.
 - `tools.py` itself holds no tool functions -- only `enabled_tool_names()`/
-  `register_tools()` and the scope-classification constants (which tool belongs
-  to which read/write scope), plus a side-effect import of every
+  `register_tools()`, the scope-classification constants (which tool belongs
+  to which read/write scope) and the `TOOL_ANNOTATIONS` built from them, plus a
+  side-effect import of every
   `tools_<domain>.py` module and a re-export of names still imported directly by
   some tests.
 - `tools_runtime.py` is the shared kernel every domain module depends on: the
@@ -114,6 +117,8 @@ src/openproject_ce_mcp/
 - `tool_types.py` holds the annotations tool signatures share: `IdOrName` for a
   reference that takes a numeric id or a name, strict so that a JSON `true` or
   `7.0` is rejected instead of read as an id.
+- `tool_params.py` holds the parameter types whose schema description is the
+  same in every tool that takes them (see [Descriptions](#descriptions)).
 - Every tool result is a `models.py` dataclass trimmed by the presentation seam
   (`presentation._to_payload`: `select`, hidden-field masking, confirmed-payload
   drop). The one thing JSON cannot carry -- an attachment's image or text as a
@@ -568,11 +573,36 @@ Tool names are `<verb>_<object>`, in snake_case.
 | `bulk_create_`, `bulk_update_` | The same writes, for several objects in one call |
 | `set_` | Sets a flag or state to a given value; idempotent (`set_project_favorite`, `set_work_package_watcher`) |
 | `toggle_` | Only where OpenProject itself toggles and the result depends on the current state (`toggle_activity_emoji_reaction`) |
-| A domain verb | Only when OpenProject names the action itself and it isn't a plain create, update or delete (`copy_project`, `execute_query`, `cancel_recurring_meeting_occurrence`, `init_recurring_meeting_occurrence`, `render_text`, `mark_notifications_read`) |
+| A domain verb | Only when OpenProject names the action itself and it isn't a plain create, update or delete (`copy_project`, `execute_query`, `cancel_recurring_meeting_occurrence`, `init_recurring_meeting_occurrence`, `end_recurring_meeting`, `render_text`, `mark_notifications_read`) |
 
 Exceptions to this scheme: `add_work_package_comment`, and
 `get_work_package_relations` and `get_work_package_activities`, which return
 collections.
+
+#### Annotations
+
+Every tool declares the MCP tool annotations `readOnlyHint`, `destructiveHint`,
+`idempotentHint` and `openWorldHint`, derived in `tool_annotations.py` from the
+tool's classification in `tools.py`, never hand-written as a `ToolAnnotations`
+per tool. A write tool is annotated by what `confirm=true` does, not by its
+preview.
+
+`idempotentHint` is true only if a second identical confirmed call changes
+nothing at all on any supported OpenProject version: no data, timestamp,
+revision counter, journal, queued job, notification, mail or webhook. The hints
+are per tool, so an effect that only some arguments or some versions cause
+still makes the tool non-idempotent. `openWorldHint` is true for every tool:
+each call acts on an external OpenProject instance whose data other users
+change.
+
+The generic verbs map by prefix: `create_`/`bulk_create_` add, `update_`/
+`bulk_update_`/`set_` overwrite and `delete_` removes (both idempotent), and
+`toggle_` flips. A domain verb, or a generic-verb tool whose effect differs
+from its verb, needs an explicit entry in `_EFFECT_BY_TOOL`: a `create_` that
+also moves an existing work package's dates, or an `update_`/`delete_` whose
+repeat still changes or sends something (a timestamp, a revision counter, a
+mail, a webhook, another background job). A write tool covered by neither, or
+an entry naming no write tool, fails at import.
 
 #### Objects
 
@@ -622,6 +652,28 @@ it short:
   against duplicating the CE server instructions.
 - Name a related tool only when the agent needs it to use this one correctly
   (for example, where an id comes from).
+- The first line states the action ("Delete a version."). The preview step is
+  described once, by the `confirm` parameter, not in each description.
+- A consequence of a write (what else it removes or changes, whether it runs in
+  the background) is stated only with evidence in the OpenProject source of
+  every supported version. A fact that differs between versions names its
+  range ("17.1+: ..."). The evidence lives in `openproject-ce-mcp-int`
+  `30-implementation/opm-571-tool-facts.md`, not in the code.
+- A `delete_` tool whose deletion cannot be restored through OpenProject says
+  so ("this cannot be undone"); where OpenProject can restore it, the
+  description names how.
+
+Parameters describe themselves in the input schema:
+`Annotated[<type>, Field(description=...)]` in the tool signature. A parameter
+whose meaning is the same in every tool uses the shared alias from
+`tool_params.py` (`Confirm`, `BulkConfirm`, `WorkPackageRef`, `ProjectRef`,
+`Offset`, `Limit`, and `select_field(row_type, ...)`, which names the complete
+set of fields `select` accepts from the same function the validator uses).
+`BulkConfirm` is for writes that keep the items written before a failure. A
+description says what is not obvious from the name and type: format, unit,
+allowed values, what omitting it means. `tests/test_tool_definitions.py` checks
+the shared meanings, pins the claims a changelog entry promises, and rejects a
+description that only restates its name.
 
 ### Group placement
 
@@ -679,7 +731,9 @@ switch.
 
 The model has two independent layers:
 
-**Layer 1 — MCP server gates** (env var flags, checked before any HTTP call):
+**Layer 1: MCP server gates** (env var flags, checked before any HTTP call).
+The MCP tool annotations each tool declares are hints clients may act on (some
+skip their own confirmation for read-only tools), not one of these gates:
 
 - one `OPENPROJECT_ENABLE_<GROUP>_READ` flag per tool group (which read scopes
   are exposed at all; the opt-in `OPENPROJECT_ENABLE_EXTENDED_READ` exposes a
@@ -706,7 +760,7 @@ The model has two independent layers:
   the instance's origin no hop gets the client's authentication, so no
   credential reaches a pre-signed object-storage URL
 
-**Layer 2 — OpenProject server permissions** (enforced by the API, not the MCP):
+**Layer 2: OpenProject server permissions** (enforced by the API, not the MCP):
 
 The MCP server acts on behalf of the user whose API token is configured. If that
 user lacks the required role or project permission in OpenProject, the API

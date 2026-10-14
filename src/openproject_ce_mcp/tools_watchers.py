@@ -13,9 +13,12 @@ import them directly from `openproject_ce_mcp.tools`.
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from mcp.server.mcpserver import Context
 
 from .models import WatcherListResult, WatcherSummary, WatcherWriteResult
+from .tool_params import Confirm, WorkPackageRef, select_field
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import _validate_positive_int, _validate_select, _validate_work_package_ref
 
@@ -23,15 +26,10 @@ from .tools_validation import _validate_positive_int, _validate_select, _validat
 @register_tool
 async def list_work_package_watchers(
     ctx: Context,
-    work_package_id: int | str,
-    select: list[str] | None = None,
+    work_package_id: WorkPackageRef,
+    select: Annotated[list[str] | None, select_field(WatcherSummary)] = None,
 ) -> WatcherListResult:
-    """List watchers of a work package.
-
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
-
-    select fields: id, name (see server instructions for select's general semantics).
-    """
+    """List watchers of a work package."""
     client = _client_from_context(ctx)
     safe_id = _validate_work_package_ref(work_package_id)
     _validate_select(select, row_type=WatcherSummary)
@@ -41,14 +39,13 @@ async def list_work_package_watchers(
 @register_tool
 async def set_work_package_watcher(
     ctx: Context,
-    work_package_id: int | str,
+    work_package_id: WorkPackageRef,
     user_id: int,
     watching: bool,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> WatcherWriteResult:
-    """Prepare or add/remove a watcher on a work package.
+    """Add/remove a watcher on a work package.
 
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
     watching=true adds the watcher; watching=false removes it. The two
     previews are NOT symmetric: watching=true's preview looks up and returns
     the user's summary (result is populated; whether the user already watches

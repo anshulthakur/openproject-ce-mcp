@@ -19,7 +19,10 @@ full moved set rather than only the names a test happens to import today.
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from mcp.server.mcpserver import Context
+from pydantic import Field
 
 from .models import (
     RelationListResult,
@@ -27,6 +30,7 @@ from .models import (
     RelationUpdateResult,
     RelationWriteResult,
 )
+from .tool_params import Confirm, Limit, Offset, WorkPackageRef, select_field
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
     _validate_limit,
@@ -44,16 +48,15 @@ from .tools_validation import (
 @register_tool
 async def create_work_package_relation(
     ctx: Context,
-    work_package_id: int | str,
-    related_to_work_package_id: int | str,
+    work_package_id: WorkPackageRef,
+    related_to_work_package_id: WorkPackageRef,
     relation_type: str,
     description: str | None = None,
     lag: int | None = None,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> RelationWriteResult:
-    """Prepare or create a relation between work packages.
+    """Create a relation between work packages.
 
-    Both work_package_id and related_to_work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
     relation_type: relates, duplicates, duplicated, blocks, blocked, precedes, follows, includes, partof, requires, required.
     work_package_id becomes from_id and related_to_work_package_id becomes to_id — but OpenProject stores
     only one canonical type per pair and silently rewrites the other: creating with relation_type='precedes'
@@ -86,10 +89,13 @@ async def create_work_package_relation(
 @register_tool
 async def delete_relation(
     ctx: Context,
-    relation_id: int,
-    confirm: bool = False,
+    relation_id: Annotated[int, Field(description="Relation id, from list_relations or get_work_package_relations.")],
+    confirm: Confirm = False,
 ) -> RelationWriteResult:
-    """Prepare or delete a relation between work packages."""
+    """Delete a relation between work packages; this cannot be undone.
+
+    Removing a follows/precedes relation reschedules the former successor.
+    """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(relation_id, field_name="relation_id")
     return await _run_tool(client.relation.delete(relation_id=safe_id, confirm=confirm))
@@ -98,14 +104,13 @@ async def delete_relation(
 @register_tool
 async def get_work_package_relations(
     ctx: Context,
-    work_package_id: int | str,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    work_package_id: WorkPackageRef,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(RelationSummary)] = None,
 ) -> RelationListResult:
-    """Get all relations for a work package (blocks, relates to, duplicates, etc.).
+    """Get the relations of one work package (blocks, relates to, duplicates, etc.).
 
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
     type/from_id/to_id reflect how OpenProject actually stored the relation, which does not depend on
     which work package's relations you query — but can differ from how it was originally requested, since
     OpenProject canonicalizes some relation types at creation time (e.g. a relation requested as 'precedes'
@@ -121,13 +126,8 @@ async def get_work_package_relations(
     the precedes/follows type pair (OpenProject's own scheduling-relevant relation types); both stay null
     for every other type, since no other type has an equivalent first/second concept.
 
-    select fields: id, type, to_id (see server instructions for select's general semantics).
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap. total is only
-    the count of allowed relations returned on THIS page, not a full count
-    of all matches — the search stops as soon as it has enough, so an exact
-    total would need an extra full walk. Page until next_offset is null.
+    total is only the count of allowed relations returned on THIS page, not a full count of all matches; the search
+    stops as soon as it has enough, so an exact total would need an extra full walk. Page until next_offset is null.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_work_package_ref(work_package_id)
@@ -141,9 +141,9 @@ async def get_work_package_relations(
 async def list_relations(
     ctx: Context,
     relation_type: str | None = None,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(RelationSummary)] = None,
 ) -> RelationListResult:
     """List all relations across the instance, optionally filtered by type (e.g. 'blocks', 'follows').
 
@@ -158,13 +158,8 @@ async def list_relations(
     anchor work package to read the relation FROM, and this instance-wide listing has none. Use
     get_work_package_relations instead when you need queried_perspective populated.
 
-    select fields: id, type, to_id (see server instructions for select's general semantics).
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap. total is only
-    the count of allowed relations returned on THIS page, not a full count
-    of all matches — the search stops as soon as it has enough, so an exact
-    total would need an extra full walk. Page until next_offset is null.
+    total is only the count of allowed relations returned on THIS page, not a full count of all matches; the search
+    stops as soon as it has enough, so an exact total would need an extra full walk. Page until next_offset is null.
     """
     client = _client_from_context(ctx)
     safe_type = _validate_relation_type(relation_type) if relation_type else None
@@ -180,9 +175,9 @@ async def update_relation(
     relation_id: int,
     relation_type: str | None = None,
     description: str | None = None,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> RelationUpdateResult:
-    """Prepare or update the type or description of a relation. Set confirm=true to write.
+    """Update the type or description of a relation.
 
     relation_type is subject to the same write-time canonicalization as create_work_package_relation:
     setting it to a "reverse" pair member (precedes, blocked, duplicated, partof, required) rewrites the

@@ -1,13 +1,13 @@
 """Schema-drift gate for the full MCP tool catalog.
 
-Treats the ~190-tool MCP surface as a de facto public API ahead of a future
+Treats the ~196-tool MCP surface as a de facto public API ahead of a future
 1.0. Captures name, inputSchema, output structure, read/write classification,
 and required capability (env var) for every registered tool, and fails until
 the fixture below is deliberately updated to match an intentional change.
 
 This complements, and deliberately does not duplicate, the existing
 `tests/test_*_tools_schema_characterization.py` suite (one file per domain,
-already exhaustive at 190/190 tools, each asserting a tool's full
+already exhaustive at 196/196 tools, each asserting a tool's full
 description/parameters/output_schema verbatim). That suite exists to freeze
 each domain's own contract in place across refactors (e.g. moving a tool
 between files); this one exists to make "the whole catalog is one contract"
@@ -15,7 +15,7 @@ an explicit, single, versioned artifact with read/write classification and
 capability metadata neither that suite nor anything else in this project
 currently captures.
 
-Captured from `release/0.5.0` (190 tools) via a live MCPServer built through
+Captured from `release/0.5.0` (196 tools) via a live MCPServer built through
 `server.create_app()` under maximally-permissive Settings (every scope
 enabled, `attachment_root` set) -- the source of truth this test protects.
 Do not "fix" this fixture to match a future change without confirming the
@@ -23,7 +23,7 @@ new tool-contract shape is actually intended.
 
 Fixture format per tool:
 - `description_hash`: sha256 of the tool's full docstring/description, not
-  the text itself. Storing ~190 multi-line docstrings verbatim would make
+  the text itself. Storing ~196 multi-line docstrings verbatim would make
   every prose wording improvement (typo fix, clarity pass) trip this gate --
   noise that trains reviewers to rubber-stamp updates, defeating its purpose.
   Hashing still catches presence/absence and any edit; the actual current
@@ -35,6 +35,8 @@ Fixture format per tool:
   tools registered with `structured_output=False` (select/write-trimmable
   tools -- see `tools_runtime.register_selected_tools`'s docstring). `None`
   here is correct, real behavior for those tools, not a gap to paper over.
+- `annotations`: the MCP tool annotations (readOnlyHint, destructiveHint,
+  idempotentHint, openWorldHint) exactly as a client receives them.
 - `classification`: `"read"` or `"write"`, derived from `tools.py`'s
   `READ_TOOLS_BY_SCOPE`/`WRITE_TOOLS_BY_SCOPE`/`PERSONAL_MUTATION_TOOLS`/
   `ATTACHMENT_UPLOAD_TOOLS` -- the same partition `test_tool_groups.py`
@@ -188,26 +190,35 @@ def _live_catalog() -> dict[str, Any]:
 
 @pytest.fixture(scope="module")
 def live_catalog() -> dict[str, Any]:
-    # Built once per test run, not once per parametrized case (190 of them) --
+    # Built once per test run, not once per parametrized case (196 of them) --
     # constructing a full MCPServer registers every tool with the SDK, which
     # is real work, not free introspection.
     return _live_catalog()
 
 
-# Captured from `release/0.5.0` (190 tools) via a live MCPServer built through
+# Captured from `release/0.5.0` (196 tools) via a live MCPServer built through
 # server.create_app() under maximally-permissive Settings -- the source of
 # truth this test protects. Do not "fix" this fixture to match a future
 # change without confirming the new tool-contract shape is actually intended.
 TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
     "add_work_package_comment": {
-        "description_hash": "54408f64cc48930eb4f22e97a8edf7a333b82331495acc7f08b04b11908d00bd",
+        "description_hash": "cfc22f2dd21b7e81c142e947e4c6abea88e519888c0b8e51edb3e27a1ecc4dfb",
         "input_schema": {
             "properties": {
-                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                },
                 "comment": {"title": "Comment", "type": "string"},
                 "internal": {"default": False, "title": "Internal", "type": "boolean"},
                 "notify": {"default": False, "title": "Notify", "type": "boolean"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["work_package_id", "comment"],
             "title": "add_work_package_commentArguments",
@@ -215,21 +226,33 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "bulk_create_work_packages": {
-        "description_hash": "9d0764d0c961440cefc8b3fa629c9a36c1ac0f0d737e87c7828bd35bd2df1aac",
+        "description_hash": "b685c6808e876ad92f384ded3c5fe3400a6ff4ad5927e9bf787feca4b8e1dc80",
         "input_schema": {
             "properties": {
                 "items": {"items": {"additionalProperties": True, "type": "object"}, "title": "Items", "type": "array"},
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: action, error, index, message, payload, project, ready, result, state, success, validation_errors, work_package_id; result.<field> for ancestors, ancestors_truncated, assignee, author, category, children, children_truncated, created_at, custom_comments, custom_comments_truncated, custom_fields, custom_fields_truncated, derived_due_date, derived_estimated_time, derived_percentage_done, derived_remaining_time, derived_start_date, description, description_length, description_truncated, display_id, due_date, duration, estimated_time, has_project_attributes, id, ignore_non_working_days, lock_version, observed_in_versions, parent_display_id, parent_id, percentage_done, priority, project, project_phase, readonly, remaining_time, responsible, schedule_manually, spent_time, sprint, start_date, status, subject, target_versions, type, updated_at, version.",
                     "title": "Select",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview of every item, nothing changes. true: attempts every item; get the user's approval of the preview first. Failed items are reported per item; items already written are not undone.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["items"],
             "title": "bulk_create_work_packagesArguments",
@@ -237,21 +260,28 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "bulk_update_work_packages": {
-        "description_hash": "ea23c200cca4b2d7d67bb95f7c590916bec5cdb4c0d8ce8d4290021b99cdfbc8",
+        "description_hash": "ccceecf3b4368a3e18b0bc10f588753d2efe9fe90484b24b3931725aac29f6de",
         "input_schema": {
             "properties": {
                 "items": {"items": {"additionalProperties": True, "type": "object"}, "title": "Items", "type": "array"},
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: action, error, index, message, payload, project, ready, result, state, success, validation_errors, work_package_id; result.<field> for ancestors, ancestors_truncated, assignee, author, category, children, children_truncated, created_at, custom_comments, custom_comments_truncated, custom_fields, custom_fields_truncated, derived_due_date, derived_estimated_time, derived_percentage_done, derived_remaining_time, derived_start_date, description, description_length, description_truncated, display_id, due_date, duration, estimated_time, has_project_attributes, id, ignore_non_working_days, lock_version, observed_in_versions, parent_display_id, parent_id, percentage_done, priority, project, project_phase, readonly, remaining_time, responsible, schedule_manually, spent_time, sprint, start_date, status, subject, target_versions, type, updated_at, version.",
                     "title": "Select",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview of every item, nothing changes. true: attempts every item; get the user's approval of the preview first. Failed items are reported per item; items already written are not undone.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["items"],
             "title": "bulk_update_work_packagesArguments",
@@ -259,17 +289,23 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "cancel_recurring_meeting_occurrence": {
-        "description_hash": "56b3d4fa1a55c99ce2e11fe9c2091744370502b205647a0ddd09e2cc9a2ee826",
+        "description_hash": "5d8836e220db74a1276640d8801776f70829d264a905a4e20976bfda6464daeb",
         "input_schema": {
             "properties": {
                 "recurring_meeting_id": {"title": "Recurring Meeting Id", "type": "integer"},
                 "start_time": {"title": "Start Time", "type": "string"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["recurring_meeting_id", "start_time"],
             "title": "cancel_recurring_meeting_occurrenceArguments",
@@ -277,36 +313,68 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "copy_project": {
-        "description_hash": "87f62e2006e78c3f3ad2f24169012e96627fab7231088200303cc905c093dad7",
+        "description_hash": "a93f1054d029d88b8f730dbf069b9014d97f4f02bbbc8167005c64da78a00df7",
         "input_schema": {
             "properties": {
-                "source_project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Source Project"},
-                "name": {"title": "Name", "type": "string"},
-                "identifier": {"title": "Identifier", "type": "string"},
+                "source_project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
+                    "title": "Source Project",
+                },
+                "name": {"description": "Display name, at most 255 characters.", "title": "Name", "type": "string"},
+                "identifier": {
+                    "description": 'URL identifier such as "my-proj": letters, digits, ".", "_" and "-".',
+                    "title": "Identifier",
+                    "type": "string",
+                },
                 "description": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Markdown text.",
                     "title": "Description",
                 },
-                "public": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Public"},
-                "active": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Active"},
-                "status": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Status"},
+                "public": {
+                    "anyOf": [{"type": "boolean"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Whether the project is public.",
+                    "title": "Public",
+                },
+                "active": {
+                    "anyOf": [{"type": "boolean"}, {"type": "null"}],
+                    "default": None,
+                    "description": "false means archived.",
+                    "title": "Active",
+                },
+                "status": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Status title, any case, as listed in get_project_admin_context's available_statuses.",
+                    "title": "Status",
+                },
                 "status_explanation": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Markdown text explaining the status.",
                     "title": "Status Explanation",
                 },
                 "parent": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Parent project identifier, id, or name; omit for a top-level project.",
                     "title": "Parent",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["source_project", "name", "identifier"],
             "title": "copy_projectArguments",
@@ -314,52 +382,85 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "classification": "write",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_WRITE", "OPENPROJECT_ENABLE_PROJECT_READ"),
     },
     "create_board": {
-        "description_hash": "bb5549ef7b4ca6027861ee4228c264566f27fc7f5a94f717cc91e567a250dbc4",
+        "description_hash": "c2512ecfab3e2c90b747623ba08a8dbcc9dfe6ee9c288fbd58dd78647ae9fbef",
         "input_schema": {
             "properties": {
-                "name": {"title": "Name", "type": "string"},
+                "name": {"description": "Board name, at most 255 characters.", "title": "Name", "type": "string"},
                 "project": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                     "title": "Project",
                 },
-                "public": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Public"},
-                "starred": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Starred"},
-                "hidden": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Hidden"},
+                "public": {
+                    "anyOf": [{"type": "boolean"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Visible to other users; false keeps it to its creator.",
+                    "title": "Public",
+                },
+                "starred": {
+                    "anyOf": [{"type": "boolean"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Mark as a favorite query.",
+                    "title": "Starred",
+                },
+                "hidden": {
+                    "anyOf": [{"type": "boolean"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Ignored by OpenProject; the value is not stored.",
+                    "title": "Hidden",
+                },
                 "include_subprojects": {
                     "anyOf": [{"type": "boolean"}, {"type": "null"}],
                     "default": None,
+                    "description": "Also show work packages of subprojects.",
                     "title": "Include Subprojects",
                 },
                 "show_hierarchies": {
                     "anyOf": [{"type": "boolean"}, {"type": "null"}],
                     "default": None,
+                    "description": "Show parent/child tree; cannot combine with group_by, so it defaults to false there.",
                     "title": "Show Hierarchies",
                 },
                 "timeline_visible": {
                     "anyOf": [{"type": "boolean"}, {"type": "null"}],
                     "default": None,
+                    "description": "Show the Gantt timeline.",
                     "title": "Timeline Visible",
                 },
-                "group_by": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Group By"},
+                "group_by": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": 'Group-by attribute id (e.g. "status") or its /api/v3/queries/group_bys/ href.',
+                    "title": "Group By",
+                },
                 "columns": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": 'Column attribute ids (e.g. "id", "subject") or /api/v3/queries/columns/ hrefs.',
                     "title": "Columns",
                 },
                 "sort_by": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": 'Sort criteria, each "field:direction" or "field-direction" (e.g. "id:asc"), a bare field (ascending), or a /api/v3/queries/sort_bys/ href; the direction is case-insensitive.',
                     "title": "Sort By",
                 },
                 "highlighted_attributes": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Column ids or hrefs whose values are highlighted.",
                     "title": "Highlighted Attributes",
                 },
                 "filters": {
@@ -368,9 +469,15 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                         {"type": "null"},
                     ],
                     "default": None,
+                    "description": 'OpenProject query filter objects, sent unchanged, e.g. {"_links": {"filter": {"href": "/api/v3/queries/filters/status"}, "operator": {"href": "/api/v3/queries/operators/o"}, "values": []}}.',
                     "title": "Filters",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["name"],
             "title": "create_boardArguments",
@@ -378,23 +485,44 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "classification": "write",
         "scope": "board",
         "capability_env_vars": ("OPENPROJECT_ENABLE_BOARD_WRITE", "OPENPROJECT_ENABLE_BOARD_READ"),
     },
     "create_grid": {
-        "description_hash": "88ecbed24d75f9091ffd45ab9c0bda556f5b0a4aa24976e09b351341dc0fc4bc",
+        "description_hash": "4821d953034eef65d9ac10f2532f658909a6d7ca6a5a47e633e506937e41340c",
         "input_schema": {
             "properties": {
-                "name": {"title": "Name", "type": "string"},
-                "scope": {"title": "Scope", "type": "string"},
-                "row_count": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Row Count"},
+                "name": {"description": "Display name, at most 255 characters.", "title": "Name", "type": "string"},
+                "scope": {
+                    "description": 'Page path: "/my/page", "/projects/<identifier>" or "/projects/<identifier>/boards", after the instance\'s root path on a subpath install. Any other scope is rejected before a request.',
+                    "title": "Scope",
+                    "type": "string",
+                },
+                "row_count": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Positive integer; omitted lets OpenProject choose.",
+                    "title": "Row Count",
+                },
                 "column_count": {
                     "anyOf": [{"type": "integer"}, {"type": "null"}],
                     "default": None,
+                    "description": "Positive integer; omitted lets OpenProject choose.",
                     "title": "Column Count",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["name", "scope"],
             "title": "create_gridArguments",
@@ -402,21 +530,33 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "classification": "write",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_WRITE", "OPENPROJECT_ENABLE_PROJECT_READ"),
     },
     "create_group": {
-        "description_hash": "a0dfd38457891fdceb730d654ff5bd6d292e9078c5ee9878c0fc95df8de6fbc2",
+        "description_hash": "4146994f264683e03bcbb31eb3ae2fd5e540a72438b979360f0731c57744d7ac",
         "input_schema": {
             "properties": {
-                "name": {"title": "Name", "type": "string"},
+                "name": {"description": "Group display name.", "title": "Name", "type": "string"},
                 "user_ids": {
                     "anyOf": [{"items": {"type": "integer"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "User ids to add as initial members; omit for an empty group.",
                     "title": "User Ids",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["name"],
             "title": "create_groupArguments",
@@ -424,15 +564,25 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "classification": "write",
         "scope": "admin",
         "capability_env_vars": ("OPENPROJECT_ENABLE_ADMIN_WRITE", "OPENPROJECT_ENABLE_ADMIN_READ"),
     },
     "create_meeting": {
-        "description_hash": "300a863034d4f3a0f5d0e923b99d46f15587fbdd0ffeb6a7b2c932980457b7ec",
+        "description_hash": "a8f032bad5212f81702941047cbea46264a0020c0dc4ef125f8c4e4e293b804f",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
+                    "title": "Project",
+                },
                 "title": {"title": "Title", "type": "string"},
                 "location": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Location"},
                 "start_time": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Start Time"},
@@ -446,9 +596,15 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                         {"type": "null"},
                     ],
                     "default": None,
+                    "description": "Users to invite (id, login or name). Known issue: OpenProject's create form drops this list; only the creating user is added as an invited participant.",
                     "title": "Participant User Refs",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["project", "title"],
             "title": "create_meetingArguments",
@@ -456,34 +612,66 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "classification": "write",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "create_meeting_agenda_item": {
-        "description_hash": "305625a53c4a9c19141a005bc86b299aa9628ab9bafdb837e261566b72eec71f",
+        "description_hash": "f0c157116c46891295fef4b79acf45e6eaaa0040a8125bac5547f114cec39180",
         "input_schema": {
             "properties": {
-                "meeting_id": {"title": "Meeting Id", "type": "integer"},
-                "title": {"title": "Title", "type": "string"},
-                "notes": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Notes"},
+                "meeting_id": {
+                    "description": "Meeting id, from list_meetings.",
+                    "title": "Meeting Id",
+                    "type": "integer",
+                },
+                "title": {
+                    "description": "Item title, at most 255 characters; always required here.",
+                    "title": "Title",
+                    "type": "string",
+                },
+                "notes": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Notes in Markdown, at most 50,000 characters.",
+                    "title": "Notes",
+                },
                 "duration_in_minutes": {
                     "anyOf": [{"type": "integer"}, {"type": "null"}],
                     "default": None,
+                    "description": "Planned duration in minutes, 0 to 1440.",
                     "title": "Duration In Minutes",
                 },
-                "item_type": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Item Type"},
+                "item_type": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": '"simple" (a titled item) or "work_package" (an item for the work package given in work_package_id, which it then requires).',
+                    "title": "Item Type",
+                },
                 "work_package_id": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                     "title": "Work Package Id",
                 },
                 "meeting_section_id": {
                     "anyOf": [{"type": "integer"}, {"type": "null"}],
                     "default": None,
+                    "description": "Section of this meeting to add the item to, from list_meeting_sections; default: the last.",
                     "title": "Meeting Section Id",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["meeting_id", "title"],
             "title": "create_meeting_agenda_itemArguments",
@@ -491,12 +679,18 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "classification": "write",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "create_meeting_outcome": {
-        "description_hash": "898ffa9196658bc91e79c5e73ece3c2bcabe96d6079f87e985f75fab369258fd",
+        "description_hash": "173ca76991fd4173807b3f920290d30fdc8b4cce3c886f57af534210b898d77e",
         "input_schema": {
             "properties": {
                 "agenda_item_id": {"title": "Agenda Item Id", "type": "integer"},
@@ -505,9 +699,15 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "work_package_id": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                     "title": "Work Package Id",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["agenda_item_id", "kind"],
             "title": "create_meeting_outcomeArguments",
@@ -515,19 +715,30 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "classification": "write",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "create_meeting_section": {
-        "description_hash": "aeb55099ddae1bc377f76cc2f7a92aebd7f50910f2a75089ad5aaffaebbfdded",
+        "description_hash": "79cf0a014932899335ef7d93adc84046262a583bb8993dab8ffc9979bec6d9b6",
         "input_schema": {
             "properties": {
                 "meeting_id": {"title": "Meeting Id", "type": "integer"},
                 "title": {"title": "Title", "type": "string"},
                 "position": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Position"},
                 "backlog": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Backlog"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["meeting_id", "title"],
             "title": "create_meeting_sectionArguments",
@@ -535,17 +746,32 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "classification": "write",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "create_membership": {
-        "description_hash": "7e16b4580a50fd39ef23238ec1af14eeae93f99c61361c40144fe2718f1811cd",
+        "description_hash": "350ae298a0ebbbab46421f951fbd7cbe34c190f1706089132a0c9ed2cb37096f",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
-                "principal": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Principal"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
+                    "title": "Project",
+                },
+                "principal": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'User or group: numeric id, exact name (case-insensitive), or "me".',
+                    "title": "Principal",
+                },
                 "roles": {
+                    "description": "At least one; role ids or exact role names (case-insensitive), from list_roles.",
                     "items": {"anyOf": [{"type": "integer"}, {"type": "string"}]},
                     "title": "Roles",
                     "type": "array",
@@ -553,9 +779,15 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "notification_message": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Markdown text for OpenProject's membership notification.",
                     "title": "Notification Message",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["project", "principal", "roles"],
             "title": "create_membershipArguments",
@@ -563,23 +795,44 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "classification": "write",
         "scope": "membership",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEMBERSHIP_WRITE", "OPENPROJECT_ENABLE_MEMBERSHIP_READ"),
     },
     "create_news": {
-        "description_hash": "52796c0098278a3719974e8db86917173d7c4b4243f6dc657ba596075e8d97db",
+        "description_hash": "d25f05285f47058bea5431594b27b8732013a3a31d5f6f392d2107dd4df23c20",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
-                "title": {"title": "Title", "type": "string"},
-                "summary": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Summary"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
+                    "title": "Project",
+                },
+                "title": {"description": "At most 255 characters.", "title": "Title", "type": "string"},
+                "summary": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Short plain text, at most 500 characters.",
+                    "title": "Summary",
+                },
                 "description": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Full text in Markdown.",
                     "title": "Description",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["project", "title"],
             "title": "create_newsArguments",
@@ -587,35 +840,68 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "classification": "write",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_WRITE", "OPENPROJECT_ENABLE_PROJECT_READ"),
     },
     "create_project": {
-        "description_hash": "7bf66547bfca2ccaa5b1b0c0f4d9d093ec45d7488af18a74d1d2f276a771a0ed",
+        "description_hash": "c074f385b51e34ed55741b67dbf98b78dad7c3977f6f34310ba136cff1dc7b66",
         "input_schema": {
             "properties": {
-                "name": {"title": "Name", "type": "string"},
-                "identifier": {"title": "Identifier", "type": "string"},
+                "name": {"description": "Display name, at most 255 characters.", "title": "Name", "type": "string"},
+                "identifier": {
+                    "description": 'URL identifier such as "my-proj": letters, digits, ".", "_" and "-".',
+                    "title": "Identifier",
+                    "type": "string",
+                },
                 "description": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Markdown text.",
                     "title": "Description",
                 },
-                "public": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Public"},
-                "active": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Active"},
-                "status": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Status"},
+                "public": {
+                    "anyOf": [{"type": "boolean"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Whether the project is public.",
+                    "title": "Public",
+                },
+                "active": {
+                    "anyOf": [{"type": "boolean"}, {"type": "null"}],
+                    "default": None,
+                    "description": "false means archived.",
+                    "title": "Active",
+                },
+                "status": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Status title, any case, as listed in get_project_admin_context's available_statuses.",
+                    "title": "Status",
+                },
                 "status_explanation": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Markdown text explaining the status.",
                     "title": "Status Explanation",
                 },
                 "parent": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Parent project identifier, id, or name; omit for a top-level project.",
                     "title": "Parent",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["name", "identifier"],
             "title": "create_projectArguments",
@@ -623,42 +909,84 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "classification": "write",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_WRITE", "OPENPROJECT_ENABLE_PROJECT_READ"),
     },
     "create_recurring_meeting": {
-        "description_hash": "c000259df9edd401570ddc4ab9926dbe716917efc075441bcb59df168ce561ce",
+        "description_hash": "22537dd9f2afada7eb6945229dac93923dd46414adffd93bb0ec00394f067035",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
-                "title": {"title": "Title", "type": "string"},
-                "frequency": {"title": "Frequency", "type": "string"},
-                "start_time": {"title": "Start Time", "type": "string"},
-                "interval": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Interval"},
-                "end_after": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "End After"},
-                "end_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "End Date"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
+                    "title": "Project",
+                },
+                "title": {"description": "Series title, at most 255 characters.", "title": "Title", "type": "string"},
+                "frequency": {
+                    "description": '"daily", "working_days", "weekly", and from 17.5 "monthly_day_of_month" or "monthly_nth_weekday".',
+                    "title": "Frequency",
+                    "type": "string",
+                },
+                "start_time": {
+                    "description": "First occurrence, ISO 8601 date-time with offset; its time of day is the series'.",
+                    "title": "Start Time",
+                    "type": "string",
+                },
+                "interval": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": 'Every n-th day, week or month, 1 to 100; "working_days" always uses 1.',
+                    "title": "Interval",
+                },
+                "end_after": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": '"never" (default), "specific_date" (requires end_date) or "iterations" (requires iterations).',
+                    "title": "End After",
+                },
+                "end_date": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": 'Last date (YYYY-MM-DD); required for end_after "specific_date".',
+                    "title": "End Date",
+                },
                 "iterations": {
                     "anyOf": [{"type": "integer"}, {"type": "null"}],
                     "default": None,
+                    "description": 'Number of occurrences, 1 to 1000; required for end_after "iterations".',
                     "title": "Iterations",
                 },
                 "monthly_day": {
                     "anyOf": [{"type": "integer"}, {"type": "null"}],
                     "default": None,
+                    "description": 'Day of month, 1 to 31; required for "monthly_day_of_month".',
                     "title": "Monthly Day",
                 },
                 "monthly_ordinal": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": '"1" to "4", or "-1" for the last; required for "monthly_nth_weekday".',
                     "title": "Monthly Ordinal",
                 },
                 "monthly_weekday": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": 'Lowercase English weekday, e.g. "monday"; required for "monthly_nth_weekday".',
                     "title": "Monthly Weekday",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["project", "title", "frequency", "start_time"],
             "title": "create_recurring_meetingArguments",
@@ -666,12 +994,18 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "classification": "write",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "create_storage": {
-        "description_hash": "433b30d44dfe43faea627f219f55a4e6b65e669f8d2a85fad4a639976abe7deb",
+        "description_hash": "2d097e983fc0dc089c2def81565876c5dcc822950fdf94fbe211cbb78e7cdb64",
         "input_schema": {
             "properties": {
                 "name": {"title": "Name", "type": "string"},
@@ -684,7 +1018,12 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 },
                 "tenant_id": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Tenant Id"},
                 "drive_id": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Drive Id"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["name", "provider_type"],
             "title": "create_storageArguments",
@@ -692,16 +1031,23 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "classification": "write",
         "scope": "admin",
         "capability_env_vars": ("OPENPROJECT_ENABLE_ADMIN_WRITE", "OPENPROJECT_ENABLE_ADMIN_READ"),
     },
     "create_subtask": {
-        "description_hash": "6094d30797a1bd43066b05580cc0971ad80ee5f528369c2883e2188ee11318a4",
+        "description_hash": "85773c7e56f9e56bf2b842e99b7de8350ab60b9c8c0949d4369bd5c0592bf35f",
         "input_schema": {
             "properties": {
                 "parent_work_package_id": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                     "title": "Parent Work Package Id",
                 },
                 "type": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Type"},
@@ -764,7 +1110,12 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 },
                 "start_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Start Date"},
                 "due_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Due Date"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["parent_work_package_id", "type", "subject"],
             "title": "create_subtaskArguments",
@@ -772,12 +1123,13 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "create_time_entry": {
-        "description_hash": "cb7d094a4d57bce51be6e51fd25b0ca5ce8edb7e0a1f50adb78ddc03d52a8934",
+        "description_hash": "c155819f20714231f24cd9faae2fa3d5f6dd3289dbede442481def06e7520022",
         "input_schema": {
             "properties": {
                 "activity": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Activity"},
@@ -786,11 +1138,13 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "project": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                     "title": "Project",
                 },
                 "work_package_id": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                     "title": "Work Package Id",
                 },
                 "user": {
@@ -801,7 +1155,12 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "start_time": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Start Time"},
                 "comment": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Comment"},
                 "ongoing": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Ongoing"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["activity", "hours", "spent_on"],
             "title": "create_time_entryArguments",
@@ -809,12 +1168,18 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "create_time_entry_until": {
-        "description_hash": "cef14465b5cd8dc9104c3258f4d249a635585ed60dbd9dcb4a617346c3212d92",
+        "description_hash": "1dd2f986349c092931f616a6684b830618ae6b9ceb552a39f03f029d3ba62d60",
         "input_schema": {
             "properties": {
                 "activity": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Activity"},
@@ -824,11 +1189,13 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "project": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                     "title": "Project",
                 },
                 "work_package_id": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                     "title": "Work Package Id",
                 },
                 "user": {
@@ -837,7 +1204,12 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "title": "User",
                 },
                 "comment": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Comment"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["activity", "start_time", "end_time", "spent_on"],
             "title": "create_time_entry_untilArguments",
@@ -845,23 +1217,54 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "create_user": {
-        "description_hash": "53dc63ce8b0aeb0c08a8626fa4dde65342a896bcc7bc01ca5166ab705727b9b5",
+        "description_hash": "a3baeb40223723d36dac03b4f0b3ced42df781885fbdad876443efd4ddab3eb4",
         "input_schema": {
             "properties": {
-                "login": {"title": "Login", "type": "string"},
-                "email": {"title": "Email", "type": "string"},
-                "firstname": {"title": "Firstname", "type": "string"},
-                "lastname": {"title": "Lastname", "type": "string"},
-                "password": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Password"},
-                "admin": {"default": False, "title": "Admin", "type": "boolean"},
-                "status": {"default": "active", "title": "Status", "type": "string"},
-                "language": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Language"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "login": {"description": "Login name used to sign in.", "title": "Login", "type": "string"},
+                "email": {"description": "Email address.", "title": "Email", "type": "string"},
+                "firstname": {"description": "Given name.", "title": "Firstname", "type": "string"},
+                "lastname": {"description": "Family name.", "title": "Lastname", "type": "string"},
+                "password": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Initial password; not sent when omitted.",
+                    "title": "Password",
+                },
+                "admin": {
+                    "default": False,
+                    "description": "true grants OpenProject administrator rights.",
+                    "title": "Admin",
+                    "type": "boolean",
+                },
+                "status": {
+                    "default": "active",
+                    "description": "Initial account status, checked by OpenProject's user form.",
+                    "title": "Status",
+                    "type": "string",
+                },
+                "language": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": 'Language code such as "en".',
+                    "title": "Language",
+                },
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["login", "email", "firstname", "lastname"],
             "title": "create_userArguments",
@@ -869,18 +1272,29 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "classification": "write",
         "scope": "admin",
         "capability_env_vars": ("OPENPROJECT_ENABLE_ADMIN_WRITE", "OPENPROJECT_ENABLE_ADMIN_READ"),
     },
     "create_user_non_working_time": {
-        "description_hash": "6d3e6785338c17c49023a78be8243012e15df84f17056bbb40e6edb5e83c6538",
+        "description_hash": "a3257715f03dfb9905fe2f5f280fdab69f29d277238e6d20bec9e32c3314fff7",
         "input_schema": {
             "properties": {
                 "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
                 "start_date": {"title": "Start Date", "type": "string"},
                 "end_date": {"title": "End Date", "type": "string"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["user_ref", "start_date", "end_date"],
             "title": "create_user_non_working_timeArguments",
@@ -888,57 +1302,84 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "classification": "write",
         "scope": "user_schedule",
         "capability_env_vars": ("OPENPROJECT_ENABLE_USER_SCHEDULE_WRITE", "OPENPROJECT_ENABLE_USER_SCHEDULE_READ"),
     },
     "create_user_working_hours": {
-        "description_hash": "c3699f8e1c3f4afe4ce3e37c90032e3f26674219e48bb9349723f8e58ee590fd",
+        "description_hash": "abc00b81fa08e25dcd467c9e1925b9c9fb0ac340d6bedcd0d03b8559f9369d85",
         "input_schema": {
             "properties": {
-                "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
-                "valid_from": {"title": "Valid From", "type": "string"},
+                "user_ref": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": '"me", a numeric user id, or a login.',
+                    "title": "User Ref",
+                },
+                "valid_from": {
+                    "description": "Date (YYYY-MM-DD) this schedule version takes effect; unique per user.",
+                    "title": "Valid From",
+                    "type": "string",
+                },
                 "monday_hours": {
                     "anyOf": [{"type": "number"}, {"type": "null"}],
                     "default": None,
+                    "description": "Hours that day, 0 to 24; omitted means 0 (not a working day). At least one day must be above 0.",
                     "title": "Monday Hours",
                 },
                 "tuesday_hours": {
                     "anyOf": [{"type": "number"}, {"type": "null"}],
                     "default": None,
+                    "description": "Hours that day, 0 to 24; omitted means 0 (not a working day). At least one day must be above 0.",
                     "title": "Tuesday Hours",
                 },
                 "wednesday_hours": {
                     "anyOf": [{"type": "number"}, {"type": "null"}],
                     "default": None,
+                    "description": "Hours that day, 0 to 24; omitted means 0 (not a working day). At least one day must be above 0.",
                     "title": "Wednesday Hours",
                 },
                 "thursday_hours": {
                     "anyOf": [{"type": "number"}, {"type": "null"}],
                     "default": None,
+                    "description": "Hours that day, 0 to 24; omitted means 0 (not a working day). At least one day must be above 0.",
                     "title": "Thursday Hours",
                 },
                 "friday_hours": {
                     "anyOf": [{"type": "number"}, {"type": "null"}],
                     "default": None,
+                    "description": "Hours that day, 0 to 24; omitted means 0 (not a working day). At least one day must be above 0.",
                     "title": "Friday Hours",
                 },
                 "saturday_hours": {
                     "anyOf": [{"type": "number"}, {"type": "null"}],
                     "default": None,
+                    "description": "Hours that day, 0 to 24; omitted means 0 (not a working day). At least one day must be above 0.",
                     "title": "Saturday Hours",
                 },
                 "sunday_hours": {
                     "anyOf": [{"type": "number"}, {"type": "null"}],
                     "default": None,
+                    "description": "Hours that day, 0 to 24; omitted means 0 (not a working day). At least one day must be above 0.",
                     "title": "Sunday Hours",
                 },
                 "availability_factor": {
                     "anyOf": [{"type": "number"}, {"type": "null"}],
                     "default": None,
+                    "description": "Percentage of the working time dedicated to project work: pass a whole number 0 to 100.",
                     "title": "Availability Factor",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["user_ref", "valid_from"],
             "title": "create_user_working_hoursArguments",
@@ -946,26 +1387,62 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "classification": "write",
         "scope": "user_schedule",
         "capability_env_vars": ("OPENPROJECT_ENABLE_USER_SCHEDULE_WRITE", "OPENPROJECT_ENABLE_USER_SCHEDULE_READ"),
     },
     "create_version": {
-        "description_hash": "91f57521a717a5716a7bbde090ac3101362bb6776358178f06e360f58ffc5fd6",
+        "description_hash": "7973b9ed9465f02cb58c99d5b93b4128da509c43e971ad9c4b1271ca56d2a804",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
-                "name": {"title": "Name", "type": "string"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
+                    "title": "Project",
+                },
+                "name": {"description": "Display name, at most 60 characters.", "title": "Name", "type": "string"},
                 "description": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Plain text, not Markdown.",
                     "title": "Description",
                 },
-                "start_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Start Date"},
-                "end_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "End Date"},
-                "status": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Status"},
-                "sharing": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Sharing"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "start_date": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "ISO 8601 date (YYYY-MM-DD).",
+                    "title": "Start Date",
+                },
+                "end_date": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "ISO 8601 date (YYYY-MM-DD).",
+                    "title": "End Date",
+                },
+                "status": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": 'One of "open", "locked", "closed".',
+                    "title": "Status",
+                },
+                "sharing": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": 'One of "none", "descendants", "hierarchy", "tree".',
+                    "title": "Sharing",
+                },
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["project", "name"],
             "title": "create_versionArguments",
@@ -973,15 +1450,25 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "classification": "write",
         "scope": "version",
         "capability_env_vars": ("OPENPROJECT_ENABLE_VERSION_WRITE", "OPENPROJECT_ENABLE_VERSION_READ"),
     },
     "create_work_package": {
-        "description_hash": "51c706fe38e0a9aaf9ecf360f36f73ace7e36103af0e080c3e42c138bc101ec1",
+        "description_hash": "734f9261af0714257971a20f8c776b7a74f3dc1753fd03569b003a7959a34cb2",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
+                    "title": "Project",
+                },
                 "type": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Type"},
                 "subject": {"title": "Subject", "type": "string"},
                 "description": {
@@ -1058,7 +1545,12 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "title": "Remaining Time",
                 },
                 "duration": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Duration"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["project", "type", "subject"],
             "title": "create_work_packageArguments",
@@ -1066,22 +1558,37 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "create_work_package_attachment": {
-        "description_hash": "eb59309b834553512ac4510bf7b50608b706f32ec3f0c27700d410f683c5fbd7",
+        "description_hash": "de4640bb99bab1efee4498f6bb25b659e2f45c213e37045449ea46acfefc651a",
         "input_schema": {
             "properties": {
-                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
-                "file_path": {"title": "File Path", "type": "string"},
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                },
+                "file_path": {
+                    "description": "Path on the MCP server's machine, inside OPENPROJECT_ATTACHMENT_ROOT; uploaded under its file name.",
+                    "title": "File Path",
+                    "type": "string",
+                },
                 "description": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Markdown text stored with the attachment.",
                     "title": "Description",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["work_package_id", "file_path"],
             "title": "create_work_package_attachmentArguments",
@@ -1089,6 +1596,12 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": (
@@ -1098,12 +1611,17 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         ),
     },
     "create_work_package_relation": {
-        "description_hash": "08ec621131fc210c11c4a2a53343f414b7316804154878131cfc108afed5bba4",
+        "description_hash": "01525b9f7ed32a5fba14f3db27a4fd1a9757053453937f97ec93b54935e200ec",
         "input_schema": {
             "properties": {
-                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                },
                 "related_to_work_package_id": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                     "title": "Related To Work Package Id",
                 },
                 "relation_type": {"title": "Relation Type", "type": "string"},
@@ -1113,7 +1631,12 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "title": "Description",
                 },
                 "lag": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Lag"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["work_package_id", "related_to_work_package_id", "relation_type"],
             "title": "create_work_package_relationArguments",
@@ -1121,18 +1644,28 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "create_work_package_reminder": {
-        "description_hash": "56e732d5fec9df95c070010f45a27499850e3b8b461367782bf6dd9370d3d234",
+        "description_hash": "fe186c60bfe8aaa9cbabe70ae573cbb64fe291c3213790be4464ff2e95ae0233",
         "input_schema": {
             "properties": {
-                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                },
                 "remind_at": {"title": "Remind At", "type": "string"},
                 "note": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Note"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["work_package_id", "remind_at"],
             "title": "create_work_package_reminderArguments",
@@ -1140,18 +1673,33 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "create_work_package_wiki_link": {
-        "description_hash": "b1e1e6573fab14efc5c0df265f08a2a070309de65656c9fcfebb1622e3788b93",
+        "description_hash": "fd79c474c732449c074f41962c6f9a3b3c0383a9898112614511319f9f28860d",
         "input_schema": {
             "properties": {
-                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                },
                 "identifier": {"title": "Identifier", "type": "string"},
                 "provider": {"title": "Provider", "type": "string"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["work_package_id", "identifier", "provider"],
             "title": "create_work_package_wiki_linkArguments",
@@ -1159,16 +1707,31 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "delete_attachment": {
-        "description_hash": "c45629222085b064a53d91e018569e122d831aaab90a0ad8ccacd6df2a0567d1",
+        "description_hash": "f8676df92d3a5f08f5b8e49841c09528ec8c1efeff5b4d8e17765342966fcc61",
         "input_schema": {
             "properties": {
-                "attachment_id": {"title": "Attachment Id", "type": "integer"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "attachment_id": {
+                    "description": "Attachment id, from list_work_package_attachments.",
+                    "title": "Attachment Id",
+                    "type": "integer",
+                },
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["attachment_id"],
             "title": "delete_attachmentArguments",
@@ -1176,16 +1739,26 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "delete_board": {
-        "description_hash": "54f1fc77458ae89e2c1c6e35551a29313ffbe15118e4b98de3dfd67456fd55bf",
+        "description_hash": "59e2920be1cf4099b9721f795dada97cd65e9acf03444207ed31249ab4e1c21d",
         "input_schema": {
             "properties": {
-                "board_id": {"title": "Board Id", "type": "integer"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "board_id": {
+                    "description": "Board (saved query) id, from list_boards.",
+                    "title": "Board Id",
+                    "type": "integer",
+                },
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["board_id"],
             "title": "delete_boardArguments",
@@ -1193,16 +1766,26 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "board",
         "capability_env_vars": ("OPENPROJECT_ENABLE_BOARD_WRITE", "OPENPROJECT_ENABLE_BOARD_READ"),
     },
     "delete_file_link": {
-        "description_hash": "82e98fc5644c8cf4d3438992f757ee7ec86731164745735d98766b3515e80ab2",
+        "description_hash": "2c7311fdb11aee22dbc39eba83c01515d097ad110d37914d19bf40973e37410a",
         "input_schema": {
             "properties": {
-                "file_link_id": {"title": "File Link Id", "type": "integer"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "file_link_id": {
+                    "description": "File link id, from list_work_package_file_links.",
+                    "title": "File Link Id",
+                    "type": "integer",
+                },
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["file_link_id"],
             "title": "delete_file_linkArguments",
@@ -1248,16 +1831,22 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "FileLinkWriteResult",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "delete_grid": {
-        "description_hash": "104b9b56e2f05e871d5b07d9fc2547cd2b1f40a535519dee9b8ba5fdd2d13f00",
+        "description_hash": "53827227560f5b01a4f5ba5ddc0ec99daa348a7186e6d086e3cebb724bac9b87",
         "input_schema": {
             "properties": {
                 "grid_id": {"title": "Grid Id", "type": "integer"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["grid_id"],
             "title": "delete_gridArguments",
@@ -1265,16 +1854,22 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_WRITE", "OPENPROJECT_ENABLE_PROJECT_READ"),
     },
     "delete_group": {
-        "description_hash": "2dbc0572c04a32100b57f46f2dbaedf5aa04a0df4adaf3e77d50d68bf97e42e2",
+        "description_hash": "9d4e1e0a1251ba2305c8047caa70831bcdaf10afc4582c59ad9e9e33cae2c465",
         "input_schema": {
             "properties": {
-                "group_id": {"title": "Group Id", "type": "integer"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "group_id": {"description": "Group id, from list_groups.", "title": "Group Id", "type": "integer"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["group_id"],
             "title": "delete_groupArguments",
@@ -1282,16 +1877,22 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
         "classification": "write",
         "scope": "admin",
         "capability_env_vars": ("OPENPROJECT_ENABLE_ADMIN_WRITE", "OPENPROJECT_ENABLE_ADMIN_READ"),
     },
     "delete_meeting": {
-        "description_hash": "5fad75d285222112baeec9e8bd997ce8c9a246ef9e60114e287fd5bfd8e4feff",
+        "description_hash": "6cdc5d095f500f90b05913206ed65b598628f481361c578210573fd3382779b0",
         "input_schema": {
             "properties": {
                 "meeting_id": {"title": "Meeting Id", "type": "integer"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["meeting_id"],
             "title": "delete_meetingArguments",
@@ -1299,16 +1900,22 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "delete_meeting_agenda_item": {
-        "description_hash": "5b97876fa53fac3d84b96cd328417298aaba481dfb4d373787baa0252f109687",
+        "description_hash": "c2ec40d07cb081a56fdba2e4f466793bdf823ae7d56f1c954efbfd6d97fb081e",
         "input_schema": {
             "properties": {
                 "agenda_item_id": {"title": "Agenda Item Id", "type": "integer"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["agenda_item_id"],
             "title": "delete_meeting_agenda_itemArguments",
@@ -1316,16 +1923,22 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "delete_meeting_outcome": {
-        "description_hash": "6d47daa4e97b0ac6991703d3b0a6817294a1daf34f35a765b711c14b39d3a97f",
+        "description_hash": "023a659c7b1b48c563cd9b8221ade2488a53f34572ebbf954ebef63f0be2588c",
         "input_schema": {
             "properties": {
                 "outcome_id": {"title": "Outcome Id", "type": "integer"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["outcome_id"],
             "title": "delete_meeting_outcomeArguments",
@@ -1333,16 +1946,22 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "delete_meeting_section": {
-        "description_hash": "094be266a95b1e99825d53f8576b8dda5be5ea7a36ab8a70a28ee4d4dcbc224b",
+        "description_hash": "f32ef57ed876b960911992944d0e0c25e2ed44b37cc5bfe828ac5b4e195a0118",
         "input_schema": {
             "properties": {
                 "section_id": {"title": "Section Id", "type": "integer"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["section_id"],
             "title": "delete_meeting_sectionArguments",
@@ -1350,16 +1969,26 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "delete_membership": {
-        "description_hash": "e51ba36916e98a2887ef72c02d4d8bd7a5622ba2e5e461ba2adfe8f8e68c7138",
+        "description_hash": "d2fcf53a20f0dc3a3a7cc77ad0432d6b672c3d536ee8aa17733e2c223bca8901",
         "input_schema": {
             "properties": {
-                "membership_id": {"title": "Membership Id", "type": "integer"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "membership_id": {
+                    "description": "Membership id, from list_project_memberships.",
+                    "title": "Membership Id",
+                    "type": "integer",
+                },
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["membership_id"],
             "title": "delete_membershipArguments",
@@ -1367,16 +1996,26 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "membership",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEMBERSHIP_WRITE", "OPENPROJECT_ENABLE_MEMBERSHIP_READ"),
     },
     "delete_news": {
-        "description_hash": "97c6a6726442ad973d0b8fb7614bedf924810f8f10fdf70d003d8d3abc376841",
+        "description_hash": "501e7dc00587a2484ed2e0662ca0726589f52795323caa3cb5a13b65aa649410",
         "input_schema": {
             "properties": {
-                "news_id": {"title": "News Id", "type": "integer"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "news_id": {
+                    "description": "Numeric news id, as returned by list_news.",
+                    "title": "News Id",
+                    "type": "integer",
+                },
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["news_id"],
             "title": "delete_newsArguments",
@@ -1384,16 +2023,26 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_WRITE", "OPENPROJECT_ENABLE_PROJECT_READ"),
     },
     "delete_project": {
-        "description_hash": "08b0389aa495e2849eff6da31502e15bad06733144dfcd8101c7fea9f67122f2",
+        "description_hash": "b431f500403a17bd7177d3beed42ba6256453fb18379c8ad9ade6040763f1703",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
+                    "title": "Project",
+                },
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["project"],
             "title": "delete_projectArguments",
@@ -1401,16 +2050,22 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
         "classification": "write",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_WRITE", "OPENPROJECT_ENABLE_PROJECT_READ"),
     },
     "delete_recurring_meeting": {
-        "description_hash": "f9f31159fedd5cc350fdea0a5c085c6b7471aaa47bf63de40fcf9218312ef1a8",
+        "description_hash": "43ae5fd738c956310a114a2262296efe3ed8460cd122d6314557d58fa1b46191",
         "input_schema": {
             "properties": {
                 "recurring_meeting_id": {"title": "Recurring Meeting Id", "type": "integer"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["recurring_meeting_id"],
             "title": "delete_recurring_meetingArguments",
@@ -1418,16 +2073,26 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "end_recurring_meeting": {
-        "description_hash": "e37a54aa2555e96afbcdc53fa80e0ec274170db58e8de2e8d0ca9bd515818d25",
+        "description_hash": "1f05e06136bdafce99ec31c2db802e5fc6e205e20d6a1696d7e1281892de11f0",
         "input_schema": {
             "properties": {
-                "recurring_meeting_id": {"title": "Recurring Meeting Id", "type": "integer"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "recurring_meeting_id": {
+                    "description": "Recurring meeting series id, from list_recurring_meetings.",
+                    "title": "Recurring Meeting Id",
+                    "type": "integer",
+                },
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["recurring_meeting_id"],
             "title": "end_recurring_meetingArguments",
@@ -1435,16 +2100,26 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
         "classification": "write",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "delete_relation": {
-        "description_hash": "30c1ec2a0768849345524bf7def212f9b31097bde89fc24ae08f4284c261b78e",
+        "description_hash": "7002cd8719c8fad2976753962f9ccee5bcdeb46c356b4a954571b00dcb4fedc7",
         "input_schema": {
             "properties": {
-                "relation_id": {"title": "Relation Id", "type": "integer"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "relation_id": {
+                    "description": "Relation id, from list_relations or get_work_package_relations.",
+                    "title": "Relation Id",
+                    "type": "integer",
+                },
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["relation_id"],
             "title": "delete_relationArguments",
@@ -1452,16 +2127,22 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "delete_reminder": {
-        "description_hash": "ccdc9d0edef4eefabf25aa78d1d4142d656a2e79d44d85b14815b17334f45b7b",
+        "description_hash": "e92fa496523082ae9413fdbfb92847a8944d9300e83ec5ff27ec604dbd390e20",
         "input_schema": {
             "properties": {
                 "reminder_id": {"title": "Reminder Id", "type": "integer"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["reminder_id"],
             "title": "delete_reminderArguments",
@@ -1469,16 +2150,22 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "delete_storage": {
-        "description_hash": "4986c8f1f1dd9ec131da9c2f145f010768198c633e2c4cbe212ad92139f23b4d",
+        "description_hash": "65a0644d72ef4ca8d92bd423a58fc7cb6951f0309cf4c3410fc9014b0416b25c",
         "input_schema": {
             "properties": {
                 "storage_id": {"title": "Storage Id", "type": "integer"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["storage_id"],
             "title": "delete_storageArguments",
@@ -1486,16 +2173,26 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "admin",
         "capability_env_vars": ("OPENPROJECT_ENABLE_ADMIN_WRITE", "OPENPROJECT_ENABLE_ADMIN_READ"),
     },
     "delete_time_entry": {
-        "description_hash": "6f81471e231bf8ee0c563f65caa0b17272e316ab9edd3ed22d2b9f2b9f049ead",
+        "description_hash": "ed7036758fc5671e056d7f15f739fb2c1e38595ada8ca8914c43613d928fe1e5",
         "input_schema": {
             "properties": {
-                "time_entry_id": {"title": "Time Entry Id", "type": "integer"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "time_entry_id": {
+                    "description": "Time entry id, from list_time_entries.",
+                    "title": "Time Entry Id",
+                    "type": "integer",
+                },
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["time_entry_id"],
             "title": "delete_time_entryArguments",
@@ -1503,16 +2200,22 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "delete_user": {
-        "description_hash": "53022b33034eee8aa6368f272b408eca6da497b63fb2913c6e3e3fcf1f894159",
+        "description_hash": "b89db1dbb1dbca26bde4431b7a9fdc64b5c36245bc56b52b612636b0e1bf528e",
         "input_schema": {
             "properties": {
-                "user_id": {"title": "User Id", "type": "integer"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "user_id": {"description": "User id, from list_users.", "title": "User Id", "type": "integer"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["user_id"],
             "title": "delete_userArguments",
@@ -1520,17 +2223,23 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
         "classification": "write",
         "scope": "admin",
         "capability_env_vars": ("OPENPROJECT_ENABLE_ADMIN_WRITE", "OPENPROJECT_ENABLE_ADMIN_READ"),
     },
     "delete_user_non_working_time": {
-        "description_hash": "6f954170770ccef383c8d9bfe21d98517c91ce2265119d6608f7df414eab4770",
+        "description_hash": "bf3dc886ff9d36757b64bd3bf3b33969b31db31ccc6cee1c18cc97cff9c5188c",
         "input_schema": {
             "properties": {
                 "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
                 "non_working_time_id": {"title": "Non Working Time Id", "type": "integer"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["user_ref", "non_working_time_id"],
             "title": "delete_user_non_working_timeArguments",
@@ -1538,17 +2247,23 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "user_schedule",
         "capability_env_vars": ("OPENPROJECT_ENABLE_USER_SCHEDULE_WRITE", "OPENPROJECT_ENABLE_USER_SCHEDULE_READ"),
     },
     "delete_user_working_hours": {
-        "description_hash": "809d94bc9bad678189cbdafea84dc87eb645f0baa95f5773205d579d553b3246",
+        "description_hash": "b6038b09ffdb860e0759fef992a15f2e8ae8910d032a2ea23a880151b395a1ec",
         "input_schema": {
             "properties": {
                 "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
                 "working_hours_id": {"title": "Working Hours Id", "type": "integer"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["user_ref", "working_hours_id"],
             "title": "delete_user_working_hoursArguments",
@@ -1556,16 +2271,26 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "user_schedule",
         "capability_env_vars": ("OPENPROJECT_ENABLE_USER_SCHEDULE_WRITE", "OPENPROJECT_ENABLE_USER_SCHEDULE_READ"),
     },
     "delete_version": {
-        "description_hash": "271b2a18022f0298af06869e2c7b7330af1ed295ce404b9925c94064c79935f5",
+        "description_hash": "5904d06433dfda46bf61e0a624bffe61ee8fc58669ce795e08aac14c24764714",
         "input_schema": {
             "properties": {
-                "version_id": {"title": "Version Id", "type": "integer"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "version_id": {
+                    "description": "Numeric version id, as returned by list_versions.",
+                    "title": "Version Id",
+                    "type": "integer",
+                },
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["version_id"],
             "title": "delete_versionArguments",
@@ -1573,16 +2298,26 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "version",
         "capability_env_vars": ("OPENPROJECT_ENABLE_VERSION_WRITE", "OPENPROJECT_ENABLE_VERSION_READ"),
     },
     "delete_work_package": {
-        "description_hash": "4de0687d45daa1252134abc27ea65a553bc9d1e632cf4bf6f58854ad84188103",
+        "description_hash": "78822f98059b1061884cf54727be8e3187915bb5c7c3247214d0b69cc4f251e8",
         "input_schema": {
             "properties": {
-                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                },
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["work_package_id"],
             "title": "delete_work_packageArguments",
@@ -1590,17 +2325,27 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "delete_work_package_wiki_link": {
-        "description_hash": "fe3b1ec85b893c37bf324db2b11f7157d1f04d9560d491e9659e6cc2fc8198c2",
+        "description_hash": "9fbad131399c44d334097aa21d37ff820c873f01486d56057f6b93623168021a",
         "input_schema": {
             "properties": {
-                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                },
                 "link_id": {"title": "Link Id", "type": "integer"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["work_package_id", "link_id"],
             "title": "delete_work_package_wiki_linkArguments",
@@ -1608,17 +2353,28 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "execute_query": {
-        "description_hash": "cc0736466c7997ecdd03ec642bb5afe4273e4c9373df202ec03307baf380eee6",
+        "description_hash": "cd4612a327ae7d9f7f9c479fa83d1a0fb8d4382ef5d49e14c2a66b4d906ec505",
         "input_schema": {
             "properties": {
                 "query_id": {"title": "Query Id", "type": "integer"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
             },
             "required": ["query_id"],
             "title": "execute_queryArguments",
@@ -1626,6 +2382,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
@@ -1671,6 +2428,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "AttachmentSummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
@@ -1688,6 +2446,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
@@ -1717,6 +2476,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "BacklogBucketDetail",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
@@ -1802,6 +2562,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "BoardDetail",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "board",
         "capability_env_vars": ("OPENPROJECT_ENABLE_BOARD_READ",),
@@ -1814,6 +2575,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "project": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                     "title": "Project",
                 },
             },
@@ -1843,6 +2605,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "CategorySummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
@@ -1884,6 +2647,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "CostEntrySummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
@@ -1909,6 +2673,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "CostTypeSummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
@@ -1931,6 +2696,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "CurrentUser",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "membership",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEMBERSHIP_READ",),
@@ -1953,6 +2719,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "CustomOptionSummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "extended",
         "capability_env_vars": ("OPENPROJECT_ENABLE_EXTENDED_READ",),
@@ -2003,6 +2770,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "DocumentDetail",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
@@ -2081,6 +2849,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "GithubPullRequestSummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
@@ -2107,6 +2876,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "GridSummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
@@ -2114,7 +2884,9 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
     "get_group": {
         "description_hash": "bdfc1989beefef8bff81a95f2358dfdfe7a14cdf30cf296fab21f12fcd5991a6",
         "input_schema": {
-            "properties": {"group_id": {"title": "Group Id", "type": "integer"}},
+            "properties": {
+                "group_id": {"description": "Group id, from list_groups.", "title": "Group Id", "type": "integer"}
+            },
             "required": ["group_id"],
             "title": "get_groupArguments",
             "type": "object",
@@ -2144,6 +2916,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "GroupDetail",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "admin",
         "capability_env_vars": ("OPENPROJECT_ENABLE_ADMIN_READ",),
@@ -2168,6 +2941,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "HelpTextSummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "extended",
         "capability_env_vars": ("OPENPROJECT_ENABLE_EXTENDED_READ",),
@@ -2220,6 +2994,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "InstanceConfiguration",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
@@ -2268,14 +3043,21 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "JobStatusDetail",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
     },
     "get_meeting": {
-        "description_hash": "c7299bdbe6418ca8f32e86460a38bc685c1d53c2d832b8e005293134f012a983",
+        "description_hash": "015f1831d9e4675f3bb5b1864b2ffaa3e23ca19e0a158019f6df353a32d69bd6",
         "input_schema": {
-            "properties": {"meeting_id": {"title": "Meeting Id", "type": "integer"}},
+            "properties": {
+                "meeting_id": {
+                    "description": "Meeting id, from list_meetings.",
+                    "title": "Meeting Id",
+                    "type": "integer",
+                }
+            },
             "required": ["meeting_id"],
             "title": "get_meetingArguments",
             "type": "object",
@@ -2343,6 +3125,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "MeetingSummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_READ",),
@@ -2350,7 +3133,13 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
     "get_meeting_agenda_item": {
         "description_hash": "95c1791b2bc45bb81b60c996370c3a8219f42f6efdd98e788742ddb72d5e65d3",
         "input_schema": {
-            "properties": {"agenda_item_id": {"title": "Agenda Item Id", "type": "integer"}},
+            "properties": {
+                "agenda_item_id": {
+                    "description": "Agenda item id, from list_meeting_agenda_items.",
+                    "title": "Agenda Item Id",
+                    "type": "integer",
+                }
+            },
             "required": ["agenda_item_id"],
             "title": "get_meeting_agenda_itemArguments",
             "type": "object",
@@ -2401,6 +3190,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "MeetingAgendaItemSummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_READ",),
@@ -2445,14 +3235,21 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "MeetingOutcomeSummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_READ",),
     },
     "get_meeting_section": {
-        "description_hash": "bf1d8795610dadcadeac1d0e4c8a29270867ade18f9b56c9162aae818f20547a",
+        "description_hash": "ac79286e62ea2f4c7e6b481d554691603d4157c51db8be53d0b2e4cc50fc666b",
         "input_schema": {
-            "properties": {"section_id": {"title": "Section Id", "type": "integer"}},
+            "properties": {
+                "section_id": {
+                    "description": "Meeting section id, from list_meeting_sections.",
+                    "title": "Section Id",
+                    "type": "integer",
+                }
+            },
             "required": ["section_id"],
             "title": "get_meeting_sectionArguments",
             "type": "object",
@@ -2472,14 +3269,21 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "MeetingSectionSummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_READ",),
     },
     "get_membership": {
-        "description_hash": "f7a5a7339cf33691c4a762d692e4e29d312a86c48b78ee38e25d4f382e70d628",
+        "description_hash": "aea8940c74c81b706c599cc6ef84c26d7d7cc0a31e237c25495858c3df858a28",
         "input_schema": {
-            "properties": {"membership_id": {"title": "Membership Id", "type": "integer"}},
+            "properties": {
+                "membership_id": {
+                    "description": "Membership id, from list_project_memberships.",
+                    "title": "Membership Id",
+                    "type": "integer",
+                }
+            },
             "required": ["membership_id"],
             "title": "get_membershipArguments",
             "type": "object",
@@ -2513,6 +3317,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "MembershipSummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "membership",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEMBERSHIP_READ",),
@@ -2542,6 +3347,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "UserPreferences",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "personal",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PERSONAL_READ",),
@@ -2549,7 +3355,13 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
     "get_my_project_access": {
         "description_hash": "562b7637e0a6f0040695a6c911a8e6b7eb2310fc691f7cae4d79e50ef2673649",
         "input_schema": {
-            "properties": {"project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"}},
+            "properties": {
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
+                    "title": "Project",
+                }
+            },
             "required": ["project"],
             "title": "get_my_project_accessArguments",
             "type": "object",
@@ -2621,6 +3433,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "ProjectAccessSummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ", "OPENPROJECT_ENABLE_MEMBERSHIP_READ"),
@@ -2675,6 +3488,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "NewsDetail",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
@@ -2699,6 +3513,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "PostDetail",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
@@ -2725,15 +3540,20 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "PrioritySummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "get_project": {
-        "description_hash": "8a65646381a90cbecd6e588583b990cd7eb5d553587327c2264517c556e8a164",
+        "description_hash": "e0a3caddaac3ee8310a5771577421fdb74d446b40ca2a9ae2df0eb595bdd5796",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
+                    "title": "Project",
+                },
                 "text_limit": {
                     "anyOf": [{"type": "integer"}, {"type": "null"}],
                     "default": None,
@@ -2806,6 +3626,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "ProjectDetail",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
@@ -2813,7 +3634,13 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
     "get_project_admin_context": {
         "description_hash": "4127a624d6382ea9926c26f672ff2388a778dbacd1a238625e3196d6713b273e",
         "input_schema": {
-            "properties": {"project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"}},
+            "properties": {
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
+                    "title": "Project",
+                }
+            },
             "required": ["project"],
             "title": "get_project_admin_contextArguments",
             "type": "object",
@@ -2958,14 +3785,21 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "ProjectAdminContext",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
     },
     "get_project_configuration": {
-        "description_hash": "d4909956e1887e415b437099ad1e353ec7f45828ed32a0b6e26b0d2bbd450a40",
+        "description_hash": "2b5e46355a383f112c1e9e70fe2219107cd75241b84c2dc3f34cad3f4872602a",
         "input_schema": {
-            "properties": {"project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"}},
+            "properties": {
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
+                    "title": "Project",
+                }
+            },
             "required": ["project"],
             "title": "get_project_configurationArguments",
             "type": "object",
@@ -3018,6 +3852,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "ProjectConfiguration",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
@@ -3062,6 +3897,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "ProjectPhase",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
@@ -3088,6 +3924,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "ProjectPhaseDefinition",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
@@ -3132,6 +3969,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "ProjectStorageDetail",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
@@ -3140,7 +3978,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "ca8ea86d81d370740ea93ec2eb35525f140130613edd81c21d387f32daeed507",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
+                    "title": "Project",
+                },
                 "type": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
@@ -3303,6 +4145,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "ProjectWorkPackageContext",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": (
@@ -3332,6 +4175,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "QueryColumnSummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "extended",
         "capability_env_vars": ("OPENPROJECT_ENABLE_EXTENDED_READ", "OPENPROJECT_ENABLE_BOARD_READ"),
@@ -3339,7 +4183,13 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
     "get_query_filter": {
         "description_hash": "40007813d71eca343b2e6a30d01ca818372f4d641b9d54539e7186322407d789",
         "input_schema": {
-            "properties": {"filter_id": {"title": "Filter Id", "type": "string"}},
+            "properties": {
+                "filter_id": {
+                    "description": 'Filter id, e.g. "status", "assignee" or "subject_or_id".',
+                    "title": "Filter Id",
+                    "type": "string",
+                }
+            },
             "required": ["filter_id"],
             "title": "get_query_filterArguments",
             "type": "object",
@@ -3355,6 +4205,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "QueryFilterSummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "extended",
         "capability_env_vars": ("OPENPROJECT_ENABLE_EXTENDED_READ", "OPENPROJECT_ENABLE_BOARD_READ"),
@@ -3380,6 +4231,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "QueryFilterInstanceSchemaSummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "extended",
         "capability_env_vars": ("OPENPROJECT_ENABLE_EXTENDED_READ", "OPENPROJECT_ENABLE_BOARD_READ"),
@@ -3403,14 +4255,21 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "QueryOperatorSummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "extended",
         "capability_env_vars": ("OPENPROJECT_ENABLE_EXTENDED_READ", "OPENPROJECT_ENABLE_BOARD_READ"),
     },
     "get_query_sort_by": {
-        "description_hash": "89c06264a9d903c5d85d103b02eb390eb1c1dcb9ca67871d4b6a9225549df2c1",
+        "description_hash": "34890f309bd974c5ffa71891ff4421223e16fc75ba42cc75bf710da1ef241b85",
         "input_schema": {
-            "properties": {"sort_by_id": {"title": "Sort By Id", "type": "string"}},
+            "properties": {
+                "sort_by_id": {
+                    "description": 'Attribute and direction, e.g. "subject:asc" or "subject-asc", or a bare attribute (ascending); the direction is case-insensitive.',
+                    "title": "Sort By Id",
+                    "type": "string",
+                }
+            },
             "required": ["sort_by_id"],
             "title": "get_query_sort_byArguments",
             "type": "object",
@@ -3428,6 +4287,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "QuerySortBySummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "extended",
         "capability_env_vars": ("OPENPROJECT_ENABLE_EXTENDED_READ", "OPENPROJECT_ENABLE_BOARD_READ"),
@@ -3494,6 +4354,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "RecurringMeetingSummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_READ",),
@@ -3536,6 +4397,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "SprintDetail",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
@@ -3577,6 +4439,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "StatusSummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
@@ -3634,6 +4497,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "StorageDetail",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "admin",
         "capability_env_vars": ("OPENPROJECT_ENABLE_ADMIN_READ",),
@@ -3698,6 +4562,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "TimeEntrySummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
@@ -3726,6 +4591,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "TypeSummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
@@ -3775,6 +4641,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "UserDetail",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "admin",
         "capability_env_vars": ("OPENPROJECT_ENABLE_ADMIN_READ",),
@@ -3783,8 +4650,16 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "7cc2d6b231b73805ce32455b06e3aff39e0d3ce0546ea572c9ae1eb21a7d38f0",
         "input_schema": {
             "properties": {
-                "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
-                "working_hours_id": {"title": "Working Hours Id", "type": "integer"},
+                "user_ref": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": '"me", a numeric user id, or a login.',
+                    "title": "User Ref",
+                },
+                "working_hours_id": {
+                    "description": "Schedule entry id, from list_user_working_hours.",
+                    "title": "Working Hours Id",
+                    "type": "integer",
+                },
             },
             "required": ["user_ref", "working_hours_id"],
             "title": "get_user_working_hoursArguments",
@@ -3826,6 +4701,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "UserWorkingHoursSummary",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "user_schedule",
         "capability_env_vars": ("OPENPROJECT_ENABLE_USER_SCHEDULE_READ",),
@@ -3878,6 +4754,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "VersionDetail",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "version",
         "capability_env_vars": ("OPENPROJECT_ENABLE_VERSION_READ",),
@@ -3923,6 +4800,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "ViewDetail",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
@@ -3947,15 +4825,20 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "WikiPageDetail",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
     },
     "get_work_package": {
-        "description_hash": "3fb4ff17886a85137475c21fa3ea1e5f8829d71a897bed8658465bcb584e3a11",
+        "description_hash": "d6e02fcb6a2763a13c04f1aa282f166d546c92f14b3fffd9ecfedbb5f6326224",
         "input_schema": {
             "properties": {
-                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                },
                 "text_limit": {
                     "anyOf": [{"type": "integer"}, {"type": "null"}],
                     "default": None,
@@ -3964,6 +4847,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: ancestors, ancestors_truncated, assignee, author, category, children, children_truncated, created_at, custom_comments, custom_comments_truncated, custom_fields, custom_fields_truncated, derived_due_date, derived_estimated_time, derived_percentage_done, derived_remaining_time, derived_start_date, description, description_length, description_truncated, display_id, due_date, duration, estimated_time, has_project_attributes, id, ignore_non_working_days, lock_version, observed_in_versions, parent_display_id, parent_id, percentage_done, priority, project, project_phase, readonly, remaining_time, responsible, schedule_manually, spent_time, sprint, start_date, status, subject, target_versions, type, updated_at, version.",
                     "title": "Select",
                 },
             },
@@ -3973,16 +4857,26 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "get_work_package_activities": {
-        "description_hash": "aa6b31f5e2924174105abe13256ce9537205d78d2af61497bb2ee1c5ddf6c5b5",
+        "description_hash": "d6359bbba981c794f775794233186d93c626a278302ac9757aa6695ff0ae74ff",
         "input_schema": {
             "properties": {
-                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Number of most recent activities, capped at OPENPROJECT_MAX_PAGE_SIZE. Not paged.",
+                    "title": "Limit",
+                },
                 "text_limit": {
                     "anyOf": [{"type": "integer"}, {"type": "null"}],
                     "default": None,
@@ -3991,6 +4885,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: comment, comment_length, comment_truncated, created_at, details, details_truncated, id, type, user, version.",
                     "title": "Select",
                 },
             },
@@ -4000,15 +4895,20 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "get_work_package_costs_by_type": {
-        "description_hash": "71547c8f15c1003354ff7902ab4d89cf5aabbb82e89752784b542d4a450f0e44",
+        "description_hash": "87664c746e28ac08e2de4b587d8d48a1813843a0818bf657478e6b446b74cd5e",
         "input_schema": {
             "properties": {
-                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"}
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                }
             },
             "required": ["work_package_id"],
             "title": "get_work_package_costs_by_typeArguments",
@@ -4016,20 +4916,36 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "get_work_package_relations": {
-        "description_hash": "ec5db4975871a711b4a93922a17e64e74d4c95bfc7d802d592f4b5f27b42c13c",
+        "description_hash": "77875b721afe7064b7b57e09fafc8d97ab57b6336de07039682549d7bb20ae49",
         "input_schema": {
             "properties": {
-                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                },
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: description, description_length, description_truncated, from_id, from_subject, id, queried_perspective, to_id, to_subject, type.",
                     "title": "Select",
                 },
             },
@@ -4039,12 +4955,13 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "get_work_packages": {
-        "description_hash": "65442c73ab1c78ac93cfe3f40e8b3ad910919570b5497e2459d10571ed5201e2",
+        "description_hash": "3a62d9c0fab1af9ba293e0093c1fafb8292bb2ba25557ee72094fc6e540e9777",
         "input_schema": {
             "properties": {
                 "ids": {"items": {"anyOf": [{"type": "integer"}, {"type": "string"}]}, "title": "Ids", "type": "array"},
@@ -4056,6 +4973,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: ancestors, ancestors_truncated, assignee, author, category, children, children_truncated, created_at, custom_comments, custom_comments_truncated, custom_fields, custom_fields_truncated, derived_due_date, derived_estimated_time, derived_percentage_done, derived_remaining_time, derived_start_date, description, description_length, description_truncated, display_id, due_date, duration, error, estimated_time, has_project_attributes, id, ignore_non_working_days, lock_version, observed_in_versions, parent_display_id, parent_id, percentage_done, priority, project, project_phase, readonly, remaining_time, responsible, schedule_manually, spent_time, sprint, start_date, status, subject, success, target_versions, type, updated_at, version.",
                     "title": "Select",
                 },
             },
@@ -4065,17 +4983,23 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "init_recurring_meeting_occurrence": {
-        "description_hash": "ad4c5af98447555978541f71553890595e6f76870928f4b769918269fc1088de",
+        "description_hash": "b28aa473c86b295e308a987b36e09cc34b88aad7a46eea50c2ffe3c13aeeacbd",
         "input_schema": {
             "properties": {
                 "recurring_meeting_id": {"title": "Recurring Meeting Id", "type": "integer"},
                 "start_time": {"title": "Start Time", "type": "string"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["recurring_meeting_id", "start_time"],
             "title": "init_recurring_meeting_occurrenceArguments",
@@ -4083,19 +5007,31 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "list_actions": {
-        "description_hash": "d359cbfe46feabedd30f76859dd6d688a0190fcd18cdd586302bc57e13214e0b",
+        "description_hash": "583cbc7ef678e8d81c15c596822269446b46492ebbcc91e0d1530c07a3cf1c01",
         "input_schema": {
             "properties": {
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: id, url.",
                     "title": "Select",
                 },
             },
@@ -4104,25 +5040,38 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "membership",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEMBERSHIP_READ",),
     },
     "list_backlog_buckets": {
-        "description_hash": "080add4781d9746b589239e78c75c2b5883c1e489183cf8550061852d74e64f4",
+        "description_hash": "80da7dd69c6ce679dd79811617bcf6dab9c37598e2bc3cda18ddbbc3be69a647",
         "input_schema": {
             "properties": {
                 "project": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                     "title": "Project",
                 },
                 "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: created_at, defining_workspace, defining_workspace_id, id, name, updated_at.",
                     "title": "Select",
                 },
             },
@@ -4131,25 +5080,38 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
     },
     "list_boards": {
-        "description_hash": "81f5708ab44a6e8ef6c898fa1cee5d0409c9cb00186cf2a37cc4a810ca4a8600",
+        "description_hash": "ec6418a636d0f787daf42f71e403cc945e9e4e9bf0a73c6ea7b71a1368f25ba8",
         "input_schema": {
             "properties": {
                 "project": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                     "title": "Project",
                 },
                 "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: can_delete, can_update, filter_count, hidden, id, include_subprojects, name, project, project_id, public, show_hierarchies, starred, timeline_visible.",
                     "title": "Select",
                 },
             },
@@ -4158,17 +5120,19 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "board",
         "capability_env_vars": ("OPENPROJECT_ENABLE_BOARD_READ",),
     },
     "list_capabilities": {
-        "description_hash": "a58b18affe9decc40c7243285b6cce6cc4638f8f20e5cff89df6735d9ca27a95",
+        "description_hash": "394f6e7567d7073945766dd0a767f1ea25bca339ebc439bd42501b9e068e6c6a",
         "input_schema": {
             "properties": {
                 "project": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                     "title": "Project",
                 },
                 "capability_id": {
@@ -4176,11 +5140,22 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "default": None,
                     "title": "Capability Id",
                 },
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: action_id, context, id, principal_id, principal_name, url.",
                     "title": "Select",
                 },
             },
@@ -4189,18 +5164,24 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "membership",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEMBERSHIP_READ",),
     },
     "list_categories": {
-        "description_hash": "106de69b69aeeab5b5e97569bf2bb33eb363a092bd2af5347155984738f53ab2",
+        "description_hash": "ce45548989adb51873190b976cb32f0cbaf893c1640011eface1d53ca1e2779f",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
+                    "title": "Project",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: default_assignee, default_assignee_id, id, name, project, project_id.",
                     "title": "Select",
                 },
             },
@@ -4210,25 +5191,38 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
     },
     "list_documents": {
-        "description_hash": "f15f200e5938f1d20b0e522c2c15dd6cc72c558bcd90e71ad2a35921247e4cf9",
+        "description_hash": "774a0e82746956a8155517de23ce71058727e23cb1c82d8c4c895a7e4f6095bf",
         "input_schema": {
             "properties": {
                 "project": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                     "title": "Project",
                 },
                 "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: attachment_count, can_update, created_at, description, description_length, description_truncated, id, project, project_id, title.",
                     "title": "Select",
                 },
                 "text_limit": {
@@ -4242,20 +5236,32 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
     },
     "list_grids": {
-        "description_hash": "4ecc762697f5e9c731a8eb08dd20ebe59e08328e6d2e7f3b60d3d6a783b1e1c1",
+        "description_hash": "4e0888ed1db020bcadf123d61b38a92ee34f67b9aa7cc7ee98bd45bbd77108d6",
         "input_schema": {
             "properties": {
                 "scope": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Scope"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: column_count, created_at, id, row_count, scope, updated_at.",
                     "title": "Select",
                 },
             },
@@ -4264,20 +5270,32 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
     },
     "list_groups": {
-        "description_hash": "c3c86e26171e524b23fc68a529bda1908957c4d8a9c7bd9e1db6368f846d62c0",
+        "description_hash": "927abfd4e85a3e4833cd9de9198eb9ecc4632278e7cae64dec84fb6cb452129d",
         "input_schema": {
             "properties": {
                 "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: can_delete, can_update, created_at, id, member_count, name, updated_at.",
                     "title": "Select",
                 },
             },
@@ -4286,6 +5304,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "admin",
         "capability_env_vars": ("OPENPROJECT_ENABLE_ADMIN_READ",),
@@ -4299,20 +5318,32 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "extended",
         "capability_env_vars": ("OPENPROJECT_ENABLE_EXTENDED_READ",),
     },
     "list_meeting_agenda_items": {
-        "description_hash": "e332cf011f1936f75eea39ae1c8ce3757d31171153f56a06cf56bd6e54e30723",
+        "description_hash": "f3cfce0f3edf5d1da159f5b1d2b64bff9727bf732f40c6bfbe685bb11ed676aa",
         "input_schema": {
             "properties": {
                 "meeting_id": {"title": "Meeting Id", "type": "integer"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: author, created_at, duration_in_minutes, id, item_type, lock_version, meeting_id, meeting_section_id, notes, notes_length, notes_truncated, outcome_ids, position, presenter, title, updated_at, work_package_id.",
                     "title": "Select",
                 },
                 "text_limit": {
@@ -4327,20 +5358,32 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_READ",),
     },
     "list_meeting_outcomes": {
-        "description_hash": "21a17ee623bc8ba9be908834c45421d4ff01e39de098f24b21089909e533ae39",
+        "description_hash": "2550b924af7e2c7f3766377331014214b2c40a9b5c13530b2388bdfc04048a5b",
         "input_schema": {
             "properties": {
                 "agenda_item_id": {"title": "Agenda Item Id", "type": "integer"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: author, created_at, id, kind, meeting_agenda_item_id, notes, notes_length, notes_truncated, updated_at, work_package_id.",
                     "title": "Select",
                 },
                 "text_limit": {
@@ -4355,6 +5398,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_READ",),
@@ -4364,8 +5408,18 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "input_schema": {
             "properties": {
                 "meeting_id": {"title": "Meeting Id", "type": "integer"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
             },
             "required": ["meeting_id"],
             "title": "list_meeting_sectionsArguments",
@@ -4373,41 +5427,70 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_READ",),
     },
     "list_meetings": {
-        "description_hash": "748152d62287b7adacb4f13e1f500d7b44440b2dd02b3edda66123df11fdbe92",
+        "description_hash": "da36e60871bbd4958deb35367a38de6ccbd8b9369838eecbe7377732a0d5eb38",
         "input_schema": {
             "properties": {
                 "project": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                     "title": "Project",
                 },
-                "title": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Title"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "title": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Case-insensitive substring of the meeting title; an occurrence of a recurring meeting also matches on its series title. Requires OpenProject 17.9+ (older servers reject the filter).",
+                    "title": "Title",
+                },
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
             },
             "title": "list_meetingsArguments",
             "type": "object",
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_READ",),
     },
     "list_my_open_work_packages": {
-        "description_hash": "3ebf1b05792397862bca4f0e0cd5a9a10f55eb2ba4b4e789767f57386b517ea1",
+        "description_hash": "4d2660573be77acf8d34e6e2419bbf4481238e9252fa1c562a69defbdbd3db8d",
         "input_schema": {
             "properties": {
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: assignee, author, category, created_at, custom_comments, custom_comments_truncated, custom_fields, custom_fields_truncated, derived_due_date, derived_estimated_time, derived_percentage_done, derived_remaining_time, derived_start_date, description, description_length, description_truncated, display_id, due_date, duration, estimated_time, has_description, has_project_attributes, id, ignore_non_working_days, observed_in_versions, parent_display_id, parent_id, percentage_done, priority, project, project_phase, readonly, remaining_time, responsible, schedule_manually, spent_time, sprint, start_date, status, subject, target_versions, type, updated_at, version.",
                     "title": "Select",
                 },
             },
@@ -4416,25 +5499,38 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_news": {
-        "description_hash": "e623d4436c3ed4b069321f890b769bbe54d8d87862c04dd60a754c062b55daf1",
+        "description_hash": "5cbd9515a23313da8d2d31c3dcdd478ad2fb4bd4580bfee85b0b4b57f33bb94b",
         "input_schema": {
             "properties": {
                 "project": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                     "title": "Project",
                 },
                 "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: author, can_delete, can_update, created_at, description, description_length, description_truncated, id, project, project_id, summary, title.",
                     "title": "Select",
                 },
                 "text_limit": {
@@ -4448,6 +5544,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
@@ -4463,20 +5560,37 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "extended",
         "capability_env_vars": ("OPENPROJECT_ENABLE_EXTENDED_READ",),
     },
     "list_notifications": {
-        "description_hash": "73db415daddfc432811c8bea8a0e093342d021d678a1ed9c617496a94ea029ff",
+        "description_hash": "00231ea5ca4e96146adbad349f0021566946dc72cbba6afffaf87fb0b28322cc",
         "input_schema": {
             "properties": {
-                "unread_only": {"default": False, "title": "Unread Only", "type": "boolean"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
+                "unread_only": {
+                    "default": False,
+                    "description": "true returns only notifications not yet read.",
+                    "title": "Unread Only",
+                    "type": "boolean",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: created_at, id, project_id, project_name, read, reason, subject, work_package_id, work_package_subject.",
                     "title": "Select",
                 },
             },
@@ -4485,20 +5599,32 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "personal",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PERSONAL_READ",),
     },
     "list_principals": {
-        "description_hash": "e055d6b0ff5042a7cf6774f783d2fb31b71ed7b5453019abb02b3a672393f8f5",
+        "description_hash": "651f68ea16ab4f6e2e07c6d32943fb68600ecd2c61de1657768b71861bccaf2c",
         "input_schema": {
             "properties": {
                 "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: email, id, name, type.",
                     "title": "Select",
                 },
             },
@@ -4507,6 +5633,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "admin",
         "capability_env_vars": ("OPENPROJECT_ENABLE_ADMIN_READ",),
@@ -4520,20 +5647,36 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_project_memberships": {
-        "description_hash": "89e11f4e0067afba850efacd0e50ab148e904a3c7ee86bead775e453b57d3cb5",
+        "description_hash": "03acf2c00cb67b969bd6fba378399d6b72fcbdf80692f5b71e447e4af02c490f",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
+                    "title": "Project",
+                },
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: can_update, can_update_immediately, created_at, id, principal_id, principal_name, project_id, project_name, role_ids, role_names, updated_at.",
                     "title": "Select",
                 },
             },
@@ -4543,6 +5686,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "membership",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEMBERSHIP_READ",),
@@ -4556,24 +5700,37 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
     },
     "list_project_storages": {
-        "description_hash": "18febe2a4314471de7f34c4b136cfb384235482b41d54db24fcc1cb63721a910",
+        "description_hash": "3bb89a1dfab508e39842a940e79a9343218f09ec9c9b56bb2cd9fff054c0ce20",
         "input_schema": {
             "properties": {
                 "project": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                     "title": "Project",
                 },
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: created_at, id, project, project_folder_mode, project_id, storage_id, storage_name, updated_at.",
                     "title": "Select",
                 },
             },
@@ -4582,20 +5739,32 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
     },
     "list_projects": {
-        "description_hash": "0e6f13106a8cf2935e1eed8d419343072c7fe5359a0aab24a52152a40150b13b",
+        "description_hash": "8f73aefca78d24234811a481827d6819457df2eb11a034db10b65a945172ffe4",
         "input_schema": {
             "properties": {
                 "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: active, can_delete, can_update, created_at, description, description_length, description_truncated, favorited, id, identifier, name, parent_id, parent_name, public, status, status_explanation, status_explanation_length, status_explanation_truncated, updated_at.",
                     "title": "Select",
                 },
             },
@@ -4604,6 +5773,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
@@ -4615,6 +5785,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "project": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                     "title": "Project",
                 }
             },
@@ -4623,17 +5794,23 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "extended",
         "capability_env_vars": ("OPENPROJECT_ENABLE_EXTENDED_READ", "OPENPROJECT_ENABLE_BOARD_READ"),
     },
     "list_recurring_meeting_occurrences": {
-        "description_hash": "4788b6f3476466a2ab5c732561c0156d970b1785c1f8bab56b7c5488d0b60a33",
+        "description_hash": "b678fec61b6fbe68fda7fbf34de568e7edc50b0d789bfea4192b1494696e9226",
         "input_schema": {
             "properties": {
                 "recurring_meeting_id": {"title": "Recurring Meeting Id", "type": "integer"},
                 "filter": {"default": "upcoming", "title": "Filter", "type": "string"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": 'Number of occurrences, only for filter="upcoming" (OpenProject default: 20); the other filters return their full set. Not paged.',
+                    "title": "Limit",
+                },
             },
             "required": ["recurring_meeting_id"],
             "title": "list_recurring_meeting_occurrencesArguments",
@@ -4641,33 +5818,46 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_READ",),
     },
     "list_recurring_meetings": {
-        "description_hash": "6c7c5c4a7328fc2aefa73df0ebda3369121bee6807b1b55fa18abf9aec17e10f",
+        "description_hash": "b2149f40f2d8ef82d61bf6cdf9f66272a4ece9dcf1c20e8f70d7a7e32203ed04",
         "input_schema": {
             "properties": {
                 "project": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                     "title": "Project",
                 },
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
             },
             "title": "list_recurring_meetingsArguments",
             "type": "object",
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_READ",),
     },
     "list_relations": {
-        "description_hash": "9aa24fe67af5d1f667d10af4c4402a426c2383e08cf7d8c81122b43060659a29",
+        "description_hash": "ed85b6393433e3980e80458bc893e4abd367fe793d719c17ae8f9564e833b447",
         "input_schema": {
             "properties": {
                 "relation_type": {
@@ -4675,11 +5865,22 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "default": None,
                     "title": "Relation Type",
                 },
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: description, description_length, description_truncated, from_id, from_subject, id, queried_perspective, to_id, to_subject, type.",
                     "title": "Select",
                 },
             },
@@ -4688,17 +5889,19 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_reminders": {
-        "description_hash": "01ad9b53b0c3aa65fb845228b2c35d483b80d6414ccd1a6eea995ee4f3a3fb74",
+        "description_hash": "418262cb6484f01ff259777201da4fffc1fefb444d54310b7737897054304b89",
         "input_schema": {
             "properties": {
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: creator, id, note, remind_at, work_package_id.",
                     "title": "Select",
                 }
             },
@@ -4707,46 +5910,71 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_roles": {
-        "description_hash": "28db42a90578ef27043e0d5601f7b3e151d3e3b845678613010c527dd590faba",
+        "description_hash": "5836cf64fc63bf7bf758542229b17424506569dc8c8df79cd5d60ddea4de3b84",
         "input_schema": {
             "properties": {
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: id, name.",
                     "title": "Select",
                 },
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
             },
             "title": "list_rolesArguments",
             "type": "object",
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "membership",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEMBERSHIP_READ",),
     },
     "list_sprints": {
-        "description_hash": "677c8a5443ec08dfbcee2d804b1f78f27047e5fefa09c6c652bd92a0c09a147e",
+        "description_hash": "1cb28d65ce775b809d497fc022b7d0616f61f4091d632814a61d76de6f3638a8",
         "input_schema": {
             "properties": {
                 "project": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                     "title": "Project",
                 },
                 "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: created_at, defining_workspace, defining_workspace_id, finish_date, id, name, start_date, status, updated_at.",
                     "title": "Select",
                 },
             },
@@ -4755,6 +5983,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
@@ -4768,43 +5997,58 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_storages": {
-        "description_hash": "6c5b92a2a0c487936f6d3a2737169b363107f4442960f9696c0ca84699524fc9",
+        "description_hash": "cd24fbbe06f47fb8aa07cc9561436e08394a8f3cb2f9826cc03be3f920829fb3",
         "input_schema": {
             "properties": {
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: configured, created_at, drive_id, forbidden_file_name_characters, has_application_password, host, id, name, provider_type, tenant_id, updated_at.",
                     "title": "Select",
                 },
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
             },
             "title": "list_storagesArguments",
             "type": "object",
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "admin",
         "capability_env_vars": ("OPENPROJECT_ENABLE_ADMIN_READ",),
     },
     "list_time_entries": {
-        "description_hash": "63cce6ac1e34a5329ebc4cf722b8a52a8ab94c63d76945da157dbd25006fb684",
+        "description_hash": "f15fc28df738b9d48343b41a63de5c67f910a6ce4c71c171591b954f7c6345f7",
         "input_schema": {
             "properties": {
                 "project": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                     "title": "Project",
                 },
                 "work_package_id": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                     "title": "Work Package Id",
                 },
                 "user": {
@@ -4822,11 +6066,22 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "default": None,
                     "title": "Spent On To",
                 },
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: activity, comment, comment_length, comment_truncated, created_at, end_time, entity_id, entity_name, entity_type, hours, id, ongoing, project, spent_on, start_time, updated_at, user.",
                     "title": "Select",
                 },
                 "include_total_hours": {"default": False, "title": "Include Total Hours", "type": "boolean"},
@@ -4836,6 +6091,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
@@ -4849,6 +6105,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
@@ -4860,6 +6117,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "project": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                     "title": "Project",
                 }
             },
@@ -4868,6 +6126,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
@@ -4878,8 +6137,18 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "properties": {
                 "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
                 "year": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Year"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
             },
             "required": ["user_ref"],
             "title": "list_user_non_working_timesArguments",
@@ -4887,6 +6156,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "user_schedule",
         "capability_env_vars": ("OPENPROJECT_ENABLE_USER_SCHEDULE_READ",),
@@ -4896,8 +6166,18 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "input_schema": {
             "properties": {
                 "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
             },
             "required": ["user_ref"],
             "title": "list_user_working_hoursArguments",
@@ -4905,20 +6185,32 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "user_schedule",
         "capability_env_vars": ("OPENPROJECT_ENABLE_USER_SCHEDULE_READ",),
     },
     "list_users": {
-        "description_hash": "2b2ce328e0513b17d45de9912404127202b65222445a17ddab7709aca3d134b8",
+        "description_hash": "100d69cfdc7ef4362104b2bdfbdae206fb7292776cdba21a539aab197b0bc943",
         "input_schema": {
             "properties": {
                 "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: admin, avatar_url, created_at, email, firstname, id, lastname, locked, login, name, status, updated_at.",
                     "title": "Select",
                 },
             },
@@ -4927,25 +6219,38 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "admin",
         "capability_env_vars": ("OPENPROJECT_ENABLE_ADMIN_READ",),
     },
     "list_versions": {
-        "description_hash": "a76b2a4ddc5d42b0d959f0621c53a9975885b3dbcf8d8233f861b6d02b5957b0",
+        "description_hash": "d4397a53e965f20d30178d8e2c3181e20d3ddc78b61a04313c74abb39b30ae87",
         "input_schema": {
             "properties": {
                 "project": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                     "title": "Project",
                 },
                 "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: created_at, defining_project, description, description_length, description_truncated, end_date, id, name, sharing, start_date, status, updated_at.",
                     "title": "Select",
                 },
             },
@@ -4954,26 +6259,39 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "version",
         "capability_env_vars": ("OPENPROJECT_ENABLE_VERSION_READ",),
     },
     "list_views": {
-        "description_hash": "460d0a4036c24d2497b6ca8c94dcc42487788879a952edd82eacb618c30f6eaf",
+        "description_hash": "af5dbb1727b4b772a4e1fb3d65cfc223f258c59e36d69cfde3eb52b2b8630a20",
         "input_schema": {
             "properties": {
                 "project": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                     "title": "Project",
                 },
                 "type": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Type"},
                 "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: created_at, id, name, project, project_id, public, query, query_id, starred, type, updated_at.",
                     "title": "Select",
                 },
             },
@@ -4982,20 +6300,36 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
     },
     "list_work_package_attachments": {
-        "description_hash": "3b69b2e8ed106392a30219aa50b0c8c64b82506c1d5b0a225e865df871143fa4",
+        "description_hash": "5cc2638613a3143e945e4fcf17b42eeb4c1910d091317c1afe3e9254721de7ae",
         "input_schema": {
             "properties": {
-                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                },
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: author, container_id, container_type, content_type, created_at, description, download_url, file_name, file_size_bytes, id, status, title.",
                     "title": "Select",
                 },
                 "include_total_size": {"default": False, "title": "Include Total Size", "type": "boolean"},
@@ -5007,15 +6341,20 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_work_package_cost_entries": {
-        "description_hash": "3432370d64e8ce25d9c752c68d371ad9e69b3f79c7543f3896306e4a35450cee",
+        "description_hash": "6e14401085b21ffc30a06a677ae0440de08694d26eed695a461e9c3823c4598e",
         "input_schema": {
             "properties": {
-                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"}
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                }
             },
             "required": ["work_package_id"],
             "title": "list_work_package_cost_entriesArguments",
@@ -5023,20 +6362,36 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_work_package_file_links": {
-        "description_hash": "b4be7a22c94bc6da03c16b4575c2eb3d6fac5f224932c650af3d955451c05b62",
+        "description_hash": "9dd0362ded4a7beaef41537c2f226a015926273f604bb16d633264ac52fb9592",
         "input_schema": {
             "properties": {
-                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                },
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: created_at, id, storage_id, storage_name, title, updated_at.",
                     "title": "Select",
                 },
             },
@@ -5046,15 +6401,20 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_work_package_github_pull_requests": {
-        "description_hash": "055260b95bbfc49d10e9cd81ad699f3118d146d32299f7a807e3d5e11caa92dd",
+        "description_hash": "ce29e15a55e0cd36fd2bf814a6c7160862eb7d16430892e7f9164184a0b4a609",
         "input_schema": {
             "properties": {
-                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"}
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                }
             },
             "required": ["work_package_id"],
             "title": "list_work_package_github_pull_requestsArguments",
@@ -5062,15 +6422,20 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_work_package_gitlab_issues": {
-        "description_hash": "7ba96cf70298c5d64691933815dbb8849a715f32589418125231520348077c45",
+        "description_hash": "7411d6201276bb16c1ee9dcd849f81f29725e2545485613c44e43fb0869148f8",
         "input_schema": {
             "properties": {
-                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"}
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                }
             },
             "required": ["work_package_id"],
             "title": "list_work_package_gitlab_issuesArguments",
@@ -5078,15 +6443,20 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_work_package_gitlab_merge_requests": {
-        "description_hash": "7b3ad61d020b24bfd14fdf352b65ecb391957ceb73d90bc47dcdcdf7931d9de6",
+        "description_hash": "41b4a96271139c5a857e6946d682e2ad4ec8bdd52da14397ef13476a80f580a4",
         "input_schema": {
             "properties": {
-                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"}
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                }
             },
             "required": ["work_package_id"],
             "title": "list_work_package_gitlab_merge_requestsArguments",
@@ -5094,20 +6464,36 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_work_package_meeting_agenda_items": {
-        "description_hash": "3481143ba9c35d318e0b08b29127fe8476a138072c8a01affd49882254df59dd",
+        "description_hash": "db58da044fba7f73f853c2092fb1ad1126b43ac963f77ff5623c08d838231f98",
         "input_schema": {
             "properties": {
-                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                },
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: author, created_at, duration_in_minutes, id, item_type, lock_version, meeting_id, meeting_section_id, notes, notes_length, notes_truncated, outcome_ids, position, presenter, title, updated_at, work_package_id.",
                     "title": "Select",
                 },
                 "text_limit": {
@@ -5122,18 +6508,24 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_READ",),
     },
     "list_work_package_reactions": {
-        "description_hash": "1b3e8401c3dc46202ddccb5cfae9e937259fee32e3b49ffbb120f974aed222dd",
+        "description_hash": "aab0e0e4ed8b9a03d96b63493599a759fe3e3520819dea3dad3976045f4ad003",
         "input_schema": {
             "properties": {
-                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: count, emoji, reaction, users.",
                     "title": "Select",
                 },
             },
@@ -5143,18 +6535,24 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_work_package_watchers": {
-        "description_hash": "0348c9c37aa0e9cf00ac1bf7c7900dbaafa8f9a79a2c1775999954d9defea781",
+        "description_hash": "4bc53202508a62479d774ccd7ff2087d1b360abd1bc2dc50a36626be944e0701",
         "input_schema": {
             "properties": {
-                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: id, login, name.",
                     "title": "Select",
                 },
             },
@@ -5164,17 +6562,32 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_work_package_wiki_links": {
-        "description_hash": "7ef01d3e14c8614dccaec5d0e00bc4c5183702b4304befa9b9e5ee4dc89559b0",
+        "description_hash": "d4fcbc5a498839ec20bb46928e940b27c4f66b7ce0d4b5cb981edadee15787c7",
         "input_schema": {
             "properties": {
-                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                },
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
             },
             "required": ["work_package_id"],
             "title": "list_work_package_wiki_linksArguments",
@@ -5182,17 +6595,19 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_work_packages": {
-        "description_hash": "e136c767c7aaac8cab5ff237595df9496a76dbebf553763c599c044a74fff53c",
+        "description_hash": "95f4d404426129dedf93992ab2539f14afdcac5417e8c73998b33453da91e44d",
         "input_schema": {
             "properties": {
                 "project": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                     "title": "Project",
                 },
                 "type": {
@@ -5262,11 +6677,22 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "title": "Sort By",
                 },
                 "group_by": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Group By"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: assignee, author, category, created_at, custom_comments, custom_comments_truncated, custom_fields, custom_fields_truncated, derived_due_date, derived_estimated_time, derived_percentage_done, derived_remaining_time, derived_start_date, description, description_length, description_truncated, display_id, due_date, duration, estimated_time, has_description, has_project_attributes, id, ignore_non_working_days, observed_in_versions, parent_display_id, parent_id, percentage_done, priority, project, project_phase, readonly, remaining_time, responsible, schedule_manually, spent_time, sprint, start_date, status, subject, target_versions, type, updated_at, version.",
                     "title": "Select",
                 },
                 "include_sums": {"default": False, "title": "Include Sums", "type": "boolean"},
@@ -5284,6 +6710,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
@@ -5297,12 +6724,13 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "extended",
         "capability_env_vars": ("OPENPROJECT_ENABLE_EXTENDED_READ",),
     },
     "mark_notifications_read": {
-        "description_hash": "d3572d6f2c8033b060ba8c7868b90510c5736f1955cbbc48cd4d90ac915b5382",
+        "description_hash": "fcbed9d548ef6e8e065a8dc8385f8dab5d11ecbde1bcface61bc66c9bdf081bd",
         "input_schema": {
             "properties": {
                 "notification_id": {
@@ -5310,7 +6738,12 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "default": None,
                     "title": "Notification Id",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "title": "mark_notifications_readArguments",
             "type": "object",
@@ -5328,6 +6761,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "NotificationMarkResult",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
         "classification": "write",
         "scope": "personal",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PERSONAL_READ", "OPENPROJECT_ENABLE_PERSONAL_WRITE"),
@@ -5354,6 +6788,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "RenderedText",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "extended",
         "capability_env_vars": ("OPENPROJECT_ENABLE_EXTENDED_READ", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
@@ -5366,6 +6801,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "project": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                     "title": "Project",
                 },
                 "status": {
@@ -5415,11 +6851,22 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "title": "Sort By",
                 },
                 "group_by": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Group By"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: assignee, author, category, created_at, custom_comments, custom_comments_truncated, custom_fields, custom_fields_truncated, derived_due_date, derived_estimated_time, derived_percentage_done, derived_remaining_time, derived_start_date, description, description_length, description_truncated, display_id, due_date, duration, estimated_time, has_description, has_project_attributes, id, ignore_non_working_days, observed_in_versions, parent_display_id, parent_id, percentage_done, priority, project, project_phase, readonly, remaining_time, responsible, schedule_manually, spent_time, sprint, start_date, status, subject, target_versions, type, updated_at, version.",
                     "title": "Select",
                 },
                 "include_sums": {"default": False, "title": "Include Sums", "type": "boolean"},
@@ -5438,17 +6885,31 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "set_project_favorite": {
-        "description_hash": "aca05b1c4242a395607b2c7205fad658b6ada695c2b082893293f93ca24cc5a0",
+        "description_hash": "8f722f0a408523681303bcb69f2700f11f0dd6e2084f6097480592571f56ed88",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
-                "favorite": {"title": "Favorite", "type": "boolean"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
+                    "title": "Project",
+                },
+                "favorite": {
+                    "description": "true adds the project to favorites, false removes it.",
+                    "title": "Favorite",
+                    "type": "boolean",
+                },
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["project", "favorite"],
             "title": "set_project_favoriteArguments",
@@ -5468,17 +6929,27 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "FavoriteWriteResult",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_WRITE", "OPENPROJECT_ENABLE_PROJECT_READ"),
     },
     "set_user_locked": {
-        "description_hash": "a0bdd427d809f4076aafdc1790a08d0c387668fa91ee1a5e5fcc3c80234de7bf",
+        "description_hash": "39dcf5e492a45b9c3105fd88441222d34fb4e13923ab4182ea3f960422d967c6",
         "input_schema": {
             "properties": {
-                "user_id": {"title": "User Id", "type": "integer"},
-                "locked": {"title": "Locked", "type": "boolean"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "user_id": {"description": "User id, from list_users.", "title": "User Id", "type": "integer"},
+                "locked": {
+                    "description": "true locks the account, false unlocks it.",
+                    "title": "Locked",
+                    "type": "boolean",
+                },
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["user_id", "locked"],
             "title": "set_user_lockedArguments",
@@ -5486,18 +6957,28 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "admin",
         "capability_env_vars": ("OPENPROJECT_ENABLE_ADMIN_WRITE", "OPENPROJECT_ENABLE_ADMIN_READ"),
     },
     "set_work_package_watcher": {
-        "description_hash": "144a000d70cfdd9b041ac6c1621df48f4a5419aa60172e0b7ab7808b7998eb7a",
+        "description_hash": "7157160241601dc005fae2e2858c235b81897b1504620f19ec9d7e6f500b903c",
         "input_schema": {
             "properties": {
-                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                },
                 "user_id": {"title": "User Id", "type": "integer"},
                 "watching": {"title": "Watching", "type": "boolean"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["work_package_id", "user_id", "watching"],
             "title": "set_work_package_watcherArguments",
@@ -5540,17 +7021,23 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "WatcherWriteResult",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "toggle_activity_emoji_reaction": {
-        "description_hash": "71d4b64028ebdcc8466472cd710f113f7edbc6d5505387d09d38d2d9eb8a9b11",
+        "description_hash": "4d1a7b58301bfe4c16e61ebf3c9b1eae3a0dfbe01c930deb7e410ef71cd41261",
         "input_schema": {
             "properties": {
                 "activity_id": {"title": "Activity Id", "type": "integer"},
                 "reaction": {"title": "Reaction", "type": "string"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["activity_id", "reaction"],
             "title": "toggle_activity_emoji_reactionArguments",
@@ -5597,53 +7084,90 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "title": "EmojiReactionWriteResult",
             "type": "object",
         },
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "update_board": {
-        "description_hash": "33129919a0e7ae8baafcad9f990e42e325d032e229b0fac82f3e9415829c5bd3",
+        "description_hash": "15343d81f767c1028b648ca0472942affb9d608bd1c9391b531bc6d06f4feb51",
         "input_schema": {
             "properties": {
-                "board_id": {"title": "Board Id", "type": "integer"},
-                "name": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Name"},
+                "board_id": {
+                    "description": "Board (saved query) id, from list_boards.",
+                    "title": "Board Id",
+                    "type": "integer",
+                },
+                "name": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Board name, at most 255 characters.",
+                    "title": "Name",
+                },
                 "project": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                     "title": "Project",
                 },
-                "public": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Public"},
-                "starred": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Starred"},
-                "hidden": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Hidden"},
+                "public": {
+                    "anyOf": [{"type": "boolean"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Visible to other users; false keeps it to its creator.",
+                    "title": "Public",
+                },
+                "starred": {
+                    "anyOf": [{"type": "boolean"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Mark as a favorite query.",
+                    "title": "Starred",
+                },
+                "hidden": {
+                    "anyOf": [{"type": "boolean"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Ignored by OpenProject; the value is not stored.",
+                    "title": "Hidden",
+                },
                 "include_subprojects": {
                     "anyOf": [{"type": "boolean"}, {"type": "null"}],
                     "default": None,
+                    "description": "Also show work packages of subprojects.",
                     "title": "Include Subprojects",
                 },
                 "show_hierarchies": {
                     "anyOf": [{"type": "boolean"}, {"type": "null"}],
                     "default": None,
+                    "description": "Show parent/child tree; cannot combine with group_by, so it defaults to false there.",
                     "title": "Show Hierarchies",
                 },
                 "timeline_visible": {
                     "anyOf": [{"type": "boolean"}, {"type": "null"}],
                     "default": None,
+                    "description": "Show the Gantt timeline.",
                     "title": "Timeline Visible",
                 },
-                "group_by": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Group By"},
+                "group_by": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": 'Group-by attribute id (e.g. "status") or its /api/v3/queries/group_bys/ href.',
+                    "title": "Group By",
+                },
                 "columns": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": 'Column attribute ids (e.g. "id", "subject") or /api/v3/queries/columns/ hrefs.',
                     "title": "Columns",
                 },
                 "sort_by": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": 'Sort criteria, each "field:direction" or "field-direction" (e.g. "id:asc"), a bare field (ascending), or a /api/v3/queries/sort_bys/ href; the direction is case-insensitive.',
                     "title": "Sort By",
                 },
                 "highlighted_attributes": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Column ids or hrefs whose values are highlighted.",
                     "title": "Highlighted Attributes",
                 },
                 "filters": {
@@ -5652,9 +7176,15 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                         {"type": "null"},
                     ],
                     "default": None,
+                    "description": 'OpenProject query filter objects, sent unchanged, e.g. {"_links": {"filter": {"href": "/api/v3/queries/filters/status"}, "operator": {"href": "/api/v3/queries/operators/o"}, "values": []}}.',
                     "title": "Filters",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["board_id"],
             "title": "update_boardArguments",
@@ -5662,22 +7192,38 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
         "classification": "write",
         "scope": "board",
         "capability_env_vars": ("OPENPROJECT_ENABLE_BOARD_WRITE", "OPENPROJECT_ENABLE_BOARD_READ"),
     },
     "update_document": {
-        "description_hash": "1102f06cc228d67979bb21add1bf2a6aeb421eb760e5669ee4c688d189db38bc",
+        "description_hash": "c0a027dc9db6f628439f35bdc37081b1e0d8e77351e4f60c19213f05adb8dbc1",
         "input_schema": {
             "properties": {
-                "document_id": {"title": "Document Id", "type": "integer"},
-                "title": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Title"},
+                "document_id": {
+                    "description": "Numeric document id, as returned by list_documents.",
+                    "title": "Document Id",
+                    "type": "integer",
+                },
+                "title": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "At most 255 characters.",
+                    "title": "Title",
+                },
                 "description": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": 'Document text; "" clears it.',
                     "title": "Description",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["document_id"],
             "title": "update_documentArguments",
@@ -5685,23 +7231,40 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_WRITE", "OPENPROJECT_ENABLE_PROJECT_READ"),
     },
     "update_grid": {
-        "description_hash": "62961e196ef0349a1653d88afb61ad679f07b4a151e33ee28d3e3d9148e4436f",
+        "description_hash": "7b656c513c6195597ab13220529c4da72c2e9920318e380a399fdafaca2dc495",
         "input_schema": {
             "properties": {
-                "grid_id": {"title": "Grid Id", "type": "integer"},
-                "name": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Name"},
-                "row_count": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Row Count"},
+                "grid_id": {"description": "Grid id, from list_grids.", "title": "Grid Id", "type": "integer"},
+                "name": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "New display name, at most 255 characters.",
+                    "title": "Name",
+                },
+                "row_count": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "New number of rows, a positive integer.",
+                    "title": "Row Count",
+                },
                 "column_count": {
                     "anyOf": [{"type": "integer"}, {"type": "null"}],
                     "default": None,
+                    "description": "New number of columns, a positive integer.",
                     "title": "Column Count",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["grid_id"],
             "title": "update_gridArguments",
@@ -5709,27 +7272,40 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_WRITE", "OPENPROJECT_ENABLE_PROJECT_READ"),
     },
     "update_group": {
-        "description_hash": "dce52876f0b926e3b4a3e4f167073fcbca9a70e23d2263cca7fcb1b55b54aa41",
+        "description_hash": "180729edeae20f198879d96c579627a035f4bf81357c2780640fb6077d9602e0",
         "input_schema": {
             "properties": {
-                "group_id": {"title": "Group Id", "type": "integer"},
-                "name": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Name"},
+                "group_id": {"description": "Group id, from list_groups.", "title": "Group Id", "type": "integer"},
+                "name": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "New group display name; omit to keep it.",
+                    "title": "Name",
+                },
                 "add_user_ids": {
                     "anyOf": [{"items": {"type": "integer"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "User ids to add; other current members stay.",
                     "title": "Add User Ids",
                 },
                 "remove_user_ids": {
                     "anyOf": [{"items": {"type": "integer"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "User ids to remove; wins over add_user_ids.",
                     "title": "Remove User Ids",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["group_id"],
             "title": "update_groupArguments",
@@ -5737,36 +7313,83 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "admin",
         "capability_env_vars": ("OPENPROJECT_ENABLE_ADMIN_WRITE", "OPENPROJECT_ENABLE_ADMIN_READ"),
     },
     "update_meeting": {
-        "description_hash": "fcf892f5e27672c487b7ec04957e3bb4ae0b1e6b3e819d11312239abbbcd2e2a",
+        "description_hash": "8ccb0f24182ad32fd3d13d9eed0a6a988c9ad32de2b0625bd395f3b0863da9cb",
         "input_schema": {
             "properties": {
-                "meeting_id": {"title": "Meeting Id", "type": "integer"},
-                "title": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Title"},
-                "location": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Location"},
-                "start_time": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Start Time"},
-                "duration": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Duration"},
-                "state": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "State"},
-                "sharing": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Sharing"},
-                "notify": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Notify"},
+                "meeting_id": {
+                    "description": "Meeting id, from list_meetings.",
+                    "title": "Meeting Id",
+                    "type": "integer",
+                },
+                "title": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Meeting title, at most 255 characters.",
+                    "title": "Title",
+                },
+                "location": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Free-text location or meeting link, at most 255 characters.",
+                    "title": "Location",
+                },
+                "start_time": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "ISO 8601 date-time with offset, e.g. 2026-12-01T09:00:00Z.",
+                    "title": "Start Time",
+                },
+                "duration": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": 'ISO 8601 duration in hours and minutes, e.g. "PT1H30M".',
+                    "title": "Duration",
+                },
+                "state": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": 'Meeting state as get_meeting reports it, e.g. "open", "in_progress" or "closed".',
+                    "title": "State",
+                },
+                "sharing": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": 'Only for meeting templates: "none", "descendants" or "system"; leave it out for a meeting.',
+                    "title": "Sharing",
+                },
+                "notify": {
+                    "anyOf": [{"type": "boolean"}, {"type": "null"}],
+                    "default": None,
+                    "description": "true lets OpenProject email the invited participants about this meeting; for an occurrence of a series the series' setting applies.",
+                    "title": "Notify",
+                },
                 "participant_user_refs": {
                     "anyOf": [
                         {"items": {"anyOf": [{"type": "integer"}, {"type": "string"}]}, "type": "array"},
                         {"type": "null"},
                     ],
                     "default": None,
+                    "description": "Users to invite (id, login or name). Known issue: OpenProject's update form drops this list, so the participants stay unchanged; change them in OpenProject.",
                     "title": "Participant User Refs",
                 },
                 "lock_version": {
                     "anyOf": [{"type": "integer"}, {"type": "null"}],
                     "default": None,
+                    "description": "The lock_version from get_meeting; the update is rejected if the meeting changed since. Omit it to skip this check.",
                     "title": "Lock Version",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["meeting_id"],
             "title": "update_meetingArguments",
@@ -5774,34 +7397,62 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
         "classification": "write",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "update_meeting_agenda_item": {
-        "description_hash": "6cf4be9bd343e28190cdfedfe933426cfdcdf91973f483d1e7e61f8c198105de",
+        "description_hash": "13b6b2a10c643342f8e6375d4b28d776ce8cbeb2586e50e0dbcf0db463efd835",
         "input_schema": {
             "properties": {
-                "agenda_item_id": {"title": "Agenda Item Id", "type": "integer"},
-                "title": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Title"},
-                "notes": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Notes"},
+                "agenda_item_id": {
+                    "description": "Agenda item id, from list_meeting_agenda_items.",
+                    "title": "Agenda Item Id",
+                    "type": "integer",
+                },
+                "title": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Item title, at most 255 characters.",
+                    "title": "Title",
+                },
+                "notes": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": 'Notes in Markdown, at most 50,000 characters. "" clears them.',
+                    "title": "Notes",
+                },
                 "duration_in_minutes": {
                     "anyOf": [{"type": "integer"}, {"type": "null"}],
                     "default": None,
+                    "description": "Planned duration in minutes, 0 to 1440.",
                     "title": "Duration In Minutes",
                 },
-                "item_type": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Item Type"},
+                "item_type": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": '"simple" (a titled item) or "work_package" (an item for the work package given in work_package_id, which it then requires).',
+                    "title": "Item Type",
+                },
                 "work_package_id": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                     "title": "Work Package Id",
                 },
                 "meeting_section_id": {
                     "anyOf": [{"type": "integer"}, {"type": "null"}],
                     "default": None,
+                    "description": "Section to move the item into, from list_meeting_sections: one of the same meeting, or of another meeting in the same series.",
                     "title": "Meeting Section Id",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["agenda_item_id"],
             "title": "update_meeting_agenda_itemArguments",
@@ -5809,12 +7460,13 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
         "classification": "write",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "update_meeting_outcome": {
-        "description_hash": "6fcbb2c2aeeee53874c3402f3a3ceb374bc86b14eb2d4ec9b7782da97f30750a",
+        "description_hash": "3c867e6f3e81ba2600cce9f365ffd7eff7def4bc5354489bdcc56f996f9cd07d",
         "input_schema": {
             "properties": {
                 "outcome_id": {"title": "Outcome Id", "type": "integer"},
@@ -5823,9 +7475,15 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "work_package_id": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                     "title": "Work Package Id",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["outcome_id"],
             "title": "update_meeting_outcomeArguments",
@@ -5833,18 +7491,38 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "update_meeting_section": {
-        "description_hash": "95085c91abd07299049331e7f44355f25dc8dbcea46fe0f9f986842c7c57b9ed",
+        "description_hash": "0015b15e6365174154be2b3bc38de1722d09c86b00637225e9075f7c48d7f004",
         "input_schema": {
             "properties": {
-                "section_id": {"title": "Section Id", "type": "integer"},
-                "title": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Title"},
-                "position": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Position"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "section_id": {
+                    "description": "Meeting section id, from list_meeting_sections.",
+                    "title": "Section Id",
+                    "type": "integer",
+                },
+                "title": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "New section title; it cannot be emptied.",
+                    "title": "Title",
+                },
+                "position": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "New place among the meeting's sections, 1 = first; the others shift.",
+                    "title": "Position",
+                },
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["section_id"],
             "title": "update_meeting_sectionArguments",
@@ -5852,16 +7530,22 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "update_membership": {
-        "description_hash": "f2d14bc8ea90ac5bad2933319081afdc3c7320514adc5c538fe87a98a930a23d",
+        "description_hash": "e99f9171ec979a3bb41c24ed61d496dade99828fe98a6d0b534f2ebb26b96d28",
         "input_schema": {
             "properties": {
-                "membership_id": {"title": "Membership Id", "type": "integer"},
+                "membership_id": {
+                    "description": "Membership id, from list_project_memberships.",
+                    "title": "Membership Id",
+                    "type": "integer",
+                },
                 "roles": {
+                    "description": "Replaces all current roles; role ids or exact role names (case-insensitive), from list_roles.",
                     "items": {"anyOf": [{"type": "integer"}, {"type": "string"}]},
                     "title": "Roles",
                     "type": "array",
@@ -5869,9 +7553,15 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "notification_message": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Markdown text for OpenProject's membership notification.",
                     "title": "Notification Message",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["membership_id", "roles"],
             "title": "update_membershipArguments",
@@ -5879,54 +7569,89 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
         "classification": "write",
         "scope": "membership",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEMBERSHIP_WRITE", "OPENPROJECT_ENABLE_MEMBERSHIP_READ"),
     },
     "update_my_preferences": {
-        "description_hash": "d523140434dd01bb21d9def39dd36ff08cb788c12f162126e887261302efc908",
+        "description_hash": "6f492d9acf80b3237edbaa189b4245b98974f3f4ab1b12f0bdd9eaa7d047a4aa",
         "input_schema": {
             "properties": {
-                "time_zone": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Time Zone"},
+                "time_zone": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": 'Time zone name, e.g. "Europe/Berlin".',
+                    "title": "Time Zone",
+                },
                 "comment_sort_descending": {
                     "anyOf": [{"type": "boolean"}, {"type": "null"}],
                     "default": None,
+                    "description": "true shows comments newest first.",
                     "title": "Comment Sort Descending",
                 },
                 "warn_on_leaving_unsaved": {
                     "anyOf": [{"type": "boolean"}, {"type": "null"}],
                     "default": None,
+                    "description": "true warns before leaving a page with unsaved changes.",
                     "title": "Warn On Leaving Unsaved",
                 },
                 "auto_hide_popups": {
                     "anyOf": [{"type": "boolean"}, {"type": "null"}],
                     "default": None,
+                    "description": "true makes popups close automatically.",
                     "title": "Auto Hide Popups",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "title": "update_my_preferencesArguments",
             "type": "object",
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "personal",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PERSONAL_READ", "OPENPROJECT_ENABLE_PERSONAL_WRITE"),
     },
     "update_news": {
-        "description_hash": "e8048c699342084ca6da64c03f44b935d2b4f0526ab33a0905f750752818419a",
+        "description_hash": "d73c35f39a1762e8344a3a9b9f9a8c1c4fceea6c1bb6e8213f65ac5bb8ca3e2b",
         "input_schema": {
             "properties": {
-                "news_id": {"title": "News Id", "type": "integer"},
-                "title": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Title"},
-                "summary": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Summary"},
+                "news_id": {
+                    "description": "Numeric news id, as returned by list_news.",
+                    "title": "News Id",
+                    "type": "integer",
+                },
+                "title": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "At most 255 characters.",
+                    "title": "Title",
+                },
+                "summary": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": 'Short plain text, at most 500 characters; "" clears it.',
+                    "title": "Summary",
+                },
                 "description": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": 'Full text in Markdown; "" clears it.',
                     "title": "Description",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["news_id"],
             "title": "update_newsArguments",
@@ -5934,36 +7659,74 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_WRITE", "OPENPROJECT_ENABLE_PROJECT_READ"),
     },
     "update_project": {
-        "description_hash": "c92511efc652b34be9bf2e708abbb087a5cbe6c49344b038562943d96809bac5",
+        "description_hash": "c2c8c292763d7ec430ac82ca3345599fee0f81d80807c96ed38564711df7408f",
         "input_schema": {
             "properties": {
-                "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
-                "name": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Name"},
-                "identifier": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Identifier"},
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
+                    "title": "Project",
+                },
+                "name": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Display name, at most 255 characters.",
+                    "title": "Name",
+                },
+                "identifier": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": 'URL identifier such as "my-proj": letters, digits, ".", "_" and "-".',
+                    "title": "Identifier",
+                },
                 "description": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": 'Markdown text; "" clears it.',
                     "title": "Description",
                 },
-                "public": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Public"},
-                "active": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Active"},
-                "status": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Status"},
+                "public": {
+                    "anyOf": [{"type": "boolean"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Whether the project is public.",
+                    "title": "Public",
+                },
+                "active": {
+                    "anyOf": [{"type": "boolean"}, {"type": "null"}],
+                    "default": None,
+                    "description": "false means archived.",
+                    "title": "Active",
+                },
+                "status": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Status title, any case, as listed in get_project_admin_context's available_statuses.",
+                    "title": "Status",
+                },
                 "status_explanation": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": 'Markdown text explaining the status; "" clears it.',
                     "title": "Status Explanation",
                 },
                 "parent": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Parent project identifier, id, or name; 'none' makes the project top-level.",
                     "title": "Parent",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["project"],
             "title": "update_projectArguments",
@@ -5971,12 +7734,13 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
         "classification": "write",
         "scope": "project",
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_WRITE", "OPENPROJECT_ENABLE_PROJECT_READ"),
     },
     "update_recurring_meeting": {
-        "description_hash": "7831e2a26212515e53f275221849d032eafa9ab07210bcabf293c27c930f0624",
+        "description_hash": "b0dc25684d91522c9b168ee7d9c037abaafd08314f27fd148067cebfcecfaada",
         "input_schema": {
             "properties": {
                 "recurring_meeting_id": {"title": "Recurring Meeting Id", "type": "integer"},
@@ -5991,7 +7755,12 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "default": None,
                     "title": "Iterations",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["recurring_meeting_id"],
             "title": "update_recurring_meetingArguments",
@@ -5999,12 +7768,13 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
         "classification": "write",
         "scope": "meeting",
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "update_relation": {
-        "description_hash": "2345316bc63f56a2a900bdc5355d6255d7088fbcefa50161c823e9da5f32c924",
+        "description_hash": "34b51435d362a5b1b127b0dce543fbcf9e90843a0076549c87f97c015114f126",
         "input_schema": {
             "properties": {
                 "relation_id": {"title": "Relation Id", "type": "integer"},
@@ -6018,7 +7788,12 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "default": None,
                     "title": "Description",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["relation_id"],
             "title": "update_relationArguments",
@@ -6026,18 +7801,38 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "update_reminder": {
-        "description_hash": "fac664c650f19cfe1fb9effc7219cdbadd4a9a8ddb64982c6ec0055a3ebef643",
+        "description_hash": "9a4a351d3307b86ea9c05cf2bad38cab0d16780b86532d09264e09691cabdc64",
         "input_schema": {
             "properties": {
-                "reminder_id": {"title": "Reminder Id", "type": "integer"},
-                "remind_at": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Remind At"},
-                "note": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Note"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "reminder_id": {
+                    "description": "Reminder id, from list_reminders.",
+                    "title": "Reminder Id",
+                    "type": "integer",
+                },
+                "remind_at": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "New ISO 8601 date-time with offset, e.g. 2026-12-01T09:00:00Z.",
+                    "title": "Remind At",
+                },
+                "note": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": 'New note, at most 2000 characters; "" clears it.',
+                    "title": "Note",
+                },
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["reminder_id"],
             "title": "update_reminderArguments",
@@ -6045,18 +7840,38 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "update_storage": {
-        "description_hash": "a6f40d728875a9ac87326a5b4d16fb1676d6d59fece43c18927a89000050c203",
+        "description_hash": "ecef8c4921dd054f7f8494f037772cf3bb281925c951b309beb8af151d05aa65",
         "input_schema": {
             "properties": {
-                "storage_id": {"title": "Storage Id", "type": "integer"},
-                "name": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Name"},
-                "host": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Host"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "storage_id": {
+                    "description": "Storage id, from list_storages.",
+                    "title": "Storage Id",
+                    "type": "integer",
+                },
+                "name": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "New display name; omit to keep it.",
+                    "title": "Name",
+                },
+                "host": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "New host URL; on Nextcloud, confirm=true re-runs OpenProject's live reachability/setup probe.",
+                    "title": "Host",
+                },
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["storage_id"],
             "title": "update_storageArguments",
@@ -6064,12 +7879,13 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "admin",
         "capability_env_vars": ("OPENPROJECT_ENABLE_ADMIN_WRITE", "OPENPROJECT_ENABLE_ADMIN_READ"),
     },
     "update_time_entry": {
-        "description_hash": "18122ed32c164ce29392647a97c80a091aeb499d2e201eed75d2eb978a138ca1",
+        "description_hash": "0c63281fdae87cc4ad88e58324120efa69ab35fb49902c5d999b4740a026affd",
         "input_schema": {
             "properties": {
                 "time_entry_id": {"title": "Time Entry Id", "type": "integer"},
@@ -6088,7 +7904,12 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "start_time": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Start Time"},
                 "comment": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Comment"},
                 "ongoing": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Ongoing"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["time_entry_id"],
             "title": "update_time_entryArguments",
@@ -6096,12 +7917,13 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "update_time_entry_until": {
-        "description_hash": "16d873e72193051b1b742cc197bbece7270a27a47e11e3d0b6bc15b5916500e4",
+        "description_hash": "f47d9a4551025f9304c63dc8947138a871009c83b2352b0d3f8ae3330a58f446",
         "input_schema": {
             "properties": {
                 "time_entry_id": {"title": "Time Entry Id", "type": "integer"},
@@ -6119,7 +7941,12 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 },
                 "spent_on": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Spent On"},
                 "comment": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Comment"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["time_entry_id", "start_time", "end_time"],
             "title": "update_time_entry_untilArguments",
@@ -6127,22 +7954,58 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "update_user": {
-        "description_hash": "b6807dd0164766336b973b4438d132da12e54d166ab40e63e6302ce06e8fb6a3",
+        "description_hash": "b39c65b0dd73bc3c3930c6cc62f01e9b1bb5d79668f431688546b682804808bc",
         "input_schema": {
             "properties": {
-                "user_id": {"title": "User Id", "type": "integer"},
-                "login": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Login"},
-                "email": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Email"},
-                "firstname": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Firstname"},
-                "lastname": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Lastname"},
-                "admin": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Admin"},
-                "language": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Language"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "user_id": {"description": "User id, from list_users.", "title": "User Id", "type": "integer"},
+                "login": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Login name used to sign in.",
+                    "title": "Login",
+                },
+                "email": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Email address.",
+                    "title": "Email",
+                },
+                "firstname": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Given name.",
+                    "title": "Firstname",
+                },
+                "lastname": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Family name.",
+                    "title": "Lastname",
+                },
+                "admin": {
+                    "anyOf": [{"type": "boolean"}, {"type": "null"}],
+                    "default": None,
+                    "description": "true grants, false revokes administrator rights.",
+                    "title": "Admin",
+                },
+                "language": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": 'Language code such as "en".',
+                    "title": "Language",
+                },
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["user_id"],
             "title": "update_userArguments",
@@ -6150,19 +8013,25 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "admin",
         "capability_env_vars": ("OPENPROJECT_ENABLE_ADMIN_WRITE", "OPENPROJECT_ENABLE_ADMIN_READ"),
     },
     "update_user_non_working_time": {
-        "description_hash": "863a1efbd489fd5a243bf1c581cf46f39fb93915d773a01d884f2f3cbbdb1e95",
+        "description_hash": "25ff5e6e7bad9991cb4d182102e89359556a15025b55af1fa0cbc7b9e9480074",
         "input_schema": {
             "properties": {
                 "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
                 "non_working_time_id": {"title": "Non Working Time Id", "type": "integer"},
                 "start_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Start Date"},
                 "end_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "End Date"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["user_ref", "non_working_time_id"],
             "title": "update_user_non_working_timeArguments",
@@ -6170,58 +8039,85 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "user_schedule",
         "capability_env_vars": ("OPENPROJECT_ENABLE_USER_SCHEDULE_WRITE", "OPENPROJECT_ENABLE_USER_SCHEDULE_READ"),
     },
     "update_user_working_hours": {
-        "description_hash": "7558a0eb746392a89e3a05d4db5f463c2cc4b581124ece22a5d064017126821f",
+        "description_hash": "2150f7a6651778e400f453f3d6b73c7aba60de2be4e6246b89e001581eaf34fa",
         "input_schema": {
             "properties": {
-                "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
-                "working_hours_id": {"title": "Working Hours Id", "type": "integer"},
-                "valid_from": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Valid From"},
+                "user_ref": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": '"me", a numeric user id, or a login.',
+                    "title": "User Ref",
+                },
+                "working_hours_id": {
+                    "description": "Schedule entry id, from list_user_working_hours.",
+                    "title": "Working Hours Id",
+                    "type": "integer",
+                },
+                "valid_from": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "New start date (YYYY-MM-DD) of this entry; unique per user.",
+                    "title": "Valid From",
+                },
                 "monday_hours": {
                     "anyOf": [{"type": "number"}, {"type": "null"}],
                     "default": None,
+                    "description": "Hours that day, 0 to 24; at least one day must be above 0.",
                     "title": "Monday Hours",
                 },
                 "tuesday_hours": {
                     "anyOf": [{"type": "number"}, {"type": "null"}],
                     "default": None,
+                    "description": "Hours that day, 0 to 24; at least one day must be above 0.",
                     "title": "Tuesday Hours",
                 },
                 "wednesday_hours": {
                     "anyOf": [{"type": "number"}, {"type": "null"}],
                     "default": None,
+                    "description": "Hours that day, 0 to 24; at least one day must be above 0.",
                     "title": "Wednesday Hours",
                 },
                 "thursday_hours": {
                     "anyOf": [{"type": "number"}, {"type": "null"}],
                     "default": None,
+                    "description": "Hours that day, 0 to 24; at least one day must be above 0.",
                     "title": "Thursday Hours",
                 },
                 "friday_hours": {
                     "anyOf": [{"type": "number"}, {"type": "null"}],
                     "default": None,
+                    "description": "Hours that day, 0 to 24; at least one day must be above 0.",
                     "title": "Friday Hours",
                 },
                 "saturday_hours": {
                     "anyOf": [{"type": "number"}, {"type": "null"}],
                     "default": None,
+                    "description": "Hours that day, 0 to 24; at least one day must be above 0.",
                     "title": "Saturday Hours",
                 },
                 "sunday_hours": {
                     "anyOf": [{"type": "number"}, {"type": "null"}],
                     "default": None,
+                    "description": "Hours that day, 0 to 24; at least one day must be above 0.",
                     "title": "Sunday Hours",
                 },
                 "availability_factor": {
                     "anyOf": [{"type": "number"}, {"type": "null"}],
                     "default": None,
+                    "description": "Percentage of the working time dedicated to project work: pass a whole number 0 to 100.",
                     "title": "Availability Factor",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["user_ref", "working_hours_id"],
             "title": "update_user_working_hoursArguments",
@@ -6229,26 +8125,62 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "user_schedule",
         "capability_env_vars": ("OPENPROJECT_ENABLE_USER_SCHEDULE_WRITE", "OPENPROJECT_ENABLE_USER_SCHEDULE_READ"),
     },
     "update_version": {
-        "description_hash": "416d3b88e09e595e943973e347b96b2aa64cbed8e5de122ec7ebc049456f1972",
+        "description_hash": "8b1dd2d67e5e976b946f5312324d1948925b4304738541b660b79eb00ff66098",
         "input_schema": {
             "properties": {
-                "version_id": {"title": "Version Id", "type": "integer"},
-                "name": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Name"},
+                "version_id": {
+                    "description": "Numeric version id, as returned by list_versions.",
+                    "title": "Version Id",
+                    "type": "integer",
+                },
+                "name": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Display name, at most 60 characters.",
+                    "title": "Name",
+                },
                 "description": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": 'Plain text, not Markdown; "" clears it.',
                     "title": "Description",
                 },
-                "start_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Start Date"},
-                "end_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "End Date"},
-                "status": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Status"},
-                "sharing": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Sharing"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "start_date": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "ISO 8601 date (YYYY-MM-DD).",
+                    "title": "Start Date",
+                },
+                "end_date": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "ISO 8601 date (YYYY-MM-DD).",
+                    "title": "End Date",
+                },
+                "status": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": 'One of "open", "locked", "closed".',
+                    "title": "Status",
+                },
+                "sharing": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": 'One of "none", "descendants", "hierarchy", "tree".',
+                    "title": "Sharing",
+                },
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["version_id"],
             "title": "update_versionArguments",
@@ -6256,15 +8188,20 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "version",
         "capability_env_vars": ("OPENPROJECT_ENABLE_VERSION_WRITE", "OPENPROJECT_ENABLE_VERSION_READ"),
     },
     "update_work_package": {
-        "description_hash": "d84f4657f938f5d839766d6a4b3554ba090dd171b0618cc8ac2bd62a88217318",
+        "description_hash": "3b296742b61470ef60aebdf5e6eb2716595df02407e8c86cd2aa53ba4a96099f",
         "input_schema": {
             "properties": {
-                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                },
                 "subject": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Subject"},
                 "description": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
@@ -6360,7 +8297,12 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "default": None,
                     "title": "Percentage Done",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["work_package_id"],
             "title": "update_work_packageArguments",
@@ -6368,17 +8310,31 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "update_work_package_comment": {
-        "description_hash": "9aad77f22b883185700136dcf18c5426d3b3d00b28762f4eab403e548dfe66f0",
+        "description_hash": "ab791970e55e34ed36bd63c780b4dc4bc11225f1789d127abd25492ab3df3637",
         "input_schema": {
             "properties": {
-                "activity_id": {"title": "Activity Id", "type": "integer"},
-                "comment": {"title": "Comment", "type": "string"},
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "activity_id": {
+                    "description": "The comment's activity id, from get_work_package_activities or add_work_package_comment's result.",
+                    "title": "Activity Id",
+                    "type": "integer",
+                },
+                "comment": {
+                    "description": "The new comment text in Markdown; replaces the whole text.",
+                    "title": "Comment",
+                    "type": "string",
+                },
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["activity_id", "comment"],
             "title": "update_work_package_commentArguments",
@@ -6386,21 +8342,41 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
         "classification": "write",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "list_container_attachments": {
-        "description_hash": "ca63734596cd2e71c9b787725d190640423306362125f3c02e74ec3c7dad157d",
+        "description_hash": "ab96fbeb5bef6121e376ec779d8677dca684aed105ee2007cbdffd5177f57fd3",
         "input_schema": {
             "properties": {
-                "container_type": {"title": "Container Type", "type": "string"},
-                "container_id": {"title": "Container Id", "type": "integer"},
-                "offset": {"default": 1, "title": "Offset", "type": "integer"},
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "container_type": {
+                    "description": "wiki_page, post (forum message), meeting, or activity (a work package comment, by its activity id from get_work_package_activities).",
+                    "title": "Container Type",
+                    "type": "string",
+                },
+                "container_id": {
+                    "description": "Numeric id of that wiki page, post, meeting or activity.",
+                    "title": "Container Id",
+                    "type": "integer",
+                },
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: author, container_id, container_type, content_type, created_at, description, download_url, file_name, file_size_bytes, id, status, title.",
                     "title": "Select",
                 },
             },
@@ -6410,25 +8386,36 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_work_package_available_relation_candidates": {
-        "description_hash": "30543004ee503611519bcdaab26281025e8af918e8cef8a1987505f426fc54e1",
+        "description_hash": "94979f0df095c922df219dcf8f6e5239dc9d8d08b17fcfb0f05702b6c694bf34",
         "input_schema": {
             "properties": {
-                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                },
                 "query": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Query"},
                 "relation_type": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
                     "title": "Relation Type",
                 },
-                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Maximum number of candidates, capped at OPENPROJECT_MAX_PAGE_SIZE. Not paged.",
+                    "title": "Limit",
+                },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: display_id, id, project, status, subject, type.",
                     "title": "Select",
                 },
             },
@@ -6438,27 +8425,31 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_available_assignees": {
-        "description_hash": "9e1b6eab64c6fe00e7df6c93ec7d635edebaebab453625572696408dd4a8f632",
+        "description_hash": "47dbe31db43ba36d435f77b7ac3f937b8585eff9bfc10ea70e82b2cdf69e9e0d",
         "input_schema": {
             "properties": {
                 "work_package_id": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                     "title": "Work Package Id",
                 },
                 "project": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                     "title": "Project",
                 },
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: email, id, name, type.",
                     "title": "Select",
                 },
             },
@@ -6467,23 +8458,42 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
         "classification": "read",
         "scope": "work_package",
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "create_container_attachment": {
-        "description_hash": "49e26c0cb5bfecb5fdfc895203e2345442315d9d9e218f6428116860263b0564",
+        "description_hash": "6857490e990b3874e64281fa948ba6dc29c0f00ef0f46b398bd37c75f9560b24",
         "input_schema": {
             "properties": {
-                "container_type": {"title": "Container Type", "type": "string"},
-                "container_id": {"title": "Container Id", "type": "integer"},
-                "file_path": {"title": "File Path", "type": "string"},
+                "container_type": {
+                    "description": "wiki_page, post (forum message), meeting, or activity (a work package comment, by its activity id from get_work_package_activities).",
+                    "title": "Container Type",
+                    "type": "string",
+                },
+                "container_id": {
+                    "description": "Numeric id of that wiki page, post, meeting or activity.",
+                    "title": "Container Id",
+                    "type": "integer",
+                },
+                "file_path": {
+                    "description": "Path on the MCP server's machine, inside OPENPROJECT_ATTACHMENT_ROOT; uploaded under its file name.",
+                    "title": "File Path",
+                    "type": "string",
+                },
                 "description": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
+                    "description": "Markdown text stored with the attachment.",
                     "title": "Description",
                 },
-                "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
             },
             "required": ["container_type", "container_id", "file_path"],
             "title": "create_container_attachmentArguments",
@@ -6491,6 +8501,12 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "output_schema": None,
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
         "classification": "write",
         "scope": "project|meeting|work_package",
         "capability_env_vars": ("OPENPROJECT_ATTACHMENT_ROOT",),
@@ -6523,6 +8539,8 @@ def test_tool_contract_unchanged(name: str, live_catalog: dict[str, Any]) -> Non
 
     assert tool.input_schema == expected["input_schema"], f"{name}: inputSchema changed"
     assert tool.output_schema == expected["output_schema"], f"{name}: output schema changed"
+    annotations = tool.annotations.model_dump(by_alias=True, exclude_none=True) if tool.annotations else None
+    assert annotations == expected["annotations"], f"{name}: annotations changed"
 
     live_hash = hashlib.sha256((tool.description or "").encode()).hexdigest()
     assert live_hash == expected["description_hash"], (

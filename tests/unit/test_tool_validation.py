@@ -1041,6 +1041,83 @@ def test_validate_select_without_nested_entities_rejects_paths(name: str) -> Non
         _validate_select([name], row_type=WorkPackageDetail, wrapper_fields=BATCH_READ_ITEM_WRAPPER_FIELDS)
 
 
+def _field_names(row_type: type) -> list[str]:
+    from dataclasses import fields
+
+    return sorted(field.name for field in fields(row_type))
+
+
+_BULK_TOOLS = pytest.mark.parametrize(
+    ("tool", "item"),
+    [
+        (bulk_create_work_packages, {"project": "TST", "type": "Task", "subject": "s"}),
+        (bulk_update_work_packages, {"work_package_id": 1, "subject": "s"}),
+    ],
+)
+
+
+@_BULK_TOOLS
+async def test_bulk_select_error_for_an_unknown_nested_field_is_exact(tool, item) -> None:
+    from openproject_ce_mcp.models import WorkPackageDetail
+
+    allowed = ", ".join(f"result.{name}" for name in _field_names(WorkPackageDetail))
+
+    with pytest.raises(ValueError) as error:
+        await tool(FakeContext(None), items=[item], select=["result.bogus"])  # type: ignore[arg-type]
+
+    assert str(error.value) == (
+        f"select field 'result.bogus' is not a valid result field. Allowed: {allowed}. No request was sent."
+    )
+
+
+@_BULK_TOOLS
+async def test_bulk_select_error_for_a_bare_nested_field_is_exact(tool, item) -> None:
+    with pytest.raises(ValueError) as error:
+        await tool(FakeContext(None), items=[item], select=["subject"])  # type: ignore[arg-type]
+
+    assert str(error.value) == (
+        "select field 'subject' is a field of the WorkPackageDetail in 'result'; "
+        "select it as 'result.subject'. No request was sent."
+    )
+
+
+@_BULK_TOOLS
+async def test_bulk_select_error_for_an_unknown_top_level_field_is_exact(tool, item) -> None:
+    from openproject_ce_mcp.models import WorkPackageWriteResult
+
+    allowed = ", ".join(sorted({*_field_names(WorkPackageWriteResult), "index", "success", "error"}))
+
+    with pytest.raises(ValueError) as error:
+        await tool(FakeContext(None), items=[item], select=["bogus"])  # type: ignore[arg-type]
+
+    assert str(error.value) == (
+        f"select field 'bogus' is not a valid WorkPackageWriteResult field. Allowed: {allowed}. "
+        "Fields of 'result' are selected as 'result.<field>'. No request was sent."
+    )
+
+
+@_BULK_TOOLS
+async def test_bulk_select_error_for_an_empty_select_is_exact(tool, item) -> None:
+    with pytest.raises(ValueError) as error:
+        await tool(FakeContext(None), items=[item], select=[])  # type: ignore[arg-type]
+
+    assert str(error.value) == "select must contain at least one field name. No request was sent."
+
+
+async def test_select_error_for_an_unknown_field_without_nested_entities_is_exact() -> None:
+    from openproject_ce_mcp.models import VersionSummary
+    from openproject_ce_mcp.tools_versions import list_versions
+
+    allowed = ", ".join(_field_names(VersionSummary))
+
+    with pytest.raises(ValueError) as error:
+        await list_versions(FakeContext(None), select=["bogus"])  # type: ignore[arg-type]
+
+    assert str(error.value) == (
+        f"select field 'bogus' is not a valid VersionSummary field. Allowed: {allowed}. No request was sent."
+    )
+
+
 @pytest.mark.parametrize("value", [7, "7", " 7 "])
 def test_reference_validators_turn_an_id_into_its_decimal_string(value) -> None:
     assert _validate_ref(value, field_name="type", max_length=100) == "7"

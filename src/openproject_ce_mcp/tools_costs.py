@@ -29,6 +29,7 @@ from .models import (
     CostTypeSummary,
     WorkPackageCostsByTypeResult,
 )
+from .tool_params import WorkPackageRef
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import _validate_positive_int, _validate_work_package_ref
 
@@ -51,11 +52,9 @@ async def get_cost_entry(
 @register_tool
 async def list_work_package_cost_entries(
     ctx: Context,
-    work_package_id: int | str,
+    work_package_id: WorkPackageRef,
 ) -> CostEntryListResult:
     """List all cost entries recorded against a work package.
-
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
 
     Returns every cost entry for the work package in one call -- this endpoint
     is unpaginated on OpenProject's side (no offset/limit parameters exist).
@@ -68,11 +67,9 @@ async def list_work_package_cost_entries(
 @register_tool
 async def get_work_package_costs_by_type(
     ctx: Context,
-    work_package_id: int | str,
+    work_package_id: WorkPackageRef,
 ) -> WorkPackageCostsByTypeResult:
     """Get a work package's costs aggregated by cost type.
-
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
 
     count is the number of distinct cost types with recorded spend on this
     work package, not a monetary total. Each result's spent_units is a

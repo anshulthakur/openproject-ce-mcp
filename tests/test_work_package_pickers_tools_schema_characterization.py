@@ -47,7 +47,7 @@ def test_list_available_assignees_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_available_assignees"]
     assert (
         tool.description
-        == 'List the users and groups OpenProject accepts as assignee.\n\nPass work_package_id for an existing work package, or project (id or\nidentifier) for one not created yet -- exactly one of the two.\nwork_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.\nThe same principals are valid as responsible (accountable).\n\nselect fields: id, type, name, email (see server instructions for\nselect\'s general semantics).\n'
+        == "List the users and groups OpenProject accepts as assignee.\n\nPass work_package_id for an existing work package, or project for one not\ncreated yet -- exactly one of the two. The same principals are valid as\nresponsible (accountable).\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
@@ -55,16 +55,19 @@ def test_list_available_assignees_schema() -> None:
             "work_package_id": {
                 "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                 "title": "Work Package Id",
             },
             "project": {
                 "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Project",
             },
             "select": {
                 "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,
+                "description": "Fields to return; a requested unset field comes back as null. Allowed: email, id, name, type.",
                 "title": "Select",
             },
         },
@@ -80,22 +83,32 @@ def test_list_work_package_available_relation_candidates_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_work_package_available_relation_candidates"]
     assert (
         tool.description
-        == 'List work packages that can be the other end of a new relation.\n\nwork_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.\nquery: text matching subject, project, type, status or display identifier.\nBare digits match the internal id on older/classic-identifier instances,\nbut the project sequence number on 17.8+ with semantic identifiers;\nuse a subject substring for a version-independent search.\nrelation_type: only candidates valid for this relation (relates,\nduplicates, duplicated, blocks, blocked, precedes, follows, includes,\npartof, requires, required, parent, child) -- OpenProject leaves out e.g. a work package\nthat would create a cycle. Candidates in projects outside\nOPENPROJECT_READ_PROJECTS are left out. limit is capped at\nOPENPROJECT_MAX_PAGE_SIZE (default 50).\n\nselect fields: id, display_id, subject, type, status, project (see server\ninstructions for select\'s general semantics).\n'
+        == "List work packages that can be the other end of a new relation.\n\nquery: text matching subject, project, type, status or display identifier.\nBare digits match the internal id on older/classic-identifier instances,\nbut the project sequence number on 17.8+ with semantic identifiers;\nuse a subject substring for a version-independent search.\nrelation_type: only candidates valid for this relation (relates,\nduplicates, duplicated, blocks, blocked, precedes, follows, includes,\npartof, requires, required, parent, child) -- OpenProject leaves out e.g. a work package\nthat would create a cycle. Candidates in projects outside\nOPENPROJECT_READ_PROJECTS are left out.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
+            "work_package_id": {
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                "title": "Work Package Id",
+            },
             "query": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Query"},
             "relation_type": {
                 "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
                 "title": "Relation Type",
             },
-            "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+            "limit": {
+                "anyOf": [{"type": "integer"}, {"type": "null"}],
+                "default": None,
+                "description": "Maximum number of candidates, capped at OPENPROJECT_MAX_PAGE_SIZE. Not paged.",
+                "title": "Limit",
+            },
             "select": {
                 "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,
+                "description": "Fields to return; a requested unset field comes back as null. Allowed: display_id, id, project, status, subject, type.",
                 "title": "Select",
             },
         },

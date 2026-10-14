@@ -52,7 +52,13 @@ def test_get_query_filter_schema() -> None:
         "type": "object",
     }
     assert tool.parameters == {
-        "properties": {"filter_id": {"title": "Filter Id", "type": "string"}},
+        "properties": {
+            "filter_id": {
+                "description": 'Filter id, e.g. "status", "assignee" or "subject_or_id".',
+                "title": "Filter Id",
+                "type": "string",
+            }
+        },
         "required": ["filter_id"],
         "title": "get_query_filterArguments",
         "type": "object",
@@ -114,9 +120,7 @@ def test_get_query_operator_schema() -> None:
 
 def test_get_query_sort_by_schema() -> None:
     tool = _tools(create_app(_make_settings()))["get_query_sort_by"]
-    assert tool.description == (
-        'Get a single query sort-by definition by id, "field:direction" or "field-direction" (e.g. "subject:asc").'
-    )
+    assert tool.description == ("Get a single query sort-by definition by id.")
     assert tool.output_schema == {
         "properties": {
             "id": {"title": "Id", "type": "string"},
@@ -130,7 +134,13 @@ def test_get_query_sort_by_schema() -> None:
         "type": "object",
     }
     assert tool.parameters == {
-        "properties": {"sort_by_id": {"title": "Sort By Id", "type": "string"}},
+        "properties": {
+            "sort_by_id": {
+                "description": 'Attribute and direction, e.g. "subject:asc" or "subject-asc", or a bare attribute (ascending); the direction is case-insensitive.',
+                "title": "Sort By Id",
+                "type": "string",
+            }
+        },
         "required": ["sort_by_id"],
         "title": "get_query_sort_byArguments",
         "type": "object",
@@ -149,8 +159,9 @@ def test_list_query_filter_instance_schemas_schema() -> None:
             "project": {
                 "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Project",
-            },
+            }
         },
         "title": "list_query_filter_instance_schemasArguments",
         "type": "object",

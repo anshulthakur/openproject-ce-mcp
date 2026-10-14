@@ -39,16 +39,14 @@ def _tools(mcp) -> dict:
 
 def test_list_reminders_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_reminders"]
-    assert tool.description == (
-        "List the current user's active reminders across all work packages.\n\n"
-        "select fields: id, remind_at (see server instructions for select's general semantics).\n"
-    )
+    assert tool.description == ("List the current user's active reminders across all work packages.")
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "select": {
                 "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,
+                "description": "Fields to return; a requested unset field comes back as null. Allowed: creator, id, note, remind_at, work_package_id.",
                 "title": "Select",
             }
         },
@@ -63,25 +61,27 @@ def test_list_reminders_schema() -> None:
 def test_create_work_package_reminder_schema() -> None:
     tool = _tools(create_app(_make_settings()))["create_work_package_reminder"]
     assert tool.description == (
-        "Prepare or create a reminder on a work package.\n\n"
+        "Create a reminder on a work package.\n"
+        "\n"
         "`remind_at` is an ISO 8601 date-time (e.g. 2026-12-01T09:00:00Z). Only one\n"
         "active reminder per work package is allowed; creating a second one fails.\n"
-        'work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.\n'
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "work_package_id": {
                 "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                 "title": "Work Package Id",
             },
             "remind_at": {"title": "Remind At", "type": "string"},
-            "note": {
-                "anyOf": [{"type": "string"}, {"type": "null"}],
-                "default": None,
-                "title": "Note",
+            "note": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Note"},
+            "confirm": {
+                "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                "title": "Confirm",
+                "type": "boolean",
             },
-            "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
         },
         "required": ["work_package_id", "remind_at"],
         "title": "create_work_package_reminderArguments",
@@ -94,22 +94,36 @@ def test_create_work_package_reminder_schema() -> None:
 
 def test_update_reminder_schema() -> None:
     tool = _tools(create_app(_make_settings()))["update_reminder"]
-    assert tool.description == "Prepare or update a reminder's time or note. At least one field is required."
+    assert (
+        tool.description
+        == "Update a reminder's time or note; at least one is required, an omitted one stays unchanged."
+    )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "reminder_id": {"title": "Reminder Id", "type": "integer"},
+            "reminder_id": {
+                "description": "Reminder id, from list_reminders.",
+                "title": "Reminder Id",
+                "type": "integer",
+            },
             "remind_at": {
                 "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "New ISO 8601 date-time with offset, e.g. 2026-12-01T09:00:00Z.",
                 "title": "Remind At",
             },
             "note": {
                 "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": 'New note, at most 2000 characters; "" clears it.',
                 "title": "Note",
             },
-            "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+            "confirm": {
+                "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                "title": "Confirm",
+                "type": "boolean",
+            },
         },
         "required": ["reminder_id"],
         "title": "update_reminderArguments",
@@ -122,12 +136,20 @@ def test_update_reminder_schema() -> None:
 
 def test_delete_reminder_schema() -> None:
     tool = _tools(create_app(_make_settings()))["delete_reminder"]
-    assert tool.description == "Prepare or delete a reminder; only deletes when called again with confirm=true."
+    assert (
+        tool.description
+        == "Delete a pending reminder so it never fires; this cannot be undone.\n\nIts unread notifications are marked read. Only its creator can; requires OpenProject 16.1+.\n"
+    )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "reminder_id": {"title": "Reminder Id", "type": "integer"},
-            "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+            "confirm": {
+                "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                "title": "Confirm",
+                "type": "boolean",
+            },
         },
         "required": ["reminder_id"],
         "title": "delete_reminderArguments",

@@ -10,12 +10,13 @@ re-exports these five names so existing test imports keep working unchanged
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
 from mcp.server.mcpserver import Context
+from pydantic import Field
 
 from .models import BoardDetail, BoardListResult, BoardSummary, BoardWriteResult
-from .tool_types import IdOrName
+from .tool_params import Confirm, Limit, Offset, OptionalProjectRef, select_field
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
     _require_at_least_one,
@@ -29,27 +30,44 @@ from .tools_validation import (
     _validate_select,
 )
 
+_BOARD_ID = "Board (saved query) id, from list_boards."
+_NAME = "Board name, at most 255 characters."
+_PUBLIC = "Visible to other users; false keeps it to its creator."
+_STARRED = "Mark as a favorite query."
+# OpenProject's query representer ignores `hidden` on every supported version
+# (deprecated, setter is a no-op), so a value sent here never takes effect.
+_HIDDEN = "Ignored by OpenProject; the value is not stored."
+_INCLUDE_SUBPROJECTS = "Also show work packages of subprojects."
+_SHOW_HIERARCHIES = "Show parent/child tree; cannot combine with group_by, so it defaults to false there."
+_TIMELINE_VISIBLE = "Show the Gantt timeline."
+_GROUP_BY = 'Group-by attribute id (e.g. "status") or its /api/v3/queries/group_bys/ href.'
+_COLUMNS = 'Column attribute ids (e.g. "id", "subject") or /api/v3/queries/columns/ hrefs.'
+_SORT_BY = (
+    'Sort criteria, each "field:direction" or "field-direction" (e.g. "id:asc"), a bare field (ascending), or a '
+    "/api/v3/queries/sort_bys/ href; the direction is case-insensitive."
+)
+_HIGHLIGHTED_ATTRIBUTES = "Column ids or hrefs whose values are highlighted."
+_FILTERS = (
+    "OpenProject query filter objects, sent unchanged, e.g. "
+    '{"_links": {"filter": {"href": "/api/v3/queries/filters/status"}, '
+    '"operator": {"href": "/api/v3/queries/operators/o"}, "values": []}}.'
+)
+
 
 @register_tool
 async def list_boards(
     ctx: Context,
-    project: IdOrName | None = None,
+    project: OptionalProjectRef = None,
     search: str | None = None,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(BoardSummary)] = None,
 ) -> BoardListResult:
     """List saved OpenProject boards/queries, optionally scoped to a project.
 
-    select fields: id, name (see server instructions for select's general semantics).
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap. With project,
-    search, or a restrictive OPENPROJECT_READ_PROJECTS, total is only the
-    count of allowed boards returned on THIS page, not a full count of all
-    matches — the search stops as soon as it has enough, so an exact total
-    would need an extra full walk. Page until next_offset is null.
-    """
+    With project, search, or a restrictive OPENPROJECT_READ_PROJECTS, total is only the count of allowed boards
+    returned on THIS page, not a full count of all matches; the search stops as soon as it has enough, so an exact
+    total would need an extra full walk. Page until next_offset is null."""
     client = _client_from_context(ctx)
     safe_project = _validate_optional_project_ref(project)
     safe_search, safe_offset, safe_limit = _validate_list_query_params(search, offset, limit)
@@ -100,24 +118,25 @@ def _validate_board_query_fields(
 @register_tool
 async def create_board(
     ctx: Context,
-    name: str,
-    project: IdOrName | None = None,
-    public: bool | None = None,
-    starred: bool | None = None,
-    hidden: bool | None = None,
-    include_subprojects: bool | None = None,
-    show_hierarchies: bool | None = None,
-    timeline_visible: bool | None = None,
-    group_by: str | None = None,
-    columns: list[str] | None = None,
-    sort_by: list[str] | None = None,
-    highlighted_attributes: list[str] | None = None,
-    filters: list[dict[str, Any]] | None = None,
-    confirm: bool = False,
+    name: Annotated[str, Field(description=_NAME)],
+    project: OptionalProjectRef = None,
+    public: Annotated[bool | None, Field(description=_PUBLIC)] = None,
+    starred: Annotated[bool | None, Field(description=_STARRED)] = None,
+    hidden: Annotated[bool | None, Field(description=_HIDDEN)] = None,
+    include_subprojects: Annotated[bool | None, Field(description=_INCLUDE_SUBPROJECTS)] = None,
+    show_hierarchies: Annotated[bool | None, Field(description=_SHOW_HIERARCHIES)] = None,
+    timeline_visible: Annotated[bool | None, Field(description=_TIMELINE_VISIBLE)] = None,
+    group_by: Annotated[str | None, Field(description=_GROUP_BY)] = None,
+    columns: Annotated[list[str] | None, Field(description=_COLUMNS)] = None,
+    sort_by: Annotated[list[str] | None, Field(description=_SORT_BY)] = None,
+    highlighted_attributes: Annotated[list[str] | None, Field(description=_HIGHLIGHTED_ATTRIBUTES)] = None,
+    filters: Annotated[list[dict[str, Any]] | None, Field(description=_FILTERS)] = None,
+    confirm: Confirm = False,
 ) -> BoardWriteResult:
-    """Prepare or create a saved OpenProject board/query.
+    """Create a saved OpenProject board/query.
 
-    sort_by: each "field:direction" or "field-direction" (e.g. "id:asc"); direction defaults to asc.
+    This saves a work package query (filters, columns, sorting, grouping); a board grid that shows queries as
+    columns is created with create_grid.
     """
     client = _client_from_context(ctx)
     safe_name = _validate_required_query(name, field_name="name", max_length=255)
@@ -152,26 +171,25 @@ async def create_board(
 @register_tool
 async def update_board(
     ctx: Context,
-    board_id: int,
-    name: str | None = None,
-    project: IdOrName | None = None,
-    public: bool | None = None,
-    starred: bool | None = None,
-    hidden: bool | None = None,
-    include_subprojects: bool | None = None,
-    show_hierarchies: bool | None = None,
-    timeline_visible: bool | None = None,
-    group_by: str | None = None,
-    columns: list[str] | None = None,
-    sort_by: list[str] | None = None,
-    highlighted_attributes: list[str] | None = None,
-    filters: list[dict[str, Any]] | None = None,
-    confirm: bool = False,
+    board_id: Annotated[int, Field(description=_BOARD_ID)],
+    name: Annotated[str | None, Field(description=_NAME)] = None,
+    project: OptionalProjectRef = None,
+    public: Annotated[bool | None, Field(description=_PUBLIC)] = None,
+    starred: Annotated[bool | None, Field(description=_STARRED)] = None,
+    hidden: Annotated[bool | None, Field(description=_HIDDEN)] = None,
+    include_subprojects: Annotated[bool | None, Field(description=_INCLUDE_SUBPROJECTS)] = None,
+    show_hierarchies: Annotated[bool | None, Field(description=_SHOW_HIERARCHIES)] = None,
+    timeline_visible: Annotated[bool | None, Field(description=_TIMELINE_VISIBLE)] = None,
+    group_by: Annotated[str | None, Field(description=_GROUP_BY)] = None,
+    columns: Annotated[list[str] | None, Field(description=_COLUMNS)] = None,
+    sort_by: Annotated[list[str] | None, Field(description=_SORT_BY)] = None,
+    highlighted_attributes: Annotated[list[str] | None, Field(description=_HIGHLIGHTED_ATTRIBUTES)] = None,
+    filters: Annotated[list[dict[str, Any]] | None, Field(description=_FILTERS)] = None,
+    confirm: Confirm = False,
 ) -> BoardWriteResult:
-    """Prepare or update a saved OpenProject board/query.
+    """Update a saved OpenProject board/query.
 
-    sort_by: each "field:direction" or "field-direction" (e.g. "id:asc"); direction defaults to asc.
-    """
+    Omitted fields stay unchanged; a given list replaces the stored one."""
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(board_id, field_name="board_id")
     safe_name = _validate_optional_query(name, field_name="name", max_length=255)
@@ -223,10 +241,14 @@ async def update_board(
 @register_tool
 async def delete_board(
     ctx: Context,
-    board_id: int,
-    confirm: bool = False,
+    board_id: Annotated[int, Field(description=_BOARD_ID)],
+    confirm: Confirm = False,
 ) -> BoardWriteResult:
-    """Prepare or delete a saved OpenProject board/query."""
+    """Delete one saved work package query; this cannot be undone.
+
+    A board grid that shows it as a column keeps a column pointing to the deleted query; board grids
+    themselves are deleted with delete_grid.
+    """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(board_id, field_name="board_id")
     return await _run_tool(client.board.delete(board_id=safe_id, confirm=confirm))

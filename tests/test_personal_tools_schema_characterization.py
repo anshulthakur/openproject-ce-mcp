@@ -43,25 +43,33 @@ def _tools(mcp) -> dict:
 def test_list_notifications_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_notifications"]
     assert tool.description == (
-        "List in-app notifications for the current user.\n\n"
-        "select fields: id, subject, reason, read, work_package_id (see server\n"
-        "instructions for select's general semantics).\n\n"
-        "limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned\n"
-        "next_offset as the next call's offset to page past the cap.\n"
+        "List in-app notifications for the current user.\n\nReading them does not mark them read; use mark_notifications_read for that.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "unread_only": {"default": False, "title": "Unread Only", "type": "boolean"},
+            "unread_only": {
+                "default": False,
+                "description": "true returns only notifications not yet read.",
+                "title": "Unread Only",
+                "type": "boolean",
+            },
             "limit": {
                 "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
                 "title": "Limit",
             },
-            "offset": {"default": 1, "title": "Offset", "type": "integer"},
+            "offset": {
+                "default": 1,
+                "description": "1-based page number; pass the previous result's next_offset.",
+                "title": "Offset",
+                "type": "integer",
+            },
             "select": {
                 "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,
+                "description": "Fields to return; a requested unset field comes back as null. Allowed: created_at, id, project_id, project_name, read, reason, subject, work_package_id, work_package_subject.",
                 "title": "Select",
             },
         },
@@ -76,13 +84,13 @@ def test_list_notifications_schema() -> None:
 def test_mark_notifications_read_schema() -> None:
     tool = _tools(create_app(_make_settings()))["mark_notifications_read"]
     assert tool.description == (
-        "Mark a single notification, or all unread notifications, as read.\n\n"
+        "Mark a single notification, or all unread notifications, as read.\n"
+        "\n"
         "notification_id: mark just this notification read. Omit it (default) to\n"
         "mark every currently unread notification read instead.\n"
         "Under a restricted OPENPROJECT_READ_PROJECTS, a notification about a\n"
         "project outside it is refused (in the preview too), and omitting\n"
         "notification_id marks only notifications about the projects it covers.\n"
-        "Set confirm=true to write, or call without confirm=true first for a preview.\n"
     )
     assert tool.output_schema == {
         "properties": {
@@ -110,7 +118,12 @@ def test_mark_notifications_read_schema() -> None:
                 "default": None,
                 "title": "Notification Id",
             },
-            "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+            "confirm": {
+                "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                "title": "Confirm",
+                "type": "boolean",
+            },
         },
         "title": "mark_notifications_readArguments",
         "type": "object",
@@ -168,8 +181,8 @@ def test_get_my_preferences_schema() -> None:
 def test_update_my_preferences_schema() -> None:
     tool = _tools(create_app(_make_settings()))["update_my_preferences"]
     assert tool.description == (
-        "Prepare or update the current user's preferences (timezone, comment sort order, popups, …).\n"
-        "Set confirm=true to write.\n\n"
+        "Update the current user's preferences; omitted fields stay unchanged.\n"
+        "\n"
         "Note: language is a User attribute, not a preference -- use update_user's\n"
         '"language" field to change it.\n'
     )
@@ -179,24 +192,33 @@ def test_update_my_preferences_schema() -> None:
             "time_zone": {
                 "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": 'Time zone name, e.g. "Europe/Berlin".',
                 "title": "Time Zone",
             },
             "comment_sort_descending": {
                 "anyOf": [{"type": "boolean"}, {"type": "null"}],
                 "default": None,
+                "description": "true shows comments newest first.",
                 "title": "Comment Sort Descending",
             },
             "warn_on_leaving_unsaved": {
                 "anyOf": [{"type": "boolean"}, {"type": "null"}],
                 "default": None,
+                "description": "true warns before leaving a page with unsaved changes.",
                 "title": "Warn On Leaving Unsaved",
             },
             "auto_hide_popups": {
                 "anyOf": [{"type": "boolean"}, {"type": "null"}],
                 "default": None,
+                "description": "true makes popups close automatically.",
                 "title": "Auto Hide Popups",
             },
-            "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+            "confirm": {
+                "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                "title": "Confirm",
+                "type": "boolean",
+            },
         },
         "title": "update_my_preferencesArguments",
         "type": "object",

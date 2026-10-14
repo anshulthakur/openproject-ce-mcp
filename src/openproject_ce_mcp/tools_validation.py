@@ -12,12 +12,12 @@ import datetime
 import functools
 import re
 from collections.abc import Callable, Mapping
-from dataclasses import fields as dataclass_fields
 from typing import Any
 
 from .config import TEXT_LIMIT_MAX
 from .models import SortCriterion
 from .sort_criteria import parse_sort_by
+from .tool_params import allowed_select_fields
 from .work_package_reference import canonical_work_package_ref, is_numeric_ref
 
 PROJECT_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -921,32 +921,32 @@ def _validate_select(
     if select is None:
         return None
     nested = nested or {}
-    valid = {f.name for f in dataclass_fields(row_type)}
-    nested_valid = {prefix: {f.name for f in dataclass_fields(model)} for prefix, model in nested.items()}
+    row_fields = allowed_select_fields(row_type)
+    accepted = allowed_select_fields(row_type, wrapper_fields=wrapper_fields, nested=nested)
     chosen: list[str] = []
     wrapper_only = False
     for raw in select:
         name = str(raw).strip()
         prefix, _, inner = name.partition(".")
-        if name in valid or (prefix in nested_valid and inner in nested_valid[prefix]):
+        if name in row_fields or (inner and name in accepted):
             if name not in chosen:
                 chosen.append(name)
         elif name in wrapper_fields:
             wrapper_only = True
-        elif inner and prefix in nested_valid:
-            allowed = ", ".join(f"{prefix}.{field}" for field in sorted(nested_valid[prefix]))
+        elif inner and prefix in nested:
+            allowed = ", ".join(sorted(field for field in accepted if field.startswith(f"{prefix}.")))
             raise ValueError(
                 f"select field '{name}' is not a valid {prefix} field. Allowed: {allowed}. {_SELECT_NOTHING_SENT}"
             )
         else:
-            owner = next((p for p, fields in nested_valid.items() if not inner and name in fields), None)
+            owner = next((p for p in nested if not inner and f"{p}.{name}" in accepted), None)
             if owner is not None:
                 raise ValueError(
                     f"select field '{name}' is a field of the {nested[owner].__name__} in '{owner}'; "
                     f"select it as '{owner}.{name}'. {_SELECT_NOTHING_SENT}"
                 )
-            allowed = ", ".join(sorted(valid | wrapper_fields))
-            hint = "".join(f" Fields of '{p}' are selected as '{p}.<field>'." for p in sorted(nested_valid))
+            allowed = ", ".join(sorted(field for field in accepted if "." not in field))
+            hint = "".join(f" Fields of '{p}' are selected as '{p}.<field>'." for p in sorted(nested))
             raise ValueError(
                 f"select field '{name}' is not a valid {row_type.__name__} field. Allowed: {allowed}.{hint} "
                 f"{_SELECT_NOTHING_SENT}"

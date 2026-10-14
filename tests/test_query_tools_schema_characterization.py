@@ -47,30 +47,22 @@ def test_execute_query_schema() -> None:
     tool = _tools(create_app(_make_settings()))["execute_query"]
     assert (
         tool.description
-        == "Execute a saved OpenProject query by id and return its resolved work packages.\n\nquery_id: the query's own numeric id — obtain it from get_view/list_views's\nquery_id field, or from list_boards/get_board (a board's id IS its\nunderlying query id, since OpenProject Boards are Query resources).\n\nRuns the query server-side (OpenProject resolves its stored filters/sort/\ngroup_by and returns real work packages, not just the query's\ndefinition) — no client-side filter translation happens here. Results are\nstill filtered against this MCP's own OPENPROJECT_READ_PROJECTS allowlist\nbefore being returned, since the query itself executes with the API\ntoken's full server-side permissions.\n\nlimit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned\nnext_offset as the next call's offset to page past the cap.\n"
+        == "Execute a saved OpenProject query by id and return its resolved work packages.\n\nquery_id: the query's own numeric id — obtain it from get_view/list_views's\nquery_id field, or from list_boards/get_board (a board's id IS its\nunderlying query id, since OpenProject Boards are Query resources).\n\nRuns the query server-side (OpenProject resolves its stored filters/sort/\ngroup_by and returns real work packages, not just the query's\ndefinition) — no client-side filter translation happens here. Results are\nstill filtered against this MCP's own OPENPROJECT_READ_PROJECTS allowlist\nbefore being returned, since the query itself executes with the API\ntoken's full server-side permissions.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "query_id": {
-                "title": "Query Id",
-                "type": "integer",
-            },
+            "query_id": {"title": "Query Id", "type": "integer"},
             "offset": {
                 "default": 1,
+                "description": "1-based page number; pass the previous result's next_offset.",
                 "title": "Offset",
                 "type": "integer",
             },
             "limit": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
                 "title": "Limit",
             },
         },

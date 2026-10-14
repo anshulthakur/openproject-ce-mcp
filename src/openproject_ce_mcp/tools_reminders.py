@@ -10,9 +10,13 @@ re-exports these four names so existing test imports keep working unchanged
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from mcp.server.mcpserver import Context
+from pydantic import Field
 
 from .models import ReminderListResult, ReminderSummary, ReminderWriteResult
+from .tool_params import Confirm, WorkPackageRef, select_field
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
     _validate_optional_datetime,
@@ -26,11 +30,10 @@ from .tools_validation import (
 
 
 @register_tool
-async def list_reminders(ctx: Context, select: list[str] | None = None) -> ReminderListResult:
-    """List the current user's active reminders across all work packages.
-
-    select fields: id, remind_at (see server instructions for select's general semantics).
-    """
+async def list_reminders(
+    ctx: Context, select: Annotated[list[str] | None, select_field(ReminderSummary)] = None
+) -> ReminderListResult:
+    """List the current user's active reminders across all work packages."""
     client = _client_from_context(ctx)
     _validate_select(select, row_type=ReminderSummary)
     return await _run_tool(client.reminder.list_all())
@@ -39,16 +42,15 @@ async def list_reminders(ctx: Context, select: list[str] | None = None) -> Remin
 @register_tool
 async def create_work_package_reminder(
     ctx: Context,
-    work_package_id: int | str,
+    work_package_id: WorkPackageRef,
     remind_at: str,
     note: str | None = None,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> ReminderWriteResult:
-    """Prepare or create a reminder on a work package.
+    """Create a reminder on a work package.
 
     `remind_at` is an ISO 8601 date-time (e.g. 2026-12-01T09:00:00Z). Only one
     active reminder per work package is allowed; creating a second one fails.
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_work_package_ref(work_package_id)
@@ -67,12 +69,14 @@ async def create_work_package_reminder(
 @register_tool
 async def update_reminder(
     ctx: Context,
-    reminder_id: int,
-    remind_at: str | None = None,
-    note: str | None = None,
-    confirm: bool = False,
+    reminder_id: Annotated[int, Field(description="Reminder id, from list_reminders.")],
+    remind_at: Annotated[
+        str | None, Field(description="New ISO 8601 date-time with offset, e.g. 2026-12-01T09:00:00Z.")
+    ] = None,
+    note: Annotated[str | None, Field(description='New note, at most 2000 characters; "" clears it.')] = None,
+    confirm: Confirm = False,
 ) -> ReminderWriteResult:
-    """Prepare or update a reminder's time or note. At least one field is required."""
+    """Update a reminder's time or note; at least one is required, an omitted one stays unchanged."""
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(reminder_id, field_name="reminder_id")
     safe_remind_at = _validate_optional_datetime(remind_at, field_name="remind_at")
@@ -91,9 +95,12 @@ async def update_reminder(
 async def delete_reminder(
     ctx: Context,
     reminder_id: int,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> ReminderWriteResult:
-    """Prepare or delete a reminder; only deletes when called again with confirm=true."""
+    """Delete a pending reminder so it never fires; this cannot be undone.
+
+    Its unread notifications are marked read. Only its creator can; requires OpenProject 16.1+.
+    """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(reminder_id, field_name="reminder_id")
     return await _run_tool(client.reminder.delete(reminder_id=safe_id, confirm=confirm))

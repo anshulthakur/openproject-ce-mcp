@@ -40,14 +40,11 @@ def test_list_versions_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_versions"]
     assert tool.description == (
         "List versions globally or for a specific project, optionally filtered by a\n"
-        "case-insensitive name substring.\n\n"
-        "select fields: id, name (see server instructions for select's general semantics).\n\n"
-        "limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned\n"
-        "next_offset as the next call's offset to page past the cap. Without project,\n"
-        "total is only the count of allowed versions returned on THIS page, not a\n"
-        "full count of all matches — the search stops as soon as it has enough, so\n"
-        "an exact total would need an extra full walk. Page until next_offset is\n"
-        "null.\n"
+        "case-insensitive name substring.\n"
+        "\n"
+        "Without project, total is only the count of allowed versions returned on THIS page, not a full count of all\n"
+        "matches; the search stops as soon as it has enough, so an exact total would need an extra full walk. Page until\n"
+        "next_offset is null."
     )
     assert tool.output_schema is None
     assert tool.parameters == {
@@ -55,22 +52,26 @@ def test_list_versions_schema() -> None:
             "project": {
                 "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Project",
             },
-            "search": {
-                "anyOf": [{"type": "string"}, {"type": "null"}],
-                "default": None,
-                "title": "Search",
+            "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
+            "offset": {
+                "default": 1,
+                "description": "1-based page number; pass the previous result's next_offset.",
+                "title": "Offset",
+                "type": "integer",
             },
-            "offset": {"default": 1, "title": "Offset", "type": "integer"},
             "limit": {
                 "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
                 "title": "Limit",
             },
             "select": {
                 "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,
+                "description": "Fields to return; a requested unset field comes back as null. Allowed: created_at, defining_project, description, description_length, description_truncated, end_date, id, name, sharing, start_date, status, updated_at.",
                 "title": "Select",
             },
         },
@@ -116,41 +117,56 @@ def test_get_version_schema() -> None:
 def test_create_version_schema() -> None:
     tool = _tools(create_app(_make_settings()))["create_version"]
     assert tool.description == (
-        "Prepare or create a version for a project.\n\n"
+        "Create a version for a project.\n"
+        "\n"
         "A rejected validation preview is not a tool error; inspect `ready` and\n"
         "`validation_errors` in the result rather than the MCP error envelope.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
-            "name": {"title": "Name", "type": "string"},
+            "project": {
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
+                "title": "Project",
+            },
+            "name": {"description": "Display name, at most 60 characters.", "title": "Name", "type": "string"},
             "description": {
                 "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Plain text, not Markdown.",
                 "title": "Description",
             },
             "start_date": {
                 "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "ISO 8601 date (YYYY-MM-DD).",
                 "title": "Start Date",
             },
             "end_date": {
                 "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "ISO 8601 date (YYYY-MM-DD).",
                 "title": "End Date",
             },
             "status": {
                 "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": 'One of "open", "locked", "closed".',
                 "title": "Status",
             },
             "sharing": {
                 "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": 'One of "none", "descendants", "hierarchy", "tree".',
                 "title": "Sharing",
             },
-            "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+            "confirm": {
+                "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                "title": "Confirm",
+                "type": "boolean",
+            },
         },
         "required": ["project", "name"],
         "title": "create_versionArguments",
@@ -173,45 +189,62 @@ def test_create_version_schema() -> None:
 def test_update_version_schema() -> None:
     tool = _tools(create_app(_make_settings()))["update_version"]
     assert tool.description == (
-        "Prepare or update a version.\n\n"
+        "Update a version.\n"
+        "\n"
+        "Omitted fields stay unchanged.\n"
         "A rejected validation preview is not a tool error; inspect `ready` and\n"
         "`validation_errors` in the result rather than the MCP error envelope.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "version_id": {"title": "Version Id", "type": "integer"},
+            "version_id": {
+                "description": "Numeric version id, as returned by list_versions.",
+                "title": "Version Id",
+                "type": "integer",
+            },
             "name": {
                 "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Display name, at most 60 characters.",
                 "title": "Name",
             },
             "description": {
                 "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": 'Plain text, not Markdown; "" clears it.',
                 "title": "Description",
             },
             "start_date": {
                 "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "ISO 8601 date (YYYY-MM-DD).",
                 "title": "Start Date",
             },
             "end_date": {
                 "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "ISO 8601 date (YYYY-MM-DD).",
                 "title": "End Date",
             },
             "status": {
                 "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": 'One of "open", "locked", "closed".',
                 "title": "Status",
             },
             "sharing": {
                 "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": 'One of "none", "descendants", "hierarchy", "tree".',
                 "title": "Sharing",
             },
-            "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+            "confirm": {
+                "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                "title": "Confirm",
+                "type": "boolean",
+            },
         },
         "required": ["version_id"],
         "title": "update_versionArguments",
@@ -233,12 +266,24 @@ def test_update_version_schema() -> None:
 
 def test_delete_version_schema() -> None:
     tool = _tools(create_app(_make_settings()))["delete_version"]
-    assert tool.description == "Prepare or delete a version."
+    assert (
+        tool.description
+        == 'Delete a version; this cannot be undone.\n\nRejected while any work package, in any project, uses it (17.8+: also as its "found in" version).\n'
+    )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "version_id": {"title": "Version Id", "type": "integer"},
-            "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+            "version_id": {
+                "description": "Numeric version id, as returned by list_versions.",
+                "title": "Version Id",
+                "type": "integer",
+            },
+            "confirm": {
+                "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                "title": "Confirm",
+                "type": "boolean",
+            },
         },
         "required": ["version_id"],
         "title": "delete_versionArguments",

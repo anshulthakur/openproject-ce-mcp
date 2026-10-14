@@ -24,9 +24,10 @@ consistency, matching `tools_admin.py`'s precedent.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
 from mcp.server.mcpserver import Context
+from pydantic import Field
 
 from .client import CLEAR
 from .models import (
@@ -49,6 +50,7 @@ from .models import (
     ProjectWorkPackageContext,
     ProjectWriteResult,
 )
+from .tool_params import Confirm, Limit, Offset, OptionalProjectRef, ProjectRef, select_field
 from .tool_types import IdOrName
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
@@ -72,27 +74,26 @@ from .tools_validation import (
     _validate_select,
 )
 
+_NAME = "Display name, at most 255 characters."
+_IDENTIFIER = 'URL identifier such as "my-proj": letters, digits, ".", "_" and "-".'
+_PUBLIC = "Whether the project is public."
+_ACTIVE = "false means archived."
+_STATUS = "Status title, any case, as listed in get_project_admin_context's available_statuses."
+
 
 @register_tool
 async def list_projects(
     ctx: Context,
     search: str | None = None,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(ProjectSummary)] = None,
 ) -> ProjectListResult:
     """List visible projects with optional name or identifier search.
 
-    select fields: id, name, identifier, active, public, status, parent_name,
-    created_at, updated_at (see server instructions for select's general semantics).
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap. Under a
-    restrictive OPENPROJECT_READ_PROJECTS, total reflects only the allowed
-    projects already scanned to fill this page, not a full count of all
-    matches — the search stops as soon as it has enough, so an exact total
-    would need an extra full walk. Page until next_offset is null.
-    """
+    Under a restrictive OPENPROJECT_READ_PROJECTS, total reflects only the allowed projects already scanned to fill
+    this page, not a full count of all matches; the search stops as soon as it has enough, so an exact total would
+    need an extra full walk. Page until next_offset is null."""
     client = _client_from_context(ctx)
     safe_search, safe_offset, safe_limit = _validate_list_query_params(search, offset, limit)
     _validate_select(select, row_type=ProjectSummary)
@@ -102,13 +103,10 @@ async def list_projects(
 @register_tool
 async def get_project(
     ctx: Context,
-    project: IdOrName,
+    project: ProjectRef,
     text_limit: int | None = None,
 ) -> ProjectDetail:
     """Get a project by id, identifier or name, including its ancestor chain.
-
-    project: identifier (e.g., "my-project"), numeric id (e.g., 7), or name; a unique
-    part of a name or identifier also matches.
 
     description/status_explanation are returned in full by default (single projects
     are not truncated). Pass ``text_limit`` to cap them at that many characters; when
@@ -124,7 +122,7 @@ async def get_project(
 @register_tool
 async def get_project_admin_context(
     ctx: Context,
-    project: IdOrName,
+    project: ProjectRef,
 ) -> ProjectAdminContext:
     """Return project admin metadata such as lifecycle statuses, parent options, and writable fields."""
     client = _client_from_context(ctx)
@@ -135,9 +133,9 @@ async def get_project_admin_context(
 @register_tool
 async def get_project_configuration(
     ctx: Context,
-    project: IdOrName,
+    project: ProjectRef,
 ) -> ProjectConfiguration:
-    """Return project-scoped configuration such as internal comment support."""
+    """Return a project's configuration: get_instance_configuration's fields plus enabled_internal_comments."""
     client = _client_from_context(ctx)
     safe_project = _validate_project_ref(project)
     return await _run_tool(client.project.get_configuration(safe_project))
@@ -167,18 +165,21 @@ def _validate_project_descriptive_fields(
 @register_tool
 async def create_project(
     ctx: Context,
-    name: str,
-    identifier: str,
-    description: str | None = None,
-    public: bool | None = None,
-    active: bool | None = None,
-    status: str | None = None,
-    status_explanation: str | None = None,
-    parent: IdOrName | None = None,
-    confirm: bool = False,
+    name: Annotated[str, Field(description=_NAME)],
+    identifier: Annotated[str, Field(description=_IDENTIFIER)],
+    description: Annotated[str | None, Field(description="Markdown text.")] = None,
+    public: Annotated[bool | None, Field(description=_PUBLIC)] = None,
+    active: Annotated[bool | None, Field(description=_ACTIVE)] = None,
+    status: Annotated[str | None, Field(description=_STATUS)] = None,
+    status_explanation: Annotated[str | None, Field(description="Markdown text explaining the status.")] = None,
+    parent: Annotated[
+        IdOrName | None, Field(description="Parent project identifier, id, or name; omit for a top-level project.")
+    ] = None,
+    confirm: Confirm = False,
 ) -> ProjectWriteResult:
-    """Prepare or create a project.
+    """Create a project.
 
+    Omitted optional fields are not sent, so OpenProject's defaults apply.
     A rejected validation preview is not a tool error; inspect `ready` and
     `validation_errors` in the result rather than the MCP error envelope.
     """
@@ -206,19 +207,23 @@ async def create_project(
 @register_tool
 async def copy_project(
     ctx: Context,
-    source_project: IdOrName,
-    name: str,
-    identifier: str,
-    description: str | None = None,
-    public: bool | None = None,
-    active: bool | None = None,
-    status: str | None = None,
-    status_explanation: str | None = None,
-    parent: IdOrName | None = None,
-    confirm: bool = False,
+    source_project: ProjectRef,
+    name: Annotated[str, Field(description=_NAME)],
+    identifier: Annotated[str, Field(description=_IDENTIFIER)],
+    description: Annotated[str | None, Field(description="Markdown text.")] = None,
+    public: Annotated[bool | None, Field(description=_PUBLIC)] = None,
+    active: Annotated[bool | None, Field(description=_ACTIVE)] = None,
+    status: Annotated[str | None, Field(description=_STATUS)] = None,
+    status_explanation: Annotated[str | None, Field(description="Markdown text explaining the status.")] = None,
+    parent: Annotated[
+        IdOrName | None, Field(description="Parent project identifier, id, or name; omit for a top-level project.")
+    ] = None,
+    confirm: Confirm = False,
 ) -> ProjectCopyResult:
-    """Prepare or copy an existing project into a new project.
+    """Copy an existing project into a new project.
 
+    name, identifier and the optional fields describe the new project. A confirmed
+    copy starts a background job; poll get_job_status with the returned job_status_id.
     A rejected validation preview is not a tool error; inspect `ready` and
     `validation_errors` in the result rather than the MCP error envelope.
     """
@@ -261,20 +266,25 @@ async def get_job_status(
 @register_tool
 async def update_project(
     ctx: Context,
-    project: IdOrName,
-    name: str | None = None,
-    identifier: str | None = None,
-    description: str | None = None,
-    public: bool | None = None,
-    active: bool | None = None,
-    status: str | None = None,
-    status_explanation: str | None = None,
-    parent: IdOrName | None = None,
-    confirm: bool = False,
+    project: ProjectRef,
+    name: Annotated[str | None, Field(description=_NAME)] = None,
+    identifier: Annotated[str | None, Field(description=_IDENTIFIER)] = None,
+    description: Annotated[str | None, Field(description='Markdown text; "" clears it.')] = None,
+    public: Annotated[bool | None, Field(description=_PUBLIC)] = None,
+    active: Annotated[bool | None, Field(description=_ACTIVE)] = None,
+    status: Annotated[str | None, Field(description=_STATUS)] = None,
+    status_explanation: Annotated[
+        str | None, Field(description='Markdown text explaining the status; "" clears it.')
+    ] = None,
+    parent: Annotated[
+        IdOrName | None,
+        Field(description="Parent project identifier, id, or name; 'none' makes the project top-level."),
+    ] = None,
+    confirm: Confirm = False,
 ) -> ProjectWriteResult:
-    """Prepare or update a project.
+    """Update a project.
 
-    Pass 'none' to parent to make the project top-level (remove its parent).
+    Omitted fields stay unchanged.
     A rejected validation preview is not a tool error; inspect `ready` and
     `validation_errors` in the result rather than the MCP error envelope.
     """
@@ -319,10 +329,17 @@ async def update_project(
 @register_tool
 async def delete_project(
     ctx: Context,
-    project: IdOrName,
-    confirm: bool = False,
+    project: ProjectRef,
+    confirm: Confirm = False,
 ) -> ProjectWriteResult:
-    """Prepare or delete a project."""
+    """Delete a project and its subprojects (admin operation).
+
+    OpenProject archives them at once and deletes them in a background job, with their work packages,
+    memberships, versions, time entries, news, wiki, forums, meetings, documents and storage links; this
+    cannot be undone. OpenProject also tries to delete storage project folders managed automatically, with
+    their files. Unless the project is already archived, rejected while work packages of other projects use
+    one of their versions.
+    """
     client = _client_from_context(ctx)
     safe_project = _validate_project_ref(project)
     return await _run_tool(client.project.delete(project_ref=safe_project, confirm=confirm))
@@ -331,7 +348,7 @@ async def delete_project(
 @register_tool
 async def get_my_project_access(
     ctx: Context,
-    project: IdOrName,
+    project: ProjectRef,
 ) -> ProjectAccessSummary:
     """Return the current user's membership and inferred access hints for a project."""
     client = _client_from_context(ctx)
@@ -378,22 +395,16 @@ async def get_project_phase(
 @register_tool
 async def list_project_storages(
     ctx: Context,
-    project: IdOrName | None = None,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    project: OptionalProjectRef = None,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(ProjectStorageSummary)] = None,
 ) -> ProjectStorageListResult:
     """List a project's links to configured external file storages, optionally filtered to one project.
 
     Read-only in OpenProject's API -- no create/update/delete endpoint exists
     for this resource; manage the underlying connection with the storages
     tools instead.
-
-    select fields: id, project, storage_name, project_folder_mode (see server
-    instructions for select's general semantics).
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap.
     """
     client = _client_from_context(ctx)
     safe_project = _validate_optional_project_ref(project)
@@ -419,7 +430,7 @@ async def get_project_storage(
 @register_tool
 async def get_project_work_package_context(
     ctx: Context,
-    project: IdOrName,
+    project: ProjectRef,
     type: IdOrName | None = None,
 ) -> ProjectWorkPackageContext:
     """Return project metadata and, optionally, the writable work-package schema for a given type."""
@@ -432,16 +443,11 @@ async def get_project_work_package_context(
 @register_tool
 async def set_project_favorite(
     ctx: Context,
-    project: IdOrName,
-    favorite: bool,
-    confirm: bool = False,
+    project: ProjectRef,
+    favorite: Annotated[bool, Field(description="true adds the project to favorites, false removes it.")],
+    confirm: Confirm = False,
 ) -> FavoriteWriteResult:
-    """Prepare or mark/unmark a project as a favorite; only writes when called again with confirm=true.
-
-    project: identifier (e.g., "my-project"), numeric id (e.g., 7), or name; a unique
-    part of a name or identifier also matches.
-    favorite=true marks it as a favorite; favorite=false removes it.
-    """
+    """Mark or unmark a project as a favorite. Requires OpenProject 17.0 or later."""
     client = _client_from_context(ctx)
     safe_project = _validate_project_ref(project)
     # add_project_favorite/remove_project_favorite collapse through the client's private

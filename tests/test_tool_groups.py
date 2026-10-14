@@ -163,7 +163,12 @@ def test_registration_normalizes_runtime_dependent_docstring_indentation(monkeyp
     monkeypatch.setitem(_tools_runtime._TOOL_FUNCTIONS, synthetic_tool.__name__, synthetic_tool)
 
     mcp = MCPServer("description-normalization-test")
-    _tools_runtime.register_selected_tools(mcp, names=[synthetic_tool.__name__], hide_active=False)
+    _tools_runtime.register_selected_tools(
+        mcp,
+        names=[synthetic_tool.__name__],
+        hide_active=False,
+        annotations={synthetic_tool.__name__: tools.TOOL_ANNOTATIONS["list_projects"]},
+    )
 
     registered = {tool.name: tool for tool in mcp._tool_manager.list_tools()}
     assert registered[synthetic_tool.__name__].description == "Summary.\n\nDetail line one.\nDetail line two.\n"

@@ -14,6 +14,9 @@ All mutating tools follow the same guarded write pattern by default:
 Every mutation requires explicit `confirm=true` — there is no way to skip the
 preview step.
 
+Each tool declares MCP annotations (read-only, destructive, idempotent,
+open-world); they are hints for clients, not a permission gate.
+
 Parameters documented as accepting a numeric resource id accept it as either a
 JSON number or a decimal string.
 
@@ -587,6 +590,11 @@ later still). Meeting Outcomes require 17.6+ throughout.
 > with `filter="cancelled"` to find it afterward if needed. If the occurrence
 > is already materialized and not itself cancelled, the call fails instead —
 > use `delete_meeting` on the materialized meeting directly.
+>
+> **Note:** On OpenProject 17.4 and 17.5, `init_recurring_meeting_occurrence`
+> on an occurrence that already exists fails with a server error instead of
+> returning it, and writes nothing; 17.6 and later return the existing
+> occurrence.
 >
 > **Note:** Meeting Agenda Items, Meeting Sections, and Meeting Outcomes are
 > addressed by their own bare id (not nested under their parent's id) —

@@ -32,9 +32,11 @@ own write scope at execution time.
 from __future__ import annotations
 
 import base64
+from typing import Annotated
 
 from mcp.server.mcpserver import Context
 from mcp.types import ImageContent, TextContent
+from pydantic import Field
 
 from .models import (
     AttachmentContentOutcome,
@@ -47,6 +49,7 @@ from .models import (
     FileLinkWriteResult,
 )
 from .presentation import ContentBundle
+from .tool_params import Confirm, Limit, Offset, WorkPackageRef, select_field
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
     _validate_choice,
@@ -61,6 +64,10 @@ from .tools_validation import (
 
 #: container_type values of list_container_attachments/create_container_attachment.
 ATTACHMENT_CONTAINER_TYPES = {"wiki_page", "post", "meeting", "activity"}
+_CONTAINER_TYPE = (
+    "wiki_page, post (forum message), meeting, or activity (a work package comment, by its activity id from "
+    "get_work_package_activities)."
+)
 
 
 def _content_blocks(outcome: AttachmentContentOutcome) -> tuple[ImageContent | TextContent, ...]:
@@ -133,22 +140,14 @@ async def get_attachment_content(
 @register_tool
 async def list_work_package_attachments(
     ctx: Context,
-    work_package_id: int | str,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    work_package_id: WorkPackageRef,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(AttachmentSummary)] = None,
     include_total_size: bool = False,
     include_images: bool = False,
 ) -> AttachmentListResult | ContentBundle:
     """List attachments on a work package.
-
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
-
-    select fields: id, title, file_name, description (see server instructions
-    for select's general semantics).
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap.
 
     include_total_size=true sums file_size_bytes across every attachment
     (independent of limit/offset) — OpenProject's attachments endpoint
@@ -198,14 +197,21 @@ async def get_attachment(
 @register_tool
 async def create_work_package_attachment(
     ctx: Context,
-    work_package_id: int | str,
-    file_path: str,
-    description: str | None = None,
-    confirm: bool = False,
+    work_package_id: WorkPackageRef,
+    file_path: Annotated[
+        str,
+        Field(
+            description="Path on the MCP server's machine, inside OPENPROJECT_ATTACHMENT_ROOT; uploaded under its file name."
+        ),
+    ],
+    description: Annotated[str | None, Field(description="Markdown text stored with the attachment.")] = None,
+    confirm: Confirm = False,
 ) -> AttachmentWriteResult:
-    """Prepare or upload an attachment to a work package.
+    """Upload a local file as an attachment to a work package.
 
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
+    The preview checks that the file exists inside OPENPROJECT_ATTACHMENT_ROOT, is not a credential or
+    configuration file, and fits OpenProject's maximum attachment size. For wiki pages, forum posts, meetings
+    or comments use create_container_attachment.
     """
     client = _client_from_context(ctx)
     safe_work_package_id = _validate_work_package_ref(work_package_id)
@@ -224,10 +230,10 @@ async def create_work_package_attachment(
 @register_tool
 async def delete_attachment(
     ctx: Context,
-    attachment_id: int,
-    confirm: bool = False,
+    attachment_id: Annotated[int, Field(description="Attachment id, from list_work_package_attachments.")],
+    confirm: Confirm = False,
 ) -> AttachmentWriteResult:
-    """Prepare or delete an attachment."""
+    """Delete an attachment; this cannot be undone."""
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(attachment_id, field_name="attachment_id")
     return await _run_tool(client.attachment.delete(attachment_id=safe_id, confirm=confirm))
@@ -236,20 +242,14 @@ async def delete_attachment(
 @register_tool
 async def list_work_package_file_links(
     ctx: Context,
-    work_package_id: int | str,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    work_package_id: WorkPackageRef,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(FileLinkSummary)] = None,
 ) -> FileLinkListResult:
     """List Nextcloud file links attached to a work package (Community Edition).
 
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
-
-    select fields: id, title (see server instructions for select's general semantics).
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap.
-    """
+    For files uploaded to OpenProject itself, use list_work_package_attachments."""
     client = _client_from_context(ctx)
     safe_id = _validate_work_package_ref(work_package_id)
     safe_offset = _validate_offset(offset)
@@ -261,10 +261,10 @@ async def list_work_package_file_links(
 @register_tool
 async def delete_file_link(
     ctx: Context,
-    file_link_id: int,
-    confirm: bool = False,
+    file_link_id: Annotated[int, Field(description="File link id, from list_work_package_file_links.")],
+    confirm: Confirm = False,
 ) -> FileLinkWriteResult:
-    """Prepare or delete a Nextcloud file link."""
+    """Delete a file link; this cannot be undone, but the file itself stays in the external storage."""
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(file_link_id, field_name="file_link_id")
     return await _run_tool(client.file_link.delete(safe_id, confirm=confirm))
@@ -273,27 +273,19 @@ async def delete_file_link(
 @register_tool
 async def list_container_attachments(
     ctx: Context,
-    container_type: str,
-    container_id: int,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    container_type: Annotated[str, Field(description=_CONTAINER_TYPE)],
+    container_id: Annotated[int, Field(description="Numeric id of that wiki page, post, meeting or activity.")],
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(AttachmentSummary)] = None,
 ) -> AttachmentListResult:
     """List attachments on a wiki page, forum post, meeting or comment.
 
-    container_type: wiki_page, post, meeting, or activity (a work package
-    comment, by its activity id from get_work_package_activities).
-    container_id: that container's numeric id. For work packages themselves
-    use list_work_package_attachments. The container's project must be inside
-    OPENPROJECT_READ_PROJECTS (a comment's is its work package's).
-    get_attachment/get_attachment_content/delete_attachment stay limited to
-    work package attachments; download_url opens any of these in a browser.
-
-    select fields: id, title, file_name, description (see server instructions
-    for select's general semantics).
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap.
+    For work packages themselves use list_work_package_attachments. The
+    container's project must be inside OPENPROJECT_READ_PROJECTS (a comment's
+    is its work package's). get_attachment/get_attachment_content/delete_attachment
+    stay limited to work package attachments; download_url opens any of these
+    in a browser.
     """
     client = _client_from_context(ctx)
     safe_type = _validate_choice(container_type, field_name="container_type", allowed_values=ATTACHMENT_CONTAINER_TYPES)
@@ -309,20 +301,23 @@ async def list_container_attachments(
 @register_tool
 async def create_container_attachment(
     ctx: Context,
-    container_type: str,
-    container_id: int,
-    file_path: str,
-    description: str | None = None,
-    confirm: bool = False,
+    container_type: Annotated[str, Field(description=_CONTAINER_TYPE)],
+    container_id: Annotated[int, Field(description="Numeric id of that wiki page, post, meeting or activity.")],
+    file_path: Annotated[
+        str,
+        Field(
+            description="Path on the MCP server's machine, inside OPENPROJECT_ATTACHMENT_ROOT; uploaded under its file name."
+        ),
+    ],
+    description: Annotated[str | None, Field(description="Markdown text stored with the attachment.")] = None,
+    confirm: Confirm = False,
 ) -> ContainerAttachmentWriteResult:
-    """Prepare or upload an attachment to a wiki page, forum post, meeting or comment.
+    """Upload an attachment to a wiki page, forum post, meeting or comment.
 
-    container_type/container_id: as for list_container_attachments. For work
-    packages themselves use create_work_package_attachment. The file must be
-    inside OPENPROJECT_ATTACHMENT_ROOT, and the container's project inside
-    OPENPROJECT_WRITE_PROJECTS; the write flag checked is the container's own
-    (project for wiki pages and posts, meeting for meetings, work package for
-    comments).
+    For work packages themselves use create_work_package_attachment. The
+    container's project must be inside OPENPROJECT_WRITE_PROJECTS; the write
+    flag checked is the container's own (project for wiki pages and posts,
+    meeting for meetings, work package for comments).
     """
     client = _client_from_context(ctx)
     safe_type = _validate_choice(container_type, field_name="container_type", allowed_values=ATTACHMENT_CONTAINER_TYPES)

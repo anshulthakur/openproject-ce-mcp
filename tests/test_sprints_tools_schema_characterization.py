@@ -47,68 +47,34 @@ def test_list_sprints_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_sprints"]
     assert (
         tool.description
-        == "List Backlogs sprints, optionally filtered by name search.\n\nproject: identifier (e.g., \"my-project\"), numeric id (e.g., 7), or name; a unique\npart of a name or identifier also matches. Omit it to list every sprint visible\nto the current token across all projects; pass it to list only sprints for that\nproject.\n\nRequires the OpenProject Backlogs module and OpenProject 17.3 or newer;\nunavailable instances return a clear not-found message.\n\nselect fields: id, name (see server instructions for select's general semantics).\n\nlimit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned\nnext_offset as the next call's offset to page past the cap. total is only\nthe count of allowed sprints returned on THIS page, not a full count of\nall matches — the search stops as soon as it has enough, so an exact\ntotal would need an extra full walk. Page until next_offset is null.\n"
+        == "List Backlogs sprints, optionally filtered by name search.\n\nOmit project to list every sprint visible to the current token across all\nprojects; pass it to list only sprints for that project.\n\nRequires the OpenProject Backlogs module and OpenProject 17.3 or newer;\nunavailable instances return a clear not-found message.\n\ntotal is only the count of allowed sprints returned on THIS page, not a full count of all matches; the search\nstops as soon as it has enough, so an exact total would need an extra full walk. Page until next_offset is null.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "project": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Project",
             },
-            "search": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
-                "default": None,
-                "title": "Search",
-            },
+            "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
             "offset": {
                 "default": 1,
+                "description": "1-based page number; pass the previous result's next_offset.",
                 "title": "Offset",
                 "type": "integer",
             },
             "limit": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
                 "title": "Limit",
             },
             "select": {
-                "anyOf": [
-                    {
-                        "items": {
-                            "type": "string",
-                        },
-                        "type": "array",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,
+                "description": "Fields to return; a requested unset field comes back as null. Allowed: created_at, defining_workspace, defining_workspace_id, finish_date, id, name, start_date, status, updated_at.",
                 "title": "Select",
             },
         },
@@ -245,68 +211,34 @@ def test_list_backlog_buckets_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_backlog_buckets"]
     assert (
         tool.description
-        == "List Backlogs backlog buckets, optionally filtered by name search.\n\nproject: numeric id (e.g., 7), identifier (e.g., \"my-project\"), or display\nname. Omit it to list every backlog bucket visible to the current token\nacross all projects; pass it to list only backlog buckets for that project.\n\nRequires the OpenProject Backlogs module and OpenProject 17.6 or newer;\nunavailable instances return a clear not-found message.\n\nselect fields: id, name, defining_workspace_id, defining_workspace,\ncreated_at, updated_at (see server instructions for select's general\nsemantics).\n\nlimit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned\nnext_offset as the next call's offset to page past the cap. total is only\nthe count of allowed backlog buckets returned on THIS page, not a full count\nof all matches — the search stops as soon as it has enough, so an exact\ntotal would need an extra full walk. Page until next_offset is null.\n"
+        == "List Backlogs backlog buckets, optionally filtered by name search.\n\nOmit project to list every backlog bucket visible to the current token\nacross all projects; pass it to list only backlog buckets for that project.\n\nRequires the OpenProject Backlogs module and OpenProject 17.6 or newer;\nunavailable instances return a clear not-found message.\n\ntotal is only the count of allowed backlog buckets returned on THIS page, not a full count of all matches; the\nsearch stops as soon as it has enough, so an exact total would need an extra full walk. Page until next_offset\nis null."
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "project": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Project",
             },
-            "search": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
-                "default": None,
-                "title": "Search",
-            },
+            "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
             "offset": {
                 "default": 1,
+                "description": "1-based page number; pass the previous result's next_offset.",
                 "title": "Offset",
                 "type": "integer",
             },
             "limit": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
                 "title": "Limit",
             },
             "select": {
-                "anyOf": [
-                    {
-                        "items": {
-                            "type": "string",
-                        },
-                        "type": "array",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,
+                "description": "Fields to return; a requested unset field comes back as null. Allowed: created_at, defining_workspace, defining_workspace_id, id, name, updated_at.",
                 "title": "Select",
             },
         },

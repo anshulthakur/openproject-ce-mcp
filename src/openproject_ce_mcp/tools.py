@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 
 from . import (
     tools_misc,  # noqa: F401 -- @register_tool side effect
@@ -9,6 +12,7 @@ from . import (
     tools_user_schedule,  # noqa: F401 -- @register_tool side effect
 )
 from .config import TOOL_GROUPS, Settings
+from .tool_annotations import build_tool_annotations
 from .tools_admin import (  # noqa: F401 -- @register_tool side effect; re-exported, test_project_and_domain_tools.py imports create_user/update_user/delete_user/set_user_locked/create_group/update_group/delete_group from here
     create_group,
     create_storage,
@@ -665,11 +669,26 @@ def enabled_tool_names(settings: Settings) -> tuple[str, ...]:
     return tuple(enabled)
 
 
+TOOL_ANNOTATIONS: Mapping[str, ToolAnnotations] = build_tool_annotations(
+    read_names=(name for names in READ_TOOLS_BY_SCOPE.values() for name in names),
+    write_names=(
+        *(name for names in WRITE_TOOLS_BY_SCOPE.values() for name in names),
+        *PERSONAL_MUTATION_TOOLS,
+        *ATTACHMENT_UPLOAD_TOOLS,
+    ),
+)
+
+
 def register_tools(mcp: MCPServer, settings: Settings) -> None:
     """Register every tool enabled by `settings`.
 
-    Policy (which names are enabled) is this module's job; the mechanics of
-    resolving a name to its function and wrapping it for error-categorization
-    and trimming live in tools_runtime.register_selected_tools.
+    Policy (which names are enabled, and their annotations) is this module's
+    job; the mechanics of resolving a name to its function and wrapping it for
+    error-categorization and trimming live in tools_runtime.register_selected_tools.
     """
-    register_selected_tools(mcp, names=enabled_tool_names(settings), hide_active=bool(settings.hidden_fields))
+    register_selected_tools(
+        mcp,
+        names=enabled_tool_names(settings),
+        hide_active=bool(settings.hidden_fields),
+        annotations=TOOL_ANNOTATIONS,
+    )

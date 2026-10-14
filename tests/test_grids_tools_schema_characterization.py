@@ -47,53 +47,28 @@ def test_list_grids_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_grids"]
     assert (
         tool.description
-        == "List dashboard grids, optionally filtered by scope (page path).\n\nselect fields: id, scope (see server instructions for select's general\nsemantics). limit is capped at\nOPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned next_offset as\nthe next call's offset to page past the cap. total is only the count of\nallowed grids returned on THIS page, not a full count of all matches —\nthe search stops as soon as it has enough, so an exact total would need\nan extra full walk. Page until next_offset is null.\n"
+        == "List dashboard grids, optionally filtered by scope (page path).\n\ntotal is only the count of allowed grids returned on THIS page, not a full count of all matches; the search\nstops as soon as it has enough, so an exact total would need an extra full walk. Page until next_offset is null.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "scope": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
-                "default": None,
-                "title": "Scope",
-            },
+            "scope": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Scope"},
             "offset": {
                 "default": 1,
+                "description": "1-based page number; pass the previous result's next_offset.",
                 "title": "Offset",
                 "type": "integer",
             },
             "limit": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
                 "title": "Limit",
             },
             "select": {
-                "anyOf": [
-                    {
-                        "items": {
-                            "type": "string",
-                        },
-                        "type": "array",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,
+                "description": "Fields to return; a requested unset field comes back as null. Allowed: column_count, created_at, id, row_count, scope, updated_at.",
                 "title": "Select",
             },
         },
@@ -193,47 +168,33 @@ def test_get_grid_schema() -> None:
 def test_create_grid_schema() -> None:
     tool = _tools(create_app(_make_settings()))["create_grid"]
     assert (
-        tool.description == "Prepare or create a dashboard grid for the scope `/my/page`, `/projects/<identifier>` or\n"
-        "`/projects/<identifier>/boards` (after the instance's root path on a subpath install).\n"
-        "Any other scope is rejected before a request."
+        tool.description
+        == "Create a dashboard grid on a page.\n\nA grid is the widget layout of My Page, a project overview or a board. The grid starts with OpenProject's\ndefault widgets for that page; other widgets are added in OpenProject. A board's saved work package\nqueries are created with create_board.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "name": {
-                "title": "Name",
-                "type": "string",
-            },
+            "name": {"description": "Display name, at most 255 characters.", "title": "Name", "type": "string"},
             "scope": {
+                "description": 'Page path: "/my/page", "/projects/<identifier>" or "/projects/<identifier>/boards", after the instance\'s root path on a subpath install. Any other scope is rejected before a request.',
                 "title": "Scope",
                 "type": "string",
             },
             "row_count": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "Positive integer; omitted lets OpenProject choose.",
                 "title": "Row Count",
             },
             "column_count": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "Positive integer; omitted lets OpenProject choose.",
                 "title": "Column Count",
             },
             "confirm": {
                 "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
                 "title": "Confirm",
                 "type": "boolean",
             },
@@ -251,53 +212,33 @@ def test_update_grid_schema() -> None:
     tool = _tools(create_app(_make_settings()))["update_grid"]
     assert (
         tool.description
-        == "Prepare or update a dashboard grid.\n\nOmitted fields stay unchanged. Set confirm=true to write.\n"
+        == "Rename or resize a dashboard grid; omitted fields stay unchanged.\n\nThe widgets stay as they are; a size that would leave a widget outside the grid is rejected.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "grid_id": {
-                "title": "Grid Id",
-                "type": "integer",
-            },
+            "grid_id": {"description": "Grid id, from list_grids.", "title": "Grid Id", "type": "integer"},
             "name": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "New display name, at most 255 characters.",
                 "title": "Name",
             },
             "row_count": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "New number of rows, a positive integer.",
                 "title": "Row Count",
             },
             "column_count": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "New number of columns, a positive integer.",
                 "title": "Column Count",
             },
             "confirm": {
                 "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
                 "title": "Confirm",
                 "type": "boolean",
             },
@@ -313,16 +254,17 @@ def test_update_grid_schema() -> None:
 
 def test_delete_grid_schema() -> None:
     tool = _tools(create_app(_make_settings()))["delete_grid"]
-    assert tool.description == "Prepare or delete a dashboard grid. Only deletes when called again with confirm=true."
+    assert (
+        tool.description
+        == "Delete a board grid; My Page and project overview grids cannot be deleted.\n\n17.0+: its column queries are deleted too, as far as you may delete them. This cannot be undone.\n"
+    )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "grid_id": {
-                "title": "Grid Id",
-                "type": "integer",
-            },
+            "grid_id": {"title": "Grid Id", "type": "integer"},
             "confirm": {
                 "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
                 "title": "Confirm",
                 "type": "boolean",
             },

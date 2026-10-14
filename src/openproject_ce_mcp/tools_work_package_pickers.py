@@ -14,7 +14,10 @@ public names alongside every other tools_* module's.
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from mcp.server.mcpserver import Context
+from pydantic import Field
 
 from .models import (
     PrincipalCollectionResult,
@@ -22,7 +25,7 @@ from .models import (
     RelationCandidateListResult,
     RelationCandidateSummary,
 )
-from .tool_types import IdOrName
+from .tool_params import OptionalProjectRef, OptionalWorkPackageRef, WorkPackageRef, select_field
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
     _validate_limit,
@@ -55,19 +58,15 @@ RELATION_CANDIDATE_TYPES = {
 @register_tool
 async def list_available_assignees(
     ctx: Context,
-    work_package_id: int | str | None = None,
-    project: IdOrName | None = None,
-    select: list[str] | None = None,
+    work_package_id: OptionalWorkPackageRef = None,
+    project: OptionalProjectRef = None,
+    select: Annotated[list[str] | None, select_field(PrincipalSummary)] = None,
 ) -> PrincipalCollectionResult:
     """List the users and groups OpenProject accepts as assignee.
 
-    Pass work_package_id for an existing work package, or project (id or
-    identifier) for one not created yet -- exactly one of the two.
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
-    The same principals are valid as responsible (accountable).
-
-    select fields: id, type, name, email (see server instructions for
-    select's general semantics).
+    Pass work_package_id for an existing work package, or project for one not
+    created yet -- exactly one of the two. The same principals are valid as
+    responsible (accountable).
     """
     client = _client_from_context(ctx)
     safe_wp = _validate_optional_work_package_ref(work_package_id)
@@ -81,15 +80,17 @@ async def list_available_assignees(
 @register_tool
 async def list_work_package_available_relation_candidates(
     ctx: Context,
-    work_package_id: int | str,
+    work_package_id: WorkPackageRef,
     query: str | None = None,
     relation_type: str | None = None,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    limit: Annotated[
+        int | None,
+        Field(description="Maximum number of candidates, capped at OPENPROJECT_MAX_PAGE_SIZE. Not paged."),
+    ] = None,
+    select: Annotated[list[str] | None, select_field(RelationCandidateSummary)] = None,
 ) -> RelationCandidateListResult:
     """List work packages that can be the other end of a new relation.
 
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
     query: text matching subject, project, type, status or display identifier.
     Bare digits match the internal id on older/classic-identifier instances,
     but the project sequence number on 17.8+ with semantic identifiers;
@@ -98,11 +99,7 @@ async def list_work_package_available_relation_candidates(
     duplicates, duplicated, blocks, blocked, precedes, follows, includes,
     partof, requires, required, parent, child) -- OpenProject leaves out e.g. a work package
     that would create a cycle. Candidates in projects outside
-    OPENPROJECT_READ_PROJECTS are left out. limit is capped at
-    OPENPROJECT_MAX_PAGE_SIZE (default 50).
-
-    select fields: id, display_id, subject, type, status, project (see server
-    instructions for select's general semantics).
+    OPENPROJECT_READ_PROJECTS are left out.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_work_package_ref(work_package_id)

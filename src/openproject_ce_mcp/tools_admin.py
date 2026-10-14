@@ -15,7 +15,10 @@ alongside for consistency.
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from mcp.server.mcpserver import Context
+from pydantic import Field
 
 from .models import (
     GroupDetail,
@@ -33,6 +36,7 @@ from .models import (
     UserSummary,
     UserWriteResult,
 )
+from .tool_params import Confirm, Limit, Offset, select_field
 from .tool_types import IdOrName
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
@@ -52,17 +56,11 @@ from .tools_validation import (
 async def list_principals(
     ctx: Context,
     search: str | None = None,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(PrincipalSummary)] = None,
 ) -> PrincipalListResult:
-    """List users and groups that can be used for project memberships.
-
-    select fields: id, name, type (see server instructions for select's general semantics).
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap.
-    """
+    """List users and groups that can be used for project memberships."""
     client = _client_from_context(ctx)
     safe_search, safe_offset, safe_limit = _validate_list_query_params(search, offset, limit)
     _validate_select(select, row_type=PrincipalSummary)
@@ -73,22 +71,15 @@ async def list_principals(
 async def list_users(
     ctx: Context,
     search: str | None = None,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(UserSummary)] = None,
 ) -> UserListResult:
     """List users visible to the current token.
 
-    select fields: id, name, login, email, status, admin, created_at, updated_at
-    (see server instructions for select's general semantics).
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap. With search,
-    total is only the count of matching users returned on THIS page, not a
-    full count of all matches — the search stops as soon as it has enough,
-    so an exact total would need an extra full walk. Page until next_offset
-    is null.
-    """
+    With search, total is only the count of matching users returned on THIS page, not a full count of all matches;
+    the search stops as soon as it has enough, so an exact total would need an extra full walk. Page until
+    next_offset is null."""
     client = _client_from_context(ctx)
     safe_search, safe_offset, safe_limit = _validate_list_query_params(search, offset, limit)
     _validate_select(select, row_type=UserSummary)
@@ -110,21 +101,15 @@ async def get_user(
 async def list_groups(
     ctx: Context,
     search: str | None = None,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(GroupSummary)] = None,
 ) -> GroupListResult:
     """List groups visible to the current token.
 
-    select fields: id, name (see server instructions for select's general semantics).
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap. With search,
-    total is only the count of matching groups returned on THIS page, not a
-    full count of all matches — the search stops as soon as it has enough,
-    so an exact total would need an extra full walk. Page until next_offset
-    is null.
-    """
+    With search, total is only the count of matching groups returned on THIS page, not a full count of all matches;
+    the search stops as soon as it has enough, so an exact total would need an extra full walk. Page until
+    next_offset is null."""
     client = _client_from_context(ctx)
     safe_search, safe_offset, safe_limit = _validate_list_query_params(search, offset, limit)
     _validate_select(select, row_type=GroupSummary)
@@ -134,7 +119,7 @@ async def list_groups(
 @register_tool
 async def get_group(
     ctx: Context,
-    group_id: int,
+    group_id: Annotated[int, Field(description="Group id, from list_groups.")],
 ) -> GroupDetail:
     """Get a single group by id."""
     client = _client_from_context(ctx)
@@ -145,17 +130,13 @@ async def get_group(
 @register_tool
 async def list_storages(
     ctx: Context,
-    select: list[str] | None = None,
-    offset: int = 1,
-    limit: int | None = None,
+    select: Annotated[list[str] | None, select_field(StorageSummary)] = None,
+    offset: Offset = 1,
+    limit: Limit = None,
 ) -> StorageListResult:
     """List configured OpenProject external file storage connections (Nextcloud/OneDrive/Sharepoint).
 
-    select fields: id, name, provider_type, host, configured, created_at, updated_at
-    (see server instructions for select's general semantics).
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap.
+    These are the instance-wide connections; list_project_storages lists which projects use them.
     """
     client = _client_from_context(ctx)
     _validate_select(select, row_type=StorageSummary)
@@ -178,17 +159,19 @@ async def get_storage(
 @register_tool
 async def create_user(
     ctx: Context,
-    login: str,
-    email: str,
-    firstname: str,
-    lastname: str,
-    password: str | None = None,
-    admin: bool = False,
-    status: str = "active",
-    language: str | None = None,
-    confirm: bool = False,
+    login: Annotated[str, Field(description="Login name used to sign in.")],
+    email: Annotated[str, Field(description="Email address.")],
+    firstname: Annotated[str, Field(description="Given name.")],
+    lastname: Annotated[str, Field(description="Family name.")],
+    password: Annotated[str | None, Field(description="Initial password; not sent when omitted.")] = None,
+    admin: Annotated[bool, Field(description="true grants OpenProject administrator rights.")] = False,
+    status: Annotated[str, Field(description="Initial account status, checked by OpenProject's user form.")] = "active",
+    language: Annotated[str | None, Field(description='Language code such as "en".')] = None,
+    confirm: Confirm = False,
 ) -> UserWriteResult:
-    """Prepare or create a new user (admin operation)."""
+    """Create a new user (admin operation).
+
+    The preview is validated by OpenProject; problems come back in validation_errors."""
     client = _client_from_context(ctx)
     safe_login = _validate_required_query(login, field_name="login", max_length=100)
     safe_email = _validate_required_query(email, field_name="email", max_length=255)
@@ -214,16 +197,19 @@ async def create_user(
 @register_tool
 async def update_user(
     ctx: Context,
-    user_id: int,
-    login: str | None = None,
-    email: str | None = None,
-    firstname: str | None = None,
-    lastname: str | None = None,
-    admin: bool | None = None,
-    language: str | None = None,
-    confirm: bool = False,
+    user_id: Annotated[int, Field(description="User id, from list_users.")],
+    login: Annotated[str | None, Field(description="Login name used to sign in.")] = None,
+    email: Annotated[str | None, Field(description="Email address.")] = None,
+    firstname: Annotated[str | None, Field(description="Given name.")] = None,
+    lastname: Annotated[str | None, Field(description="Family name.")] = None,
+    admin: Annotated[bool | None, Field(description="true grants, false revokes administrator rights.")] = None,
+    language: Annotated[str | None, Field(description='Language code such as "en".')] = None,
+    confirm: Confirm = False,
 ) -> UserWriteResult:
-    """Prepare or update an existing user (admin operation)."""
+    """Update an existing user (admin operation).
+
+    Pass at least one field; omitted fields stay unchanged. The preview is
+    validated by OpenProject; problems come back in validation_errors."""
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(user_id, field_name="user_id")
     safe_login = _validate_optional_query(login, field_name="login", max_length=100)
@@ -257,10 +243,16 @@ async def update_user(
 @register_tool
 async def delete_user(
     ctx: Context,
-    user_id: int,
-    confirm: bool = False,
+    user_id: Annotated[int, Field(description="User id, from list_users.")],
+    confirm: Confirm = False,
 ) -> UserWriteResult:
-    """Prepare or delete a user (admin operation)."""
+    """Delete a user (admin operation).
+
+    Runs in the background (OpenProject answers 202): the account is blocked at once, then everything the
+    user authored is reassigned to "Deleted user" and their memberships, private queries, notifications and
+    tokens are deleted; this cannot be undone. Needs the setting users_deletable_by_admins
+    (users_deletable_by_self to delete yourself). 17.1+: the last active admin cannot be deleted.
+    """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(user_id, field_name="user_id")
     return await _run_tool(client.user.delete(safe_id, confirm=confirm))
@@ -269,14 +261,14 @@ async def delete_user(
 @register_tool
 async def set_user_locked(
     ctx: Context,
-    user_id: int,
-    locked: bool,
-    confirm: bool = False,
+    user_id: Annotated[int, Field(description="User id, from list_users.")],
+    locked: Annotated[bool, Field(description="true locks the account, false unlocks it.")],
+    confirm: Confirm = False,
 ) -> UserWriteResult:
-    """Prepare or lock/unlock a user account (admin operation).
+    """Lock or unlock a user account (admin operation).
 
-    locked=true locks the account; locked=false unlocks it. Preview/confirm
-    behavior is identical either way.
+    A locked user cannot sign in until unlocked; the account and its data stay. To remove the account use
+    delete_user.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(user_id, field_name="user_id")
@@ -288,11 +280,18 @@ async def set_user_locked(
 @register_tool
 async def create_group(
     ctx: Context,
-    name: str,
-    user_ids: list[int] | None = None,
-    confirm: bool = False,
+    name: Annotated[str, Field(description="Group display name.")],
+    user_ids: Annotated[
+        list[int] | None, Field(description="User ids to add as initial members; omit for an empty group.")
+    ] = None,
+    confirm: Confirm = False,
 ) -> GroupWriteResult:
-    """Prepare or create a new group (admin operation)."""
+    """Create a new group (admin operation).
+
+    The preview makes no request to OpenProject, so OpenProject's own checks run only on confirm. To give the
+    group roles in a project use create_membership with the group as principal; change its members later with
+    update_group.
+    """
     client = _client_from_context(ctx)
     safe_name = _validate_required_query(name, field_name="name", max_length=255)
     return await _run_tool(client.group.create(name=safe_name, user_ids=user_ids, confirm=confirm))
@@ -301,13 +300,15 @@ async def create_group(
 @register_tool
 async def update_group(
     ctx: Context,
-    group_id: int,
-    name: str | None = None,
-    add_user_ids: list[int] | None = None,
-    remove_user_ids: list[int] | None = None,
-    confirm: bool = False,
+    group_id: Annotated[int, Field(description="Group id, from list_groups.")],
+    name: Annotated[str | None, Field(description="New group display name; omit to keep it.")] = None,
+    add_user_ids: Annotated[list[int] | None, Field(description="User ids to add; other current members stay.")] = None,
+    remove_user_ids: Annotated[
+        list[int] | None, Field(description="User ids to remove; wins over add_user_ids.")
+    ] = None,
+    confirm: Confirm = False,
 ) -> GroupWriteResult:
-    """Prepare or update an existing group (admin operation)."""
+    """Update an existing group (admin operation). Pass at least one of name, add_user_ids, remove_user_ids."""
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(group_id, field_name="group_id")
     safe_name = _validate_optional_query(name, field_name="name", max_length=255)
@@ -324,10 +325,15 @@ async def update_group(
 @register_tool
 async def delete_group(
     ctx: Context,
-    group_id: int,
-    confirm: bool = False,
+    group_id: Annotated[int, Field(description="Group id, from list_groups.")],
+    confirm: Confirm = False,
 ) -> GroupWriteResult:
-    """Prepare or delete a group (admin operation)."""
+    """Delete a group (admin operation).
+
+    Runs in the background (OpenProject answers 202). Members lose the roles they had only through the group;
+    work packages assigned to the group go to "Deleted user"; this cannot be undone. 17.7+: groups synchronised
+    from LDAP are rejected.
+    """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(group_id, field_name="group_id")
     return await _run_tool(client.group.delete(safe_id, confirm=confirm))
@@ -342,9 +348,9 @@ async def create_storage(
     authentication_method: str | None = None,
     tenant_id: str | None = None,
     drive_id: str | None = None,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> StorageWriteResult:
-    """Prepare or create an external file storage connection (admin operation).
+    """Create an external file storage connection (admin operation).
 
     provider_type must be one of "Nextcloud", "OneDrive", "Sharepoint". Field
     requirements differ genuinely by provider, per OpenProject's own
@@ -388,15 +394,21 @@ async def create_storage(
 @register_tool
 async def update_storage(
     ctx: Context,
-    storage_id: int,
-    name: str | None = None,
-    host: str | None = None,
-    confirm: bool = False,
+    storage_id: Annotated[int, Field(description="Storage id, from list_storages.")],
+    name: Annotated[str | None, Field(description="New display name; omit to keep it.")] = None,
+    host: Annotated[
+        str | None,
+        Field(
+            description=(
+                "New host URL; on Nextcloud, confirm=true re-runs OpenProject's live reachability/setup probe."
+            )
+        ),
+    ] = None,
+    confirm: Confirm = False,
 ) -> StorageWriteResult:
-    """Prepare or update an external file storage connection (admin operation).
+    """Update an external file storage connection (admin operation).
 
-    Changing host on a Nextcloud storage re-runs OpenProject's live
-    host-reachability/setup-completeness probe at confirm=true.
+    Pass at least one of name or host. The preview returns the current storage as result.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(storage_id, field_name="storage_id")
@@ -410,9 +422,9 @@ async def update_storage(
 async def delete_storage(
     ctx: Context,
     storage_id: int,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> StorageWriteResult:
-    """Prepare or delete an external file storage connection (admin operation).
+    """Delete an external file storage connection (admin operation); this cannot be undone.
 
     Deleting a storage cascades: every project's link to it and the work
     packages' file links to it are deleted, and for each project link whose

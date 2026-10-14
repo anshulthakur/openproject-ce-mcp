@@ -10,12 +10,13 @@ re-exports these five names so existing test imports keep working unchanged
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
 from mcp.server.mcpserver import Context
+from pydantic import Field
 
 from .models import VersionDetail, VersionListResult, VersionSummary, VersionWriteResult
-from .tool_types import IdOrName
+from .tool_params import Confirm, Limit, Offset, OptionalProjectRef, ProjectRef, select_field
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
     _require_at_least_one,
@@ -33,28 +34,28 @@ from .tools_validation import (
     _validate_select,
 )
 
+_VERSION_ID = "Numeric version id, as returned by list_versions."
+_NAME = "Display name, at most 60 characters."
+_DATE = "ISO 8601 date (YYYY-MM-DD)."
+_STATUS = 'One of "open", "locked", "closed".'
+_SHARING = 'One of "none", "descendants", "hierarchy", "tree".'
+
 
 @register_tool
 async def list_versions(
     ctx: Context,
-    project: IdOrName | None = None,
+    project: OptionalProjectRef = None,
     search: str | None = None,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(VersionSummary)] = None,
 ) -> VersionListResult:
     """List versions globally or for a specific project, optionally filtered by a
     case-insensitive name substring.
 
-    select fields: id, name (see server instructions for select's general semantics).
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap. Without project,
-    total is only the count of allowed versions returned on THIS page, not a
-    full count of all matches — the search stops as soon as it has enough, so
-    an exact total would need an extra full walk. Page until next_offset is
-    null.
-    """
+    Without project, total is only the count of allowed versions returned on THIS page, not a full count of all
+    matches; the search stops as soon as it has enough, so an exact total would need an extra full walk. Page until
+    next_offset is null."""
     client = _client_from_context(ctx)
     safe_project = _validate_optional_project_ref(project)
     safe_search, safe_offset, safe_limit = _validate_list_query_params(search, offset, limit)
@@ -109,16 +110,16 @@ def _validate_version_schedule_fields(
 @register_tool
 async def create_version(
     ctx: Context,
-    project: IdOrName,
-    name: str,
-    description: str | None = None,
-    start_date: str | None = None,
-    end_date: str | None = None,
-    status: str | None = None,
-    sharing: str | None = None,
-    confirm: bool = False,
+    project: ProjectRef,
+    name: Annotated[str, Field(description=_NAME)],
+    description: Annotated[str | None, Field(description="Plain text, not Markdown.")] = None,
+    start_date: Annotated[str | None, Field(description=_DATE)] = None,
+    end_date: Annotated[str | None, Field(description=_DATE)] = None,
+    status: Annotated[str | None, Field(description=_STATUS)] = None,
+    sharing: Annotated[str | None, Field(description=_SHARING)] = None,
+    confirm: Confirm = False,
 ) -> VersionWriteResult:
-    """Prepare or create a version for a project.
+    """Create a version for a project.
 
     A rejected validation preview is not a tool error; inspect `ready` and
     `validation_errors` in the result rather than the MCP error envelope.
@@ -145,17 +146,18 @@ async def create_version(
 @register_tool
 async def update_version(
     ctx: Context,
-    version_id: int,
-    name: str | None = None,
-    description: str | None = None,
-    start_date: str | None = None,
-    end_date: str | None = None,
-    status: str | None = None,
-    sharing: str | None = None,
-    confirm: bool = False,
+    version_id: Annotated[int, Field(description=_VERSION_ID)],
+    name: Annotated[str | None, Field(description=_NAME)] = None,
+    description: Annotated[str | None, Field(description='Plain text, not Markdown; "" clears it.')] = None,
+    start_date: Annotated[str | None, Field(description=_DATE)] = None,
+    end_date: Annotated[str | None, Field(description=_DATE)] = None,
+    status: Annotated[str | None, Field(description=_STATUS)] = None,
+    sharing: Annotated[str | None, Field(description=_SHARING)] = None,
+    confirm: Confirm = False,
 ) -> VersionWriteResult:
-    """Prepare or update a version.
+    """Update a version.
 
+    Omitted fields stay unchanged.
     A rejected validation preview is not a tool error; inspect `ready` and
     `validation_errors` in the result rather than the MCP error envelope.
     """
@@ -190,10 +192,13 @@ async def update_version(
 @register_tool
 async def delete_version(
     ctx: Context,
-    version_id: int,
-    confirm: bool = False,
+    version_id: Annotated[int, Field(description=_VERSION_ID)],
+    confirm: Confirm = False,
 ) -> VersionWriteResult:
-    """Prepare or delete a version."""
+    """Delete a version; this cannot be undone.
+
+    Rejected while any work package, in any project, uses it (17.8+: also as its "found in" version).
+    """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(version_id, field_name="version_id")
     return await _run_tool(client.version.delete(version_id=safe_id, confirm=confirm))
