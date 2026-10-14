@@ -38,11 +38,14 @@ these tests do not use `test_project`/`wp_ids` and do not need
 from __future__ import annotations
 
 import datetime
+import json
 import uuid
 
 import pytest
+from mcp.client import Client
 
 from openproject_ce_mcp.client import OpenProjectClient
+from openproject_ce_mcp.server import create_app
 
 from .conftest import skip_if_unsupported
 
@@ -170,6 +173,53 @@ async def test_create_get_list_update_delete_user_working_hours(
 
     with pytest.raises((NotFoundError, OpenProjectServerError)):
         await client.user_working_hours.get(_USER_REF, working_hours_id)
+
+
+async def test_availability_factor_reaches_openproject_as_a_whole_number_over_mcp(
+    client: OpenProjectClient, user_working_hours_ids: list[tuple[str, int]]
+) -> None:
+    # Through the MCP layer: the tool signature's type decides what the JSON
+    # argument becomes before it is sent, which a direct client call skips.
+    await skip_if_unsupported(lambda: client.user_working_hours.list_for_user(_USER_REF))
+    year_offset = (uuid.uuid4().int % 20) + 5
+    valid_from = f"20{50 + year_offset}-04-01"
+
+    async with Client(create_app(client.settings), mode="legacy") as mcp:
+        created = await mcp.call_tool(
+            "create_user_working_hours",
+            {
+                "user_ref": _USER_REF,
+                "valid_from": valid_from,
+                "monday_hours": 8,
+                "availability_factor": 50,
+                "confirm": True,
+            },
+        )
+        created_text = "".join(getattr(block, "text", "") for block in created.content)
+        assert created.is_error is False, created_text
+        created_result = json.loads(created_text)["result"]
+        user_working_hours_ids.append((_USER_REF, created_result["id"]))
+        assert created_result["availability_factor"] == 50
+        assert type(created_result["availability_factor"]) is int
+
+        updated = await mcp.call_tool(
+            "update_user_working_hours",
+            {
+                "user_ref": _USER_REF,
+                "working_hours_id": created_result["id"],
+                "availability_factor": 80,
+                "confirm": True,
+            },
+        )
+        updated_text = "".join(getattr(block, "text", "") for block in updated.content)
+        assert updated.is_error is False, updated_text
+        updated_factor = json.loads(updated_text)["result"]["availability_factor"]
+        assert updated_factor == 80
+        assert type(updated_factor) is int
+
+    fetched = await client.user_working_hours.get(_USER_REF, created_result["id"])
+    assert fetched.availability_factor == 80
+    assert type(fetched.availability_factor) is int
 
 
 async def test_create_user_working_hours_preview_without_confirm_does_not_write(

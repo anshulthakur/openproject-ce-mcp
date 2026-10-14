@@ -106,7 +106,7 @@ class HttpxUserWorkingHoursApi:
         friday_hours: float | None,
         saturday_hours: float | None,
         sunday_hours: float | None,
-        availability_factor: float | None,
+        availability_factor: int | None,
     ) -> UserWorkingHoursRecord:
         body: dict[str, Any] = {"validFrom": valid_from}
         field_map = {

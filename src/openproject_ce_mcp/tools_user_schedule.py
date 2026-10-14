@@ -17,6 +17,7 @@ function).
 from __future__ import annotations
 
 from mcp.server.mcpserver import Context
+from pydantic import StrictInt
 
 from .models import (
     UserNonWorkingTimeListResult,
@@ -32,6 +33,7 @@ from .tools_validation import (
     _validate_offset,
     _validate_optional_date,
     _validate_optional_non_negative_int,
+    _validate_optional_percentage,
     _validate_positive_int,
     _validate_ref,
     _validate_required_date,
@@ -207,7 +209,7 @@ async def create_user_working_hours(
     friday_hours: float | None = None,
     saturday_hours: float | None = None,
     sunday_hours: float | None = None,
-    availability_factor: float | None = None,
+    availability_factor: StrictInt | None = None,
     confirm: bool = False,
 ) -> UserWorkingHoursWriteResult:
     """Prepare or create a new weekly working-hours schedule version for a
@@ -223,12 +225,13 @@ async def create_user_working_hours(
     0 (not a working day) -- OpenProject requires every weekday to have a
     value on create, so this MCP fills in 0 for you rather than sending an
     incomplete schedule.
-    availability_factor: fractional working-time factor (e.g. 0.5 for
-    half-time), independent of the per-day hour values.
+    availability_factor: percentage of the working time dedicated to project
+    work, a whole number 0 to 100 (OpenProject's default: 100).
     """
     client = _client_from_context(ctx)
     safe_user = _validate_ref(user_ref, field_name="user_ref", max_length=100)
     safe_valid_from = _validate_required_date(valid_from, field_name="valid_from")
+    safe_availability = _validate_optional_percentage(availability_factor, field_name="availability_factor")
     return await _run_tool(
         client.user_working_hours.create(
             safe_user,
@@ -240,7 +243,7 @@ async def create_user_working_hours(
             friday_hours=friday_hours,
             saturday_hours=saturday_hours,
             sunday_hours=sunday_hours,
-            availability_factor=availability_factor,
+            availability_factor=safe_availability,
             confirm=confirm,
         )
     )
@@ -259,18 +262,22 @@ async def update_user_working_hours(
     friday_hours: float | None = None,
     saturday_hours: float | None = None,
     sunday_hours: float | None = None,
-    availability_factor: float | None = None,
+    availability_factor: StrictInt | None = None,
     confirm: bool = False,
 ) -> UserWorkingHoursWriteResult:
     """Prepare or update a user's working-hours schedule entry; only writes
     when called again with confirm=true.
 
     Requires OpenProject 17.3+. Same authorization as list_user_working_hours.
+
+    availability_factor: percentage of the working time dedicated to project
+    work, a whole number 0 to 100.
     """
     client = _client_from_context(ctx)
     safe_user = _validate_ref(user_ref, field_name="user_ref", max_length=100)
     safe_id = _validate_positive_int(working_hours_id, field_name="working_hours_id")
     safe_valid_from = _validate_optional_date(valid_from, field_name="valid_from")
+    safe_availability = _validate_optional_percentage(availability_factor, field_name="availability_factor")
     return await _run_tool(
         client.user_working_hours.update(
             safe_user,
@@ -283,7 +290,7 @@ async def update_user_working_hours(
             friday_hours=friday_hours,
             saturday_hours=saturday_hours,
             sunday_hours=sunday_hours,
-            availability_factor=availability_factor,
+            availability_factor=safe_availability,
             confirm=confirm,
         )
     )

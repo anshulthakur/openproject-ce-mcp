@@ -248,8 +248,8 @@ def test_create_user_working_hours_schema() -> None:
         "0 (not a working day) -- OpenProject requires every weekday to have a\n"
         "value on create, so this MCP fills in 0 for you rather than sending an\n"
         "incomplete schedule.\n"
-        "availability_factor: fractional working-time factor (e.g. 0.5 for\n"
-        "half-time), independent of the per-day hour values.\n"
+        "availability_factor: percentage of the working time dedicated to project\n"
+        "work, a whole number 0 to 100 (OpenProject's default: 100).\n"
     )
     assert tool.output_schema is None
     day_props = {
@@ -274,7 +274,7 @@ def test_create_user_working_hours_schema() -> None:
             "valid_from": {"title": "Valid From", "type": "string"},
             **day_props,
             "availability_factor": {
-                "anyOf": [{"type": "number"}, {"type": "null"}],
+                "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
                 "title": "Availability Factor",
             },
@@ -306,7 +306,9 @@ def test_update_user_working_hours_schema() -> None:
     assert tool.description == (
         "Prepare or update a user's working-hours schedule entry; only writes\n"
         "when called again with confirm=true.\n\n"
-        "Requires OpenProject 17.3+. Same authorization as list_user_working_hours.\n"
+        "Requires OpenProject 17.3+. Same authorization as list_user_working_hours.\n\n"
+        "availability_factor: percentage of the working time dedicated to project\n"
+        "work, a whole number 0 to 100.\n"
     )
     assert tool.output_schema is None
     day_props = {
@@ -336,7 +338,7 @@ def test_update_user_working_hours_schema() -> None:
             },
             **day_props,
             "availability_factor": {
-                "anyOf": [{"type": "number"}, {"type": "null"}],
+                "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
                 "title": "Availability Factor",
             },

@@ -32,7 +32,7 @@ def _record_payload(record_id: int = 5, *, user_href: str | None = "/api/v3/user
         "fridayHours": 4,
         "saturdayHours": None,
         "sundayHours": None,
-        "availabilityFactor": 1.0,
+        "availabilityFactor": 100,
         "_links": {},
     }
     if user_href is not None:
@@ -50,7 +50,7 @@ def test_normalize_user_working_hours_full_payload() -> None:
     assert summary.friday_hours == 4
     assert summary.saturday_hours is None
     assert summary.sunday_hours is None
-    assert summary.availability_factor == 1.0
+    assert summary.availability_factor == 100
 
 
 def test_normalize_user_working_hours_without_user_link() -> None:
@@ -109,8 +109,7 @@ async def test_create_posts_only_the_supplied_fields() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v3/users/me/working_hours"
         assert request.method == "POST"
-        body = json.loads(request.read())
-        assert body == {"validFrom": "2026-08-01", "mondayHours": 8.0, "availabilityFactor": 0.5}
+        assert request.read() == b'{"validFrom":"2026-08-01","mondayHours":8.0,"availabilityFactor":50}'
         return httpx.Response(201, json=_record_payload(9), request=request)
 
     async with _client(handler) as http_client:
@@ -125,7 +124,7 @@ async def test_create_posts_only_the_supplied_fields() -> None:
             friday_hours=None,
             saturday_hours=None,
             sunday_hours=None,
-            availability_factor=0.5,
+            availability_factor=50,
         )
 
     assert record.summary.id == 9
