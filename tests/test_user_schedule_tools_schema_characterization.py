@@ -322,7 +322,7 @@ def test_create_user_working_hours_schema() -> None:
                 "title": "Sunday Hours",
             },
             "availability_factor": {
-                "anyOf": [{"type": "number"}, {"type": "null"}],
+                "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
                 "description": "Percentage of the working time dedicated to project work: pass a whole number 0 to 100.",
                 "title": "Availability Factor",
@@ -426,7 +426,7 @@ def test_update_user_working_hours_schema() -> None:
                 "title": "Sunday Hours",
             },
             "availability_factor": {
-                "anyOf": [{"type": "number"}, {"type": "null"}],
+                "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
                 "description": "Percentage of the working time dedicated to project work: pass a whole number 0 to 100.",
                 "title": "Availability Factor",

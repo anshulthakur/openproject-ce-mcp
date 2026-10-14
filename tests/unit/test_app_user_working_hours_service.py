@@ -25,7 +25,7 @@ def _summary(record_id: int = 5, *, user_id: int | None = 3, valid_from: str = "
         friday_hours=4.0,
         saturday_hours=None,
         sunday_hours=None,
-        availability_factor=1.0,
+        availability_factor=100,
     )
 
 

@@ -60,7 +60,7 @@ class UserWorkingHoursApi(Protocol):
         friday_hours: float | None,
         saturday_hours: float | None,
         sunday_hours: float | None,
-        availability_factor: float | None,
+        availability_factor: int | None,
     ) -> UserWorkingHoursRecord: ...
     async def update(
         self, user_ref: str, working_hours_id: int, *, payload: dict[str, object]

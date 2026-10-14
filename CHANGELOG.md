@@ -312,6 +312,12 @@ Thanks to our contributors: [@feci](https://github.com/feci) ([#35](https://gith
   `bulk_create_work_packages` and `bulk_update_work_packages` descriptions say
   that `select` names write-result fields and that `display_id` and the other
   work package fields come with `result`.
+- `create_user_working_hours` and `update_user_working_hours` sent
+  `availability_factor` as a decimal number, which OpenProject rejects as
+  "not an integer", so no value could be set. It is now a whole number from 0
+  to 100 (the percentage of working time dedicated to project work); a
+  fraction, a boolean, a numeric string or a value outside that range is
+  rejected before any request.
 
 Thanks to our contributors: [@webadmin-stattreisen](https://github.com/webadmin-stattreisen) ([#45](https://github.com/jtauschl/openproject-ce-mcp/pull/45)).
 

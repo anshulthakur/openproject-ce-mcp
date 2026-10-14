@@ -1369,7 +1369,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "title": "Sunday Hours",
                 },
                 "availability_factor": {
-                    "anyOf": [{"type": "number"}, {"type": "null"}],
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
                     "default": None,
                     "description": "Percentage of the working time dedicated to project work: pass a whole number 0 to 100.",
                     "title": "Availability Factor",
@@ -4680,7 +4680,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "saturday_hours": {"anyOf": [{"type": "number"}, {"type": "null"}], "title": "Saturday Hours"},
                 "sunday_hours": {"anyOf": [{"type": "number"}, {"type": "null"}], "title": "Sunday Hours"},
                 "availability_factor": {
-                    "anyOf": [{"type": "number"}, {"type": "null"}],
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
                     "title": "Availability Factor",
                 },
             },
@@ -8107,7 +8107,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "title": "Sunday Hours",
                 },
                 "availability_factor": {
-                    "anyOf": [{"type": "number"}, {"type": "null"}],
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
                     "default": None,
                     "description": "Percentage of the working time dedicated to project work: pass a whole number 0 to 100.",
                     "title": "Availability Factor",

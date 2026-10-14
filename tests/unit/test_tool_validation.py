@@ -20,7 +20,7 @@ from openproject_ce_mcp.tools_validation import (
     _validate_group_by,
     _validate_optional_duration,
     _validate_optional_non_negative_int,
-    _validate_optional_percentage_done,
+    _validate_optional_percentage,
     _validate_optional_ref,
     _validate_optional_target_versions,
     _validate_optional_text,
@@ -571,17 +571,17 @@ def test_validate_optional_non_negative_int_is_type_safe() -> None:
     assert _validate_optional_non_negative_int(0, field_name="x") == 0
 
 
-def test_validate_optional_percentage_done_is_type_safe_and_range_checked() -> None:
-    assert _validate_optional_percentage_done(None) is None
+def test_validate_optional_percentage_is_type_safe_and_range_checked() -> None:
+    assert _validate_optional_percentage(None, field_name="x") is None
     for bad in (True, 1.5, "50"):
-        with pytest.raises(ValueError, match="must be an integer"):
-            _validate_optional_percentage_done(bad)  # type: ignore[arg-type]
-    with pytest.raises(ValueError, match="must be between 0 and 100"):
-        _validate_optional_percentage_done(-1)
-    with pytest.raises(ValueError, match="must be between 0 and 100"):
-        _validate_optional_percentage_done(101)
-    assert _validate_optional_percentage_done(0) == 0
-    assert _validate_optional_percentage_done(100) == 100
+        with pytest.raises(ValueError, match="x must be an integer"):
+            _validate_optional_percentage(bad, field_name="x")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="x must be between 0 and 100"):
+        _validate_optional_percentage(-1, field_name="x")
+    with pytest.raises(ValueError, match="x must be between 0 and 100"):
+        _validate_optional_percentage(101, field_name="x")
+    assert _validate_optional_percentage(0, field_name="x") == 0
+    assert _validate_optional_percentage(100, field_name="x") == 100
 
 
 def test_validate_optional_text_still_collapses_empty_string_to_none() -> None:

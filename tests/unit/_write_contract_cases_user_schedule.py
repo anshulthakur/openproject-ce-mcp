@@ -95,7 +95,7 @@ def _working_hours_payload(record_id: int = 5) -> dict:
         "fridayHours": 8,
         "saturdayHours": None,
         "sundayHours": None,
-        "availabilityFactor": 1.0,
+        "availabilityFactor": 100,
         "_links": {"user": {"href": "/api/v3/users/3", "title": "Alice"}},
     }
 

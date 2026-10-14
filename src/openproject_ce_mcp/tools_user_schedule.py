@@ -19,7 +19,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from mcp.server.mcpserver import Context
-from pydantic import Field
+from pydantic import Field, StrictInt
 
 from .models import (
     UserNonWorkingTimeListResult,
@@ -36,6 +36,7 @@ from .tools_validation import (
     _validate_offset,
     _validate_optional_date,
     _validate_optional_non_negative_int,
+    _validate_optional_percentage,
     _validate_positive_int,
     _validate_ref,
     _validate_required_date,
@@ -46,7 +47,6 @@ _HOURS = "Hours that day, 0 to 24; at least one day must be above 0."
 # OpenProject requires every day on create, and 17.3 to 17.8 answer a missing
 # one with a raw 500 instead of a validation error, so an omitted day is sent as 0.
 _NEW_HOURS = "Hours that day, 0 to 24; omitted means 0 (not a working day). At least one day must be above 0."
-# UserWorkingHours#availability_factor is an integer column validated 0..100.
 _AVAILABILITY = "Percentage of the working time dedicated to project work: pass a whole number 0 to 100."
 
 
@@ -218,7 +218,7 @@ async def create_user_working_hours(
     friday_hours: Annotated[float | None, Field(description=_NEW_HOURS)] = None,
     saturday_hours: Annotated[float | None, Field(description=_NEW_HOURS)] = None,
     sunday_hours: Annotated[float | None, Field(description=_NEW_HOURS)] = None,
-    availability_factor: Annotated[float | None, Field(description=_AVAILABILITY)] = None,
+    availability_factor: Annotated[StrictInt | None, Field(description=_AVAILABILITY)] = None,
     confirm: Confirm = False,
 ) -> UserWorkingHoursWriteResult:
     """Create a new weekly working-hours schedule version for a user, effective from valid_from.
@@ -230,6 +230,7 @@ async def create_user_working_hours(
     client = _client_from_context(ctx)
     safe_user = _validate_ref(user_ref, field_name="user_ref", max_length=100)
     safe_valid_from = _validate_required_date(valid_from, field_name="valid_from")
+    safe_availability = _validate_optional_percentage(availability_factor, field_name="availability_factor")
     return await _run_tool(
         client.user_working_hours.create(
             safe_user,
@@ -241,7 +242,7 @@ async def create_user_working_hours(
             friday_hours=friday_hours,
             saturday_hours=saturday_hours,
             sunday_hours=sunday_hours,
-            availability_factor=availability_factor,
+            availability_factor=safe_availability,
             confirm=confirm,
         )
     )
@@ -263,7 +264,7 @@ async def update_user_working_hours(
     friday_hours: Annotated[float | None, Field(description=_HOURS)] = None,
     saturday_hours: Annotated[float | None, Field(description=_HOURS)] = None,
     sunday_hours: Annotated[float | None, Field(description=_HOURS)] = None,
-    availability_factor: Annotated[float | None, Field(description=_AVAILABILITY)] = None,
+    availability_factor: Annotated[StrictInt | None, Field(description=_AVAILABILITY)] = None,
     confirm: Confirm = False,
 ) -> UserWorkingHoursWriteResult:
     """Correct an existing working-hours schedule entry in place; omitted fields stay unchanged.
@@ -276,6 +277,7 @@ async def update_user_working_hours(
     safe_user = _validate_ref(user_ref, field_name="user_ref", max_length=100)
     safe_id = _validate_positive_int(working_hours_id, field_name="working_hours_id")
     safe_valid_from = _validate_optional_date(valid_from, field_name="valid_from")
+    safe_availability = _validate_optional_percentage(availability_factor, field_name="availability_factor")
     return await _run_tool(
         client.user_working_hours.update(
             safe_user,
@@ -288,7 +290,7 @@ async def update_user_working_hours(
             friday_hours=friday_hours,
             saturday_hours=saturday_hours,
             sunday_hours=sunday_hours,
-            availability_factor=availability_factor,
+            availability_factor=safe_availability,
             confirm=confirm,
         )
     )

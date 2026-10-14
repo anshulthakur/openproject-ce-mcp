@@ -114,7 +114,7 @@ class UserWorkingHoursService:
         friday_hours: float | None = None,
         saturday_hours: float | None = None,
         sunday_hours: float | None = None,
-        availability_factor: float | None = None,
+        availability_factor: int | None = None,
         confirm: bool = False,
     ) -> UserWorkingHoursWriteResult:
         access.ensure_read_enabled("user_schedule", settings=self._settings)
@@ -198,7 +198,7 @@ class UserWorkingHoursService:
         friday_hours: float | None = None,
         saturday_hours: float | None = None,
         sunday_hours: float | None = None,
-        availability_factor: float | None = None,
+        availability_factor: int | None = None,
         confirm: bool = False,
     ) -> UserWorkingHoursWriteResult:
         access.ensure_read_enabled("user_schedule", settings=self._settings)

@@ -440,7 +440,7 @@ def _validate_optional_text_limit(value: int | None) -> int | None:
     return limit
 
 
-def _validate_optional_percentage_done(value: int | None, *, field_name: str = "percentage_done") -> int | None:
+def _validate_optional_percentage(value: int | None, *, field_name: str) -> int | None:
     if value is None:
         return None
     if not isinstance(value, int) or isinstance(value, bool):

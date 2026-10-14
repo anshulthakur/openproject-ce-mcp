@@ -75,7 +75,7 @@ from .tools_validation import (
     _validate_optional_date_range,
     _validate_optional_duration,
     _validate_optional_non_negative_int,
-    _validate_optional_percentage_done,
+    _validate_optional_percentage,
     _validate_optional_project_ref,
     _validate_optional_query,
     _validate_optional_ref,
@@ -772,9 +772,7 @@ def _validate_work_package_update_fields(
             remaining_time, field_name=f"{field_prefix}remaining_time", sentinel=CLEAR
         ),
         "duration": _clearable_duration(duration, field_name=f"{field_prefix}duration", sentinel=CLEAR),
-        "percentage_done": _validate_optional_percentage_done(
-            percentage_done, field_name=f"{field_prefix}percentage_done"
-        ),
+        "percentage_done": _validate_optional_percentage(percentage_done, field_name=f"{field_prefix}percentage_done"),
     }
 
 
