@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 import httpx
 import pytest
@@ -109,7 +110,10 @@ async def test_create_posts_only_the_supplied_fields() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v3/users/me/working_hours"
         assert request.method == "POST"
-        assert request.read() == b'{"validFrom":"2026-08-01","mondayHours":8.0,"availabilityFactor":50}'
+        raw = request.read()
+        assert json.loads(raw) == {"validFrom": "2026-08-01", "mondayHours": 8.0, "availabilityFactor": 50}
+        # json.loads makes 50.0 == 50, so the integer claim is checked on the raw bytes.
+        assert re.search(rb'"availabilityFactor":\s*50[,}]', raw), raw
         return httpx.Response(201, json=_record_payload(9), request=request)
 
     async with _client(handler) as http_client:
