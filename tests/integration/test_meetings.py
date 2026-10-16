@@ -668,6 +668,36 @@ async def test_end_recurring_meeting(
     assert upcoming.results == []
 
 
+async def test_delete_meeting_rejects_the_template_of_a_recurring_series(
+    client: OpenProjectClient, test_project: str, recurring_meeting_ids: list[int], meeting_ids: list[int]
+) -> None:
+    try:
+        created = await client.recurring_meeting.create(
+            project=test_project,
+            title=f"[integration-test] series template {uuid.uuid4().hex[:8]}",
+            frequency="weekly",
+            start_time="2031-03-03T09:00:00Z",
+            confirm=True,
+        )
+    except NotFoundError:
+        pytest.skip("Recurring meetings not available, or OpenProject < 17.4, on this instance")
+    assert created.ready, created.validation_errors
+    series_id = created.recurring_meeting_id
+    assert series_id is not None
+    recurring_meeting_ids.append(series_id)
+    template_id = (await client.recurring_meeting.get(series_id)).template_meeting_id
+
+    with pytest.raises(InvalidInputError, match=f"is the template of recurring meeting {series_id}"):
+        await client.meeting.delete(meeting_id=template_id, confirm=True)
+
+    assert (await client.meeting.get(template_id)).template is True
+    initialized = await client.recurring_meeting.init_occurrence(
+        recurring_meeting_id=series_id, start_time="2031-03-10T09:00:00Z", confirm=True
+    )
+    assert initialized.state == "confirmed", initialized.validation_errors
+    meeting_ids.append(initialized.result.id)
+
+
 async def test_list_recurring_meetings(
     client: OpenProjectClient, test_project: str, recurring_meeting_ids: list[int]
 ) -> None:

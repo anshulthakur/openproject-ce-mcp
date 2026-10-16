@@ -292,8 +292,10 @@ async def delete_meeting(ctx: Context, meeting_id: int, confirm: Confirm = False
 
     Requires OpenProject 17.4+. Deleting a one-time meeting cannot be undone. An occurrence of a series is
     only cancelled; init_recurring_meeting_occurrence restores it, reset to the series template. Invited
-    participants get a cancellation email when the meeting's notifications are on. A recurring meeting's
-    template is destroyed outright; use delete_recurring_meeting for the series.
+    participants get a cancellation email when the meeting's notifications are on. The template meeting of a
+    recurring series is rejected, because deleting it would break the series. To stop a series and keep its
+    past occurrences use end_recurring_meeting (17.8+); to delete the series with all its occurrences use
+    delete_recurring_meeting.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(meeting_id, field_name="meeting_id")

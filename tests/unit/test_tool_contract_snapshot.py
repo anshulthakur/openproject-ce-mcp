@@ -1883,7 +1883,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_ADMIN_WRITE", "OPENPROJECT_ENABLE_ADMIN_READ"),
     },
     "delete_meeting": {
-        "description_hash": "6cdc5d095f500f90b05913206ed65b598628f481361c578210573fd3382779b0",
+        "description_hash": "d3e37f3f2f2a2b4edf9e7e71c6e06302a3f2b4230cc9dba6fbbb84cc4da23e2b",
         "input_schema": {
             "properties": {
                 "meeting_id": {"title": "Meeting Id", "type": "integer"},

@@ -481,7 +481,7 @@ def test_delete_meeting_schema() -> None:
     tool = _tools(create_app(_make_settings()))["delete_meeting"]
     assert (
         tool.description
-        == "Delete a meeting with its agenda, outcomes, attachments and the time entries logged on it.\n\nRequires OpenProject 17.4+. Deleting a one-time meeting cannot be undone. An occurrence of a series is\nonly cancelled; init_recurring_meeting_occurrence restores it, reset to the series template. Invited\nparticipants get a cancellation email when the meeting's notifications are on. A recurring meeting's\ntemplate is destroyed outright; use delete_recurring_meeting for the series.\n"
+        == "Delete a meeting with its agenda, outcomes, attachments and the time entries logged on it.\n\nRequires OpenProject 17.4+. Deleting a one-time meeting cannot be undone. An occurrence of a series is\nonly cancelled; init_recurring_meeting_occurrence restores it, reset to the series template. Invited\nparticipants get a cancellation email when the meeting's notifications are on. The template meeting of a\nrecurring series is rejected, because deleting it would break the series. To stop a series and keep its\npast occurrences use end_recurring_meeting (17.8+); to delete the series with all its occurrences use\ndelete_recurring_meeting.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {

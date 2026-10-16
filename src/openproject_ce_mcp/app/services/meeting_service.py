@@ -28,6 +28,7 @@ from typing import Any
 from ...config import Settings
 from ...models import MeetingListResult, MeetingSummary, MeetingWriteResult
 from ..api_href import api_href as _api_href
+from ..errors import InvalidInputError
 from ..pagination import clamp_limit, paginate_server, scan_records_and_paginate
 from ..policies import access, hidden_fields
 from ..policies import scope as scope_policy
@@ -311,6 +312,14 @@ class MeetingService:
             current.project_link, settings=self._settings, project_id_to_identifier=self._project_id_to_identifier
         )
         meeting = self._stamp(current.summary)
+        # OpenProject's web UI refuses to destroy a series template; API v3 does not.
+        if meeting.template and meeting.recurring_meeting_id is not None:
+            raise InvalidInputError(
+                f"meeting_id {meeting.id} is the template of recurring meeting {meeting.recurring_meeting_id}; "
+                "deleting it would break the series. To stop the series and keep its past occurrences, use "
+                "end_recurring_meeting (OpenProject 17.8+); to delete the whole series with all its occurrences, "
+                "use delete_recurring_meeting."
+            )
         payload = {"id": meeting.id, "title": meeting.title}
 
         async def _commit(p: dict[str, Any]) -> MeetingSummary:

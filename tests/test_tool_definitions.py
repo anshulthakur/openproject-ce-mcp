@@ -167,6 +167,7 @@ PROMISED_CLAIMS: dict[str, list[tuple[str | None, str]]] = {
     "delete_meeting": [
         (None, "Deleting a one-time meeting cannot be undone"),
         (None, "init_recurring_meeting_occurrence restores it"),
+        (None, "The template meeting of a recurring series is rejected"),
     ],
     "delete_file_link": [_IRREVERSIBLE, (None, "the file itself stays in the external storage")],
     "delete_attachment": [_IRREVERSIBLE],
