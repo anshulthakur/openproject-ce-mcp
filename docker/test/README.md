@@ -33,7 +33,7 @@ reached the requested state after writing it (not just that the write call
 succeeded) and skips the multi-version fixture with a clear warning if not,
 rather than seeding data the server would reject.
 
-The `openproject/openproject` 17.8+ images (verified on 17.8.1 and 17.9.1) ship
+The `openproject/openproject` 17.8+ images (verified on 17.8.1 and 17.9.2) ship
 `Setting::WorkPackageMultipleVersions` with `default: true`
 (`config/constants/settings/definition.rb`) there, not off by default as
 might be assumed. `seed.rb` always forces it to a known state (`false` unless
