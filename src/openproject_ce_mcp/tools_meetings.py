@@ -171,8 +171,9 @@ async def create_meeting(
         list[IdOrName] | None,
         Field(
             description=(
-                "Users to invite (id, login or name). Known issue: OpenProject's create form drops this list; only "
-                "the creating user is added as an invited participant."
+                "Users to invite (id, login or name). The meeting gets exactly these participants, so name yourself "
+                "to take part; it cannot be empty. No invitation is sent: a new meeting starts as a draft with "
+                "notifications off."
             )
         ),
     ] = None,
@@ -225,8 +226,9 @@ async def update_meeting(
         list[IdOrName] | None,
         Field(
             description=(
-                "Users to invite (id, login or name). Known issue: OpenProject's update form drops this list, so "
-                "the participants stay unchanged; change them in OpenProject."
+                "Rejected: OpenProject 17.4 and 17.5 would add a user a second time and cannot remove anyone, and "
+                "only administrators can read the server version that tells the releases apart. Change the "
+                "participants in OpenProject."
             )
         ),
     ] = None,
@@ -249,6 +251,7 @@ async def update_meeting(
     invited participants (not for a closed or cancelled meeting). From 17.8, an update that takes a one-time
     meeting out of draft or turns notifications on also sends the invitations; 17.4 to 17.7 send no invitations
     on update.
+    Changing participants is not supported: participant_user_refs is rejected.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(meeting_id, field_name="meeting_id")

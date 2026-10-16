@@ -39,6 +39,15 @@ from ..version_gate import call_version_gated
 from ._write_outcome import _finalize_write, _WriteOutcome
 
 
+def _with_participants(form_payload: dict[str, Any], request_payload: dict[str, Any]) -> dict[str, Any]:
+    # The form applies the participants but leaves them out of the payload it echoes, so the
+    # request that is committed has to carry them again.
+    participants = request_payload.get("_links", {}).get("participants")
+    if participants is None:
+        return form_payload
+    return {**form_payload, "_links": {**form_payload.get("_links", {}), "participants": participants}}
+
+
 class MeetingService:
     def __init__(
         self,
@@ -232,6 +241,10 @@ class MeetingService:
                 "create_meeting does not apply state or notify: OpenProject starts every new meeting as a draft "
                 "with notifications off. Create the meeting without them, then set them with update_meeting."
             )
+        if participant_user_refs is not None and not participant_user_refs:
+            raise InvalidInputError(
+                "participant_user_refs must name at least one user; OpenProject ignores an empty list."
+            )
         project_payload = await self._resolve_project_ref(project, write=True)
         payload = await self._build_write_payload(
             project=project,
@@ -249,7 +262,7 @@ class MeetingService:
         identity_project = form.payload.get("_links", {}).get("project", {}).get("title") or project_payload.get("name")
         outcome = await _finalize_write(
             confirm=confirm,
-            payload=form.payload,
+            payload=_with_participants(form.payload, payload),
             validation_errors=form.validation_errors,
             identity={"meeting_id": None, "project": identity_project},
             ensure_write_enabled=lambda: access.ensure_write_enabled("meeting", settings=self._settings),
@@ -276,6 +289,12 @@ class MeetingService:
         lock_version: int | None = None,
         confirm: bool = False,
     ) -> MeetingWriteResult:
+        if participant_user_refs is not None:
+            raise InvalidInputError(
+                "update_meeting cannot change participants: OpenProject 17.4 and 17.5 add a user a second time "
+                "and cannot remove anyone, and only administrators can read the server version that tells the "
+                "releases apart. Change the participants in OpenProject."
+            )
         current = await call_version_gated(lambda: self._api.get(meeting_id), feature="Meetings", floor="17.4")
         scope_policy.ensure_project_write_link_allowed(
             current.project_link, settings=self._settings, project_id_to_identifier=self._project_id_to_identifier
@@ -289,7 +308,7 @@ class MeetingService:
             state=state,
             sharing=sharing,
             notify=notify,
-            participant_user_refs=participant_user_refs,
+            participant_user_refs=None,
             lock_version=lock_version,
         )
         form = await call_version_gated(

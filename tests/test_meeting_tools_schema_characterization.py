@@ -352,7 +352,7 @@ def test_create_meeting_schema() -> None:
                     {"type": "null"},
                 ],
                 "default": None,
-                "description": "Users to invite (id, login or name). Known issue: OpenProject's create form drops this list; only the creating user is added as an invited participant.",
+                "description": "Users to invite (id, login or name). The meeting gets exactly these participants, so name yourself to take part; it cannot be empty. No invitation is sent: a new meeting starts as a draft with notifications off.",
                 "title": "Participant User Refs",
             },
             "confirm": {
@@ -386,7 +386,7 @@ def test_update_meeting_schema() -> None:
     tool = _tools(create_app(_make_settings()))["update_meeting"]
     assert (
         tool.description
-        == "Update one meeting's details; omitted fields stay unchanged.\n\nRequires OpenProject 17.4+. The meeting's agenda is changed with the agenda item and section tools, and\na recurring series' schedule with update_recurring_meeting; for an occurrence of a series this changes\nonly that occurrence. With notifications on, a change of title, time, duration or location emails the\ninvited participants (not for a closed or cancelled meeting). From 17.8, an update that takes a one-time\nmeeting out of draft or turns notifications on also sends the invitations; 17.4 to 17.7 send no invitations\non update.\n"
+        == "Update one meeting's details; omitted fields stay unchanged.\n\nRequires OpenProject 17.4+. The meeting's agenda is changed with the agenda item and section tools, and\na recurring series' schedule with update_recurring_meeting; for an occurrence of a series this changes\nonly that occurrence. With notifications on, a change of title, time, duration or location emails the\ninvited participants (not for a closed or cancelled meeting). From 17.8, an update that takes a one-time\nmeeting out of draft or turns notifications on also sends the invitations; 17.4 to 17.7 send no invitations\non update.\nChanging participants is not supported: participant_user_refs is rejected.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
@@ -440,7 +440,7 @@ def test_update_meeting_schema() -> None:
                     {"type": "null"},
                 ],
                 "default": None,
-                "description": "Users to invite (id, login or name). Known issue: OpenProject's update form drops this list, so the participants stay unchanged; change them in OpenProject.",
+                "description": "Rejected: OpenProject 17.4 and 17.5 would add a user a second time and cannot remove anyone, and only administrators can read the server version that tells the releases apart. Change the participants in OpenProject.",
                 "title": "Participant User Refs",
             },
             "lock_version": {

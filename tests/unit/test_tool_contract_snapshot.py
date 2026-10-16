@@ -596,7 +596,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                         {"type": "null"},
                     ],
                     "default": None,
-                    "description": "Users to invite (id, login or name). Known issue: OpenProject's create form drops this list; only the creating user is added as an invited participant.",
+                    "description": "Users to invite (id, login or name). The meeting gets exactly these participants, so name yourself to take part; it cannot be empty. No invitation is sent: a new meeting starts as a draft with notifications off.",
                     "title": "Participant User Refs",
                 },
                 "confirm": {
@@ -7319,7 +7319,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_ADMIN_WRITE", "OPENPROJECT_ENABLE_ADMIN_READ"),
     },
     "update_meeting": {
-        "description_hash": "8ccb0f24182ad32fd3d13d9eed0a6a988c9ad32de2b0625bd395f3b0863da9cb",
+        "description_hash": "fb2573d14c7f09c29669e0691c2a404859cde62b2141024115288b6cc0ad1e04",
         "input_schema": {
             "properties": {
                 "meeting_id": {
@@ -7375,7 +7375,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                         {"type": "null"},
                     ],
                     "default": None,
-                    "description": "Users to invite (id, login or name). Known issue: OpenProject's update form drops this list, so the participants stay unchanged; change them in OpenProject.",
+                    "description": "Rejected: OpenProject 17.4 and 17.5 would add a user a second time and cannot remove anyone, and only administrators can read the server version that tells the releases apart. Change the participants in OpenProject.",
                     "title": "Participant User Refs",
                 },
                 "lock_version": {
