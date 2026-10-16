@@ -223,6 +223,12 @@ class MeetingService:
         participant_user_refs: list[str] | None = None,
         confirm: bool = False,
     ) -> MeetingWriteResult:
+        # OpenProject overwrites both on create.
+        if state is not None or notify is not None:
+            raise InvalidInputError(
+                "create_meeting does not apply state or notify: OpenProject starts every new meeting as a draft "
+                "with notifications off. Create the meeting without them, then set them with update_meeting."
+            )
         project_payload = await self._resolve_project_ref(project, write=True)
         payload = await self._build_write_payload(
             project=project,

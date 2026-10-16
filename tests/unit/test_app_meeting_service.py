@@ -398,3 +398,39 @@ async def test_delete_checks_the_write_allowlist_before_naming_the_series() -> N
         await service.delete(meeting_id=412, confirm=True)
 
     assert api.delete_calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "kwargs",
+    [{"state": "open"}, {"state": "draft"}, {"notify": True}, {"notify": False}, {"state": "open", "notify": True}],
+)
+@pytest.mark.parametrize("confirm", [False, True])
+async def test_create_rejects_state_and_notify_before_any_lookup_or_request(kwargs: dict, confirm: bool) -> None:
+    api = _FakeMeetingApi()
+    lookups: list[str] = []
+
+    async def _resolve_and_record(project_ref, *, write: bool = False, context=None):
+        lookups.append(project_ref)
+        return {"id": 6, "name": "Demo", "identifier": "demo"}
+
+    service = _service(api=api, resolve_project_ref=_resolve_and_record)
+
+    with pytest.raises(InvalidInputError, match="does not apply state or notify.*update_meeting"):
+        await service.create(project="demo", title="Weekly", confirm=confirm, **kwargs)
+
+    assert lookups == []
+    assert api.create_form_calls == []
+    assert api.commit_create_calls == []
+
+
+@pytest.mark.asyncio
+async def test_create_without_state_and_notify_is_unchanged() -> None:
+    api = _FakeMeetingApi()
+    service = _service(api=api)
+
+    result = await service.create(project="demo", title="Weekly", confirm=True)
+
+    assert result.state == "confirmed"
+    assert len(api.create_form_calls) == 1
+    assert len(api.commit_create_calls) == 1

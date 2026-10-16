@@ -134,8 +134,9 @@ async def create_meeting(
     project: identifier, name, or numeric id — required, every meeting
     belongs to exactly one project.
     duration: an ISO 8601 duration like "PT1H30M" (hours/minutes only).
-    state: meeting state (e.g. "open", "closed") — pass the value as
-    returned by list_meetings/get_meeting.
+    state and notify cannot be set on create: OpenProject starts every new
+    meeting as a draft with notifications off, so passing either is rejected;
+    set them afterwards with update_meeting.
     participant_user_refs: list of user references (numeric id, login, or
     name) to invite as participants.
     """
