@@ -227,6 +227,10 @@ development baseline.
   to 100 (the percentage of working time dedicated to project work); a
   fraction, a boolean, a numeric string or a value outside that range is
   rejected before any request.
+- `delete_meeting` deleted the template meeting of a recurring series when
+  given its id, leaving a series that could no longer create occurrences. It
+  now rejects that id before the preview, as OpenProject's web interface does;
+  `delete_recurring_meeting` deletes the whole series.
 
 Thanks to our contributors: [@webadmin-stattreisen](https://github.com/webadmin-stattreisen) ([#45](https://github.com/jtauschl/openproject-ce-mcp/pull/45)).
 

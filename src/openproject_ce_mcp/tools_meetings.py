@@ -223,7 +223,9 @@ async def delete_meeting(ctx: Context, meeting_id: int, confirm: bool = False) -
     """Prepare or delete an OpenProject meeting; only deletes when called
     again with confirm=true.
 
-    Requires OpenProject 17.4+.
+    Requires OpenProject 17.4+. The template meeting of a recurring series is
+    rejected, because deleting it would break the series; to delete the whole
+    series with all its occurrences, use delete_recurring_meeting.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(meeting_id, field_name="meeting_id")

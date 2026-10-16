@@ -5,7 +5,7 @@ import dataclasses
 import pytest
 from _client_test_helpers import make_settings
 
-from openproject_ce_mcp.app.errors import PermissionDeniedError
+from openproject_ce_mcp.app.errors import InvalidInputError, PermissionDeniedError
 from openproject_ce_mcp.app.ports.meeting_api import MeetingRecord
 from openproject_ce_mcp.app.services.meeting_service import MeetingService
 from openproject_ce_mcp.models import MeetingSummary
@@ -341,5 +341,60 @@ async def test_delete_denies_write_even_without_confirm() -> None:
 
     with pytest.raises(PermissionDeniedError):
         await service.delete(meeting_id=12, confirm=False)
+
+    assert api.delete_calls == []
+
+
+def _api_with(summary: MeetingSummary) -> _FakeMeetingApi:
+    return _FakeMeetingApi(
+        [MeetingRecord(summary=summary, project_link={"href": "/api/v3/projects/6", "title": "Demo"})]
+    )
+
+
+_SERIES_TEMPLATE = {"template": True, "recurring_meeting_id": 91}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("confirm", [False, True])
+async def test_delete_rejects_the_template_of_a_recurring_series(confirm: bool) -> None:
+    api = _api_with(_summary(412, **_SERIES_TEMPLATE))
+    service = _service(api=api)
+
+    with pytest.raises(InvalidInputError, match="meeting_id 412 is the template of recurring meeting 91"):
+        await service.delete(meeting_id=412, confirm=confirm)
+
+    assert api.delete_calls == []
+
+
+@pytest.mark.asyncio
+async def test_delete_allows_a_one_time_template() -> None:
+    api = _api_with(_summary(13, template=True, recurring_meeting_id=None))
+    service = _service(api=api)
+
+    result = await service.delete(meeting_id=13, confirm=True)
+
+    assert result.state == "confirmed"
+    assert api.delete_calls == [13]
+
+
+@pytest.mark.asyncio
+async def test_delete_allows_an_occurrence_of_a_series() -> None:
+    api = _api_with(_summary(14, template=False, recurring_meeting_id=91))
+    service = _service(api=api)
+
+    result = await service.delete(meeting_id=14, confirm=True)
+
+    assert result.state == "confirmed"
+    assert api.delete_calls == [14]
+
+
+@pytest.mark.asyncio
+async def test_delete_checks_the_write_allowlist_before_naming_the_series() -> None:
+    settings = dataclasses.replace(make_settings(), write_projects=("other-project",))
+    api = _api_with(_summary(412, **_SERIES_TEMPLATE))
+    service = _service(api=api, settings=settings)
+
+    with pytest.raises(PermissionDeniedError):
+        await service.delete(meeting_id=412, confirm=True)
 
     assert api.delete_calls == []

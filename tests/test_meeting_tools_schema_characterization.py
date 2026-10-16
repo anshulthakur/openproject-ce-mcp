@@ -646,7 +646,7 @@ def test_delete_meeting_schema() -> None:
     tool = _tools(create_app(_make_settings()))["delete_meeting"]
     assert (
         tool.description
-        == "Prepare or delete an OpenProject meeting; only deletes when called\nagain with confirm=true.\n\nRequires OpenProject 17.4+.\n"
+        == "Prepare or delete an OpenProject meeting; only deletes when called\nagain with confirm=true.\n\nRequires OpenProject 17.4+. The template meeting of a recurring series is\nrejected, because deleting it would break the series; to delete the whole\nseries with all its occurrences, use delete_recurring_meeting.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
