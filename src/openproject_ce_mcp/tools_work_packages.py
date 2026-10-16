@@ -29,6 +29,7 @@ import functools
 from typing import Any
 
 from mcp.server.mcpserver import Context
+from pydantic import StrictInt
 
 from .client import BATCH_READ_MAX_IDS, CLEAR, CLEAR_PARENT, CLEAR_VERSION
 from .models import (
@@ -773,7 +774,7 @@ async def update_work_package(
     estimated_time: str | None = None,
     remaining_time: str | None = None,
     duration: str | None = None,
-    percentage_done: int | None = None,
+    percentage_done: StrictInt | None = None,
     confirm: bool = False,
 ) -> WorkPackageWriteResult:
     """Prepare or update a work package.

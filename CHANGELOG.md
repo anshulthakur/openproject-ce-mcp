@@ -227,6 +227,11 @@ development baseline.
   to 100 (the percentage of working time dedicated to project work); a
   fraction, a boolean, a numeric string or a value outside that range is
   rejected before any request.
+- `update_work_package` read a boolean `percentage_done` as a number, so `true`
+  set the progress to 1 percent without a warning, and a fraction such as
+  `40.0` or a numeric string such as `"40"` was accepted. It now takes only a
+  whole number from 0 to 100; anything else is rejected before any request,
+  as `bulk_update_work_packages` already did for its items.
 - `delete_meeting` deleted the template meeting of a recurring series when
   given its id, leaving a series that could no longer create occurrences. It
   now rejects that id before the preview, as OpenProject's web interface does;
