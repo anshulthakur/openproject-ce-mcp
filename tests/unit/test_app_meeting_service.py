@@ -247,7 +247,85 @@ async def test_create_resolves_participant_refs() -> None:
     assert api.create_form_calls[0]["_links"]["participants"] == [{"href": "/api/v3/users/5"}]
 
 
+class _EchoWithoutParticipantsApi(_FakeMeetingApi):
+    """OpenProject's create form applies the participants but leaves them out of the payload it echoes."""
+
+    async def create_form(self, payload: dict):
+        await super().create_form(payload)
+        links = {k: v for k, v in payload.get("_links", {}).items() if k != "participants"}
+        echoed = {k: v for k, v in payload.items() if k != "_links"}
+        return _FormResult({**echoed, "_links": links, "lockVersion": 0})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("confirm", [False, True])
+async def test_create_sends_the_participants_the_form_echo_leaves_out(confirm: bool) -> None:
+    api = _EchoWithoutParticipantsApi()
+
+    async def resolve_principal_id(ref: str) -> str:
+        return {"alice": "5", "bob": "7"}[ref]
+
+    service = _service(api=api, resolve_principal_id=resolve_principal_id)
+
+    result = await service.create(
+        project="demo", title="Standup", participant_user_refs=["alice", "bob"], confirm=confirm
+    )
+
+    expected = [{"href": "/api/v3/users/5"}, {"href": "/api/v3/users/7"}]
+    assert result.payload["_links"]["participants"] == expected
+    assert result.payload["_links"]["project"] == {"href": "/api/v3/projects/6"}
+    assert result.payload["lockVersion"] == 0
+    assert result.payload["title"] == "Standup"
+    if confirm:
+        assert api.commit_create_calls[0]["_links"]["participants"] == expected
+        assert api.commit_create_calls[0]["lockVersion"] == 0
+    else:
+        assert api.commit_create_calls == []
+
+
+@pytest.mark.asyncio
+async def test_create_without_participants_commits_the_form_payload_unchanged() -> None:
+    api = _EchoWithoutParticipantsApi()
+    service = _service(api=api)
+
+    await service.create(project="demo", title="Standup", confirm=True)
+
+    assert "participants" not in api.commit_create_calls[0].get("_links", {})
+    assert api.commit_create_calls[0]["title"] == "Standup"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("confirm", [False, True])
+async def test_create_rejects_an_empty_participant_list_before_any_request(confirm: bool) -> None:
+    api = _FakeMeetingApi()
+    service = _service(api=api)
+
+    with pytest.raises(InvalidInputError, match="must name at least one user"):
+        await service.create(project="demo", title="Standup", participant_user_refs=[], confirm=confirm)
+
+    assert api.create_form_calls == []
+    assert api.commit_create_calls == []
+
+
 # --- update ------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("confirm", [False, True])
+async def test_update_rejects_participant_changes_before_any_request(confirm: bool) -> None:
+    api = _FakeMeetingApi()
+
+    async def _no_request(*args, **kwargs):
+        raise AssertionError("no request may be made")
+
+    api.get = _no_request  # type: ignore[method-assign]
+    service = _service(api=api)
+
+    with pytest.raises(InvalidInputError, match="update_meeting cannot change participants"):
+        await service.update(meeting_id=12, participant_user_refs=["alice"], confirm=confirm)
+
+    assert api.update_form_calls == []
+    assert api.commit_update_calls == []
 
 
 @pytest.mark.asyncio

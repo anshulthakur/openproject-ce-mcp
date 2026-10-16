@@ -339,7 +339,7 @@ def test_create_meeting_schema() -> None:
     tool = _tools(create_app(_make_settings()))["create_meeting"]
     assert (
         tool.description
-        == 'Prepare or create an OpenProject meeting; only writes when called\nagain with confirm=true.\n\nRequires OpenProject 17.4+.\n\nproject: identifier, name, or numeric id — required, every meeting\nbelongs to exactly one project.\nduration: an ISO 8601 duration like "PT1H30M" (hours/minutes only).\nstate and notify cannot be set on create: OpenProject starts every new\nmeeting as a draft with notifications off, so passing either is rejected;\nset them afterwards with update_meeting.\nparticipant_user_refs: list of user references (numeric id, login, or\nname) to invite as participants.\n'
+        == 'Prepare or create an OpenProject meeting; only writes when called\nagain with confirm=true.\n\nRequires OpenProject 17.4+.\n\nproject: identifier, name, or numeric id — required, every meeting\nbelongs to exactly one project.\nduration: an ISO 8601 duration like "PT1H30M" (hours/minutes only).\nstate and notify cannot be set on create: OpenProject starts every new\nmeeting as a draft with notifications off, so passing either is rejected;\nset them afterwards with update_meeting.\nparticipant_user_refs: the users to invite (numeric id, login, or name).\nThe meeting gets exactly these participants, so name yourself to take\npart; it cannot be empty. No invitation is sent: a new meeting starts as\na draft with notifications off.\n'
     )
     assert tool.output_schema is None
     assert tool.parameters == {
@@ -486,7 +486,7 @@ def test_update_meeting_schema() -> None:
     tool = _tools(create_app(_make_settings()))["update_meeting"]
     assert (
         tool.description
-        == "Prepare or update an OpenProject meeting; only writes when called\nagain with confirm=true.\n\nRequires OpenProject 17.4+.\n"
+        == "Prepare or update an OpenProject meeting; only writes when called\nagain with confirm=true.\n\nRequires OpenProject 17.4+.\n\nparticipant_user_refs is rejected: OpenProject 17.4 and 17.5 would add a\nuser a second time and cannot remove anyone, and only administrators can\nread the server version that tells the releases apart. Change the\nparticipants in OpenProject.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {

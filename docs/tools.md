@@ -514,8 +514,8 @@ later still). Meeting Outcomes require 17.6+ throughout.
 | --- | --- |
 | `list_meetings` | List meetings globally or scoped to a project (requires OpenProject 17.4+) |
 | `get_meeting` | Fetch a single meeting by id (requires OpenProject 17.4+) |
-| `create_meeting` | Validate and then create a meeting in a project; only writes when called again with `confirm=true`; `state` and `notify` cannot be set on create (set them with `update_meeting`) (requires OpenProject 17.4+) |
-| `update_meeting` | Validate and then update a meeting; only writes when called again with `confirm=true` (requires OpenProject 17.4+) |
+| `create_meeting` | Validate and then create a meeting in a project; only writes when called again with `confirm=true`; `state` and `notify` cannot be set on create (set them with `update_meeting`); `participant_user_refs` becomes the exact participant list, so name yourself to take part (requires OpenProject 17.4+) |
+| `update_meeting` | Validate and then update a meeting; only writes when called again with `confirm=true`; `participant_user_refs` is rejected, change participants in OpenProject (requires OpenProject 17.4+) |
 | `delete_meeting` | Validate and then delete a meeting; only deletes when called again with `confirm=true`; rejects the template meeting of a recurring series (delete the series with `delete_recurring_meeting`) (requires OpenProject 17.4+) |
 | `list_meeting_agenda_items` | List a meeting's agenda items (unpaginated server-side; `offset`/`limit` applied client-side) (requires OpenProject 17.4+ — uses the meeting-nested `GET meetings/{id}/agenda_items` route) |
 | `list_work_package_meeting_agenda_items` | List meeting agenda items linked to a work package (unpaginated server-side; `offset`/`limit` applied client-side) (requires OpenProject 17.7+ — the `GET work_packages/{id}/meeting_agenda_items` route does not exist server-side before 17.7) |

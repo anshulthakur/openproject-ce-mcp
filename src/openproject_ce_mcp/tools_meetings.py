@@ -137,8 +137,10 @@ async def create_meeting(
     state and notify cannot be set on create: OpenProject starts every new
     meeting as a draft with notifications off, so passing either is rejected;
     set them afterwards with update_meeting.
-    participant_user_refs: list of user references (numeric id, login, or
-    name) to invite as participants.
+    participant_user_refs: the users to invite (numeric id, login, or name).
+    The meeting gets exactly these participants, so name yourself to take
+    part; it cannot be empty. No invitation is sent: a new meeting starts as
+    a draft with notifications off.
     """
     client = _client_from_context(ctx)
     safe_project = _validate_project_ref(project)
@@ -182,6 +184,11 @@ async def update_meeting(
     again with confirm=true.
 
     Requires OpenProject 17.4+.
+
+    participant_user_refs is rejected: OpenProject 17.4 and 17.5 would add a
+    user a second time and cannot remove anyone, and only administrators can
+    read the server version that tells the releases apart. Change the
+    participants in OpenProject.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(meeting_id, field_name="meeting_id")

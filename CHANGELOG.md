@@ -235,6 +235,15 @@ development baseline.
   starts a new meeting as a draft with notifications off, so both were
   silently dropped. They are now rejected with a message that points to
   `update_meeting`.
+- `create_meeting` dropped `participant_user_refs`: OpenProject's create form
+  leaves the list out of the request that is committed, so the meeting got
+  only its creator. The participants are now part of that request and the
+  meeting has exactly the named participants, the creating user only if
+  named; an empty list is rejected. `update_meeting` could never change
+  participants either: OpenProject 17.4 and 17.5 would add a user a second
+  time and cannot remove anyone, and only administrators can read the server
+  version that tells those releases from 17.6 and later. It now rejects
+  `participant_user_refs` instead of ignoring it.
 
 Thanks to our contributors: [@webadmin-stattreisen](https://github.com/webadmin-stattreisen) ([#45](https://github.com/jtauschl/openproject-ce-mcp/pull/45)).
 

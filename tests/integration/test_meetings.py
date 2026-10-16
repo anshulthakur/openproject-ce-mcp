@@ -100,6 +100,31 @@ async def test_create_meeting_rejects_state_and_notify_and_update_sets_the_state
     assert (await client.meeting.get(created.meeting_id)).state == "open"
 
 
+async def test_create_meeting_gives_exactly_the_named_participants_and_update_rejects_changes(
+    client: OpenProjectClient, restricted_client: OpenProjectClient, test_project: str, meeting_ids: list[int]
+) -> None:
+    other = await restricted_client.current_user.get_current_user()
+    me = await client.current_user.get_current_user()
+    try:
+        created = await client.meeting.create(
+            project=test_project,
+            title=f"[integration-test] participants {uuid.uuid4().hex[:8]}",
+            participant_user_refs=[str(other.id)],
+            confirm=True,
+        )
+    except NotFoundError:
+        pytest.skip("Meetings module not installed/enabled, or OpenProject < 17.4, on this instance")
+    assert created.ready, created.validation_errors
+    meeting_ids.append(created.meeting_id)
+
+    # Exactly the named users: the creating user is a participant only if named.
+    assert [p.id for p in (await client.meeting.get(created.meeting_id)).participants] == [other.id]
+
+    with pytest.raises(InvalidInputError, match="update_meeting cannot change participants"):
+        await client.meeting.update(meeting_id=created.meeting_id, participant_user_refs=[str(me.id)], confirm=True)
+    assert [p.id for p in (await client.meeting.get(created.meeting_id)).participants] == [other.id]
+
+
 async def test_create_meeting_preview_without_confirm_does_not_write(
     client: OpenProjectClient, test_project: str
 ) -> None:
