@@ -208,6 +208,13 @@ def test_registration_refuses_a_tool_without_annotations(monkeypatch) -> None:
         )
 
 
+def test_a_write_tool_added_to_the_production_classification_without_an_effect_fails_the_build(monkeypatch) -> None:
+    monkeypatch.setitem(tools.WRITE_TOOLS_BY_SCOPE, "synthetic_scope", ("archive_project",))
+
+    with pytest.raises(ValueError, match="'archive_project'"):
+        tools._classified_tool_annotations()
+
+
 def test_annotations_cover_exactly_the_classified_tools() -> None:
     classified = {name for names in tools.READ_TOOLS_BY_SCOPE.values() for name in names}
     classified |= {name for names in tools.WRITE_TOOLS_BY_SCOPE.values() for name in names}

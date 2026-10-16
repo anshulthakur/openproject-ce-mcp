@@ -669,14 +669,18 @@ def enabled_tool_names(settings: Settings) -> tuple[str, ...]:
     return tuple(enabled)
 
 
-TOOL_ANNOTATIONS: Mapping[str, ToolAnnotations] = build_tool_annotations(
-    read_names=(name for names in READ_TOOLS_BY_SCOPE.values() for name in names),
-    write_names=(
-        *(name for names in WRITE_TOOLS_BY_SCOPE.values() for name in names),
-        *PERSONAL_MUTATION_TOOLS,
-        *ATTACHMENT_UPLOAD_TOOLS,
-    ),
-)
+def _classified_tool_annotations() -> Mapping[str, ToolAnnotations]:
+    return build_tool_annotations(
+        read_names=(name for names in READ_TOOLS_BY_SCOPE.values() for name in names),
+        write_names=(
+            *(name for names in WRITE_TOOLS_BY_SCOPE.values() for name in names),
+            *PERSONAL_MUTATION_TOOLS,
+            *ATTACHMENT_UPLOAD_TOOLS,
+        ),
+    )
+
+
+TOOL_ANNOTATIONS: Mapping[str, ToolAnnotations] = _classified_tool_annotations()
 
 
 def register_tools(mcp: MCPServer, settings: Settings) -> None:
