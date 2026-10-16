@@ -108,6 +108,7 @@ PROMISED_CLAIMS: dict[str, list[tuple[str | None, str]]] = {
     "list_sprints": [("project", "a unique part of a name or identifier also matches"), (None, "17.3")],
     "get_sprint": [(None, "17.3")],
     "get_meeting_agenda_item": [(None, "Requires OpenProject 17.6+")],
+    "create_meeting": [(None, "so passing either is rejected")],
     "create_meeting_agenda_item": [(None, "Requires OpenProject 17.6+")],
     "update_meeting_agenda_item": [(None, "Requires OpenProject 17.6+")],
     "delete_meeting_agenda_item": [(None, "Requires OpenProject 17.6+"), _IRREVERSIBLE],

@@ -551,7 +551,7 @@ later still). Meeting Outcomes require 17.6+ throughout.
 | --- | --- |
 | `list_meetings` | List meetings globally or scoped to a project (requires OpenProject 17.4+); optional `title` substring filter (17.9+) |
 | `get_meeting` | Fetch a single meeting by id (requires OpenProject 17.4+) |
-| `create_meeting` | Validate and then create a meeting in a project; only writes when called again with `confirm=true` (requires OpenProject 17.4+) |
+| `create_meeting` | Validate and then create a meeting in a project; only writes when called again with `confirm=true`; `state` and `notify` cannot be set on create (set them with `update_meeting`) (requires OpenProject 17.4+) |
 | `update_meeting` | Validate and then update a meeting; only writes when called again with `confirm=true` (requires OpenProject 17.4+) |
 | `delete_meeting` | Validate and then delete a meeting; only deletes when called again with `confirm=true`; rejects the template meeting of a recurring series (stop it with `end_recurring_meeting` or delete it with `delete_recurring_meeting`) (requires OpenProject 17.4+) |
 | `list_meeting_agenda_items` | List a meeting's agenda items (unpaginated server-side; `offset`/`limit` applied client-side) (requires OpenProject 17.4+ — uses the meeting-nested `GET meetings/{id}/agenda_items` route) |

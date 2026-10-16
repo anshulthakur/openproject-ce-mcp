@@ -322,6 +322,10 @@ Thanks to our contributors: [@feci](https://github.com/feci) ([#35](https://gith
   given its id, leaving a series that could no longer create occurrences. It
   now rejects that id before the preview, as OpenProject's web interface does;
   `delete_recurring_meeting` deletes the whole series.
+- `create_meeting` accepted `state` and `notify`, but OpenProject always
+  starts a new meeting as a draft with notifications off, so both were
+  silently dropped. They are now rejected with a message that points to
+  `update_meeting`.
 
 Thanks to our contributors: [@webadmin-stattreisen](https://github.com/webadmin-stattreisen) ([#45](https://github.com/jtauschl/openproject-ce-mcp/pull/45)).
 

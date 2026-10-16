@@ -183,9 +183,9 @@ async def create_meeting(
     Requires OpenProject 17.4+.
 
     duration: an ISO 8601 duration like "PT1H30M" (hours/minutes only).
-    state and notify are ignored on create: OpenProject starts a new meeting
-    as a draft with notifications off; change them afterwards with
-    update_meeting.
+    state and notify cannot be set on create: OpenProject starts a new meeting
+    as a draft with notifications off, so passing either is rejected; set them
+    afterwards with update_meeting.
     """
     client = _client_from_context(ctx)
     safe_project = _validate_project_ref(project)

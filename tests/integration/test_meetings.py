@@ -87,6 +87,28 @@ async def test_create_get_update_delete_meeting(
     meeting_ids.remove(meeting_id)
 
 
+async def test_create_meeting_rejects_state_and_notify_and_update_sets_the_state(
+    client: OpenProjectClient, test_project: str, meeting_ids: list[int]
+) -> None:
+    title = f"[integration-test] create state {uuid.uuid4().hex[:8]}"
+    with pytest.raises(InvalidInputError, match="does not apply state or notify"):
+        await client.meeting.create(project=test_project, title=title, state="open", confirm=True)
+
+    try:
+        created = await client.meeting.create(project=test_project, title=title, confirm=True)
+    except NotFoundError:
+        pytest.skip("Meetings module not installed/enabled, or OpenProject < 17.4, on this instance")
+    assert created.ready, created.validation_errors
+    meeting_ids.append(created.meeting_id)
+    fetched = await client.meeting.get(created.meeting_id)
+    assert (fetched.state, fetched.notify) == ("draft", False)
+
+    # state only: with notify off the update sends no invitations.
+    updated = await client.meeting.update(meeting_id=created.meeting_id, state="open", confirm=True)
+    assert updated.ready, updated.validation_errors
+    assert (await client.meeting.get(created.meeting_id)).state == "open"
+
+
 async def test_create_meeting_preview_without_confirm_does_not_write(
     client: OpenProjectClient, test_project: str
 ) -> None:

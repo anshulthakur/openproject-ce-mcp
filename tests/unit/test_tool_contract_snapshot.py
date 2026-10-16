@@ -575,7 +575,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_ADMIN_WRITE", "OPENPROJECT_ENABLE_ADMIN_READ"),
     },
     "create_meeting": {
-        "description_hash": "a8f032bad5212f81702941047cbea46264a0020c0dc4ef125f8c4e4e293b804f",
+        "description_hash": "2d3de741b4daf35d14c5b62199041b18b6ced7f9739084a6d6bab30e68a9ea13",
         "input_schema": {
             "properties": {
                 "project": {

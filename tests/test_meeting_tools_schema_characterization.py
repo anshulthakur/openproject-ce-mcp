@@ -329,7 +329,7 @@ def test_create_meeting_schema() -> None:
     tool = _tools(create_app(_make_settings()))["create_meeting"]
     assert (
         tool.description
-        == 'Create an OpenProject meeting.\n\nRequires OpenProject 17.4+.\n\nduration: an ISO 8601 duration like "PT1H30M" (hours/minutes only).\nstate and notify are ignored on create: OpenProject starts a new meeting\nas a draft with notifications off; change them afterwards with\nupdate_meeting.\n'
+        == 'Create an OpenProject meeting.\n\nRequires OpenProject 17.4+.\n\nduration: an ISO 8601 duration like "PT1H30M" (hours/minutes only).\nstate and notify cannot be set on create: OpenProject starts a new meeting\nas a draft with notifications off, so passing either is rejected; set them\nafterwards with update_meeting.\n'
     )
     assert tool.output_schema is None
     assert tool.parameters == {
