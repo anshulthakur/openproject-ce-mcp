@@ -119,10 +119,11 @@ end
 
 # 17.9 moved "default type for new projects" from Type#is_default to
 # TypeVariant#enabled_in_new_projects, but its seeder sets that flag on no
-# variant, so a freshly installed 17.9 creates every new project without any
-# work-package type (upgraded instances keep the flag through the migration's
-# rename). Mirror 17.8's seeded defaults (Task, Milestone, Summary task) so
-# the disposable per-test projects behave like an upgraded instance.
+# variant, so a freshly installed 17.9.0 or 17.9.1 creates every new project
+# without any work-package type (fixed in 17.9.2; upgraded instances keep the
+# flag through the migration's rename). Mirror 17.8's seeded defaults (Task,
+# Milestone, Summary task) so the disposable per-test projects behave like an
+# upgraded instance.
 if defined?(TypeVariant) && TypeVariant.column_names.include?("enabled_in_new_projects") &&
    TypeVariant.enabled_in_new_projects.none?
   default_names = ["Task", "Milestone", "Summary task"]
