@@ -61,117 +61,53 @@ def test_list_time_entries_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_time_entries"]
     assert (
         tool.description
-        == "List time entries with optional project, work package, user, and date filters.\n\nwork_package_id: internal id (e.g., 952) or display_id (e.g., \"PROJ-51\"), not UI display number.\n\nselect fields: id, hours, spent_on, comment, activity, user, work_package_id\n(see server instructions for select's general semantics).\n\nlimit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned\nnext_offset as the next call's offset to page past the cap. total is only\nthe count of allowed time entries returned on THIS page, not a full\ncount of all matches — the search stops as soon as it has enough, so an\nexact total would need an extra full walk. Page until next_offset is\nnull.\n\ninclude_total_hours=true sums `hours` (as an ISO 8601 duration) across\nevery matching entry, independent of limit/offset — this runs its own\nfull walk of the filtered collection (bounded; see\ntotal_hours_truncated), since OpenProject has no server-side sum for\ntime entries (unlike list_work_packages's include_sums). Leave false\nunless the total is actually needed: it costs extra requests on top of\nthe page this call already returns.\n"
+        == "List time entries with optional project, work package, user, and date filters.\n\ntotal is only the count of allowed time entries returned on THIS page, not a full count of all matches; the\nsearch stops as soon as it has enough, so an exact total would need an extra full walk. Page until next_offset\nis null.\n\ninclude_total_hours=true sums `hours` (as an ISO 8601 duration) across\nevery matching entry, independent of limit/offset — this runs its own\nfull walk of the filtered collection (bounded; see\ntotal_hours_truncated), since OpenProject has no server-side sum for\ntime entries (unlike list_work_packages's include_sums). Leave false\nunless the total is actually needed: it costs extra requests on top of\nthe page this call already returns.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "project": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Project",
             },
             "work_package_id": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                 "title": "Work Package Id",
             },
             "user": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
                 "title": "User",
             },
             "spent_on_from": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
                 "title": "Spent On From",
             },
-            "spent_on_to": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
-                "default": None,
-                "title": "Spent On To",
-            },
+            "spent_on_to": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Spent On To"},
             "offset": {
                 "default": 1,
+                "description": "1-based page number; pass the previous result's next_offset.",
                 "title": "Offset",
                 "type": "integer",
             },
             "limit": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
                 "title": "Limit",
             },
             "select": {
-                "anyOf": [
-                    {
-                        "items": {
-                            "type": "string",
-                        },
-                        "type": "array",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,
+                "description": "Fields to return; a requested unset field comes back as null. Allowed: activity, comment, comment_length, comment_truncated, created_at, end_time, entity_id, entity_name, entity_type, hours, id, ongoing, project, spent_on, start_time, updated_at, user.",
                 "title": "Select",
             },
-            "include_total_hours": {
-                "default": False,
-                "title": "Include Total Hours",
-                "type": "boolean",
-            },
+            "include_total_hours": {"default": False, "title": "Include Total Hours", "type": "boolean"},
         },
         "title": "list_time_entriesArguments",
         "type": "object",
@@ -420,113 +356,37 @@ def test_create_time_entry_schema() -> None:
     tool = _tools(create_app(_make_settings()))["create_time_entry"]
     assert (
         tool.description
-        == "Prepare or create a time entry.\n\nwork_package_id: internal id (e.g., 952) or display_id (e.g., \"PROJ-51\"), not UI display number.\nhours accepts an ISO8601 duration string (e.g., 'PT8H' for 8 hours, 'P1D' for 1 day).\nstart_time is an ISO 8601 date-time and requires the instance setting \"allow\ntracking of start and end times\"; ignored otherwise. No end_time parameter --\nOpenProject derives it read-only from start_time + hours. Use\ncreate_time_entry_until to specify an end time instead of hours directly.\n"
+        == "Create a time entry.\n\nhours accepts an ISO8601 duration string (e.g., 'PT8H' for 8 hours, 'P1D' for 1 day).\nstart_time is an ISO 8601 date-time and requires the instance setting \"allow\ntracking of start and end times\"; ignored otherwise. No end_time parameter --\nOpenProject derives it read-only from start_time + hours. Use\ncreate_time_entry_until to specify an end time instead of hours directly.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "activity": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                ],
-                "title": "Activity",
-            },
-            "hours": {
-                "title": "Hours",
-                "type": "string",
-            },
-            "spent_on": {
-                "title": "Spent On",
-                "type": "string",
-            },
+            "activity": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Activity"},
+            "hours": {"title": "Hours", "type": "string"},
+            "spent_on": {"title": "Spent On", "type": "string"},
             "project": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Project",
             },
             "work_package_id": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                 "title": "Work Package Id",
             },
             "user": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
                 "title": "User",
             },
-            "start_time": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
-                "default": None,
-                "title": "Start Time",
-            },
-            "comment": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
-                "default": None,
-                "title": "Comment",
-            },
-            "ongoing": {
-                "anyOf": [
-                    {
-                        "type": "boolean",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
-                "default": None,
-                "title": "Ongoing",
-            },
+            "start_time": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Start Time"},
+            "comment": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Comment"},
+            "ongoing": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Ongoing"},
             "confirm": {
                 "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
                 "title": "Confirm",
                 "type": "boolean",
             },
@@ -555,107 +415,30 @@ def test_update_time_entry_schema() -> None:
     tool = _tools(create_app(_make_settings()))["update_time_entry"]
     assert (
         tool.description
-        == "Prepare or update a time entry.\n\nhours accepts an ISO8601 duration string (e.g., 'PT8H' for 8 hours, 'P1D' for 1 day).\nstart_time is an ISO 8601 date-time. No end_time parameter -- OpenProject\nderives it read-only from start_time + hours. Use update_time_entry_until\nto specify an end time instead of hours directly.\n"
+        == "Update a time entry.\n\nhours accepts an ISO8601 duration string (e.g., 'PT8H' for 8 hours, 'P1D' for 1 day).\nstart_time is an ISO 8601 date-time. No end_time parameter -- OpenProject\nderives it read-only from start_time + hours. Use update_time_entry_until\nto specify an end time instead of hours directly.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "time_entry_id": {
-                "title": "Time Entry Id",
-                "type": "integer",
-            },
+            "time_entry_id": {"title": "Time Entry Id", "type": "integer"},
             "user": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
                 "title": "User",
             },
             "activity": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
                 "title": "Activity",
             },
-            "hours": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
-                "default": None,
-                "title": "Hours",
-            },
-            "spent_on": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
-                "default": None,
-                "title": "Spent On",
-            },
-            "start_time": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
-                "default": None,
-                "title": "Start Time",
-            },
-            "comment": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
-                "default": None,
-                "title": "Comment",
-            },
-            "ongoing": {
-                "anyOf": [
-                    {
-                        "type": "boolean",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
-                "default": None,
-                "title": "Ongoing",
-            },
+            "hours": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Hours"},
+            "spent_on": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Spent On"},
+            "start_time": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Start Time"},
+            "comment": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Comment"},
+            "ongoing": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "default": None, "title": "Ongoing"},
             "confirm": {
                 "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
                 "title": "Confirm",
                 "type": "boolean",
             },
@@ -683,93 +466,36 @@ def test_create_time_entry_until_schema() -> None:
     tool = _tools(create_app(_make_settings()))["create_time_entry_until"]
     assert (
         tool.description
-        == "Prepare or create a time entry by start/end time instead of a duration.\n\nComputes hours = end_time - start_time locally; only hours and start_time\nare sent to OpenProject (end_time itself is never accepted by the server,\nsee create_time_entry's docstring). end_time must be strictly after\nstart_time. There is no ongoing parameter here -- a time entry with a\nknown end time is complete, not still running; use create_time_entry for\nan ongoing entry.\n"
+        == "Create a time entry by start/end time instead of a duration.\n\nComputes hours = end_time - start_time locally; only hours and start_time\nare sent to OpenProject (end_time itself is never accepted by the server,\nsee create_time_entry's docstring). end_time must be strictly after\nstart_time. There is no ongoing parameter here -- a time entry with a\nknown end time is complete, not still running; use create_time_entry for\nan ongoing entry.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "activity": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                ],
-                "title": "Activity",
-            },
-            "start_time": {
-                "title": "Start Time",
-                "type": "string",
-            },
-            "end_time": {
-                "title": "End Time",
-                "type": "string",
-            },
-            "spent_on": {
-                "title": "Spent On",
-                "type": "string",
-            },
+            "activity": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Activity"},
+            "start_time": {"title": "Start Time", "type": "string"},
+            "end_time": {"title": "End Time", "type": "string"},
+            "spent_on": {"title": "Spent On", "type": "string"},
             "project": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Project",
             },
             "work_package_id": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                 "title": "Work Package Id",
             },
             "user": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
                 "title": "User",
             },
-            "comment": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
-                "default": None,
-                "title": "Comment",
-            },
+            "comment": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Comment"},
             "confirm": {
                 "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
                 "title": "Confirm",
                 "type": "boolean",
             },
@@ -797,79 +523,29 @@ def test_update_time_entry_until_schema() -> None:
     tool = _tools(create_app(_make_settings()))["update_time_entry_until"]
     assert (
         tool.description
-        == "Prepare or update a time entry by start/end time instead of a duration.\n\nComputes hours = end_time - start_time locally; only hours and start_time\nare sent to OpenProject (end_time itself is never accepted by the server,\nsee update_time_entry's docstring). end_time must be strictly after\nstart_time. Always sets ongoing=False, since a completed time span with a\nknown end time cannot still be running.\n"
+        == "Update a time entry by start/end time instead of a duration.\n\nComputes hours = end_time - start_time locally; only hours and start_time\nare sent to OpenProject (end_time itself is never accepted by the server,\nsee update_time_entry's docstring). end_time must be strictly after\nstart_time. Always sets ongoing=False, since a completed time span with a\nknown end time cannot still be running.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "time_entry_id": {
-                "title": "Time Entry Id",
-                "type": "integer",
-            },
-            "start_time": {
-                "title": "Start Time",
-                "type": "string",
-            },
-            "end_time": {
-                "title": "End Time",
-                "type": "string",
-            },
+            "time_entry_id": {"title": "Time Entry Id", "type": "integer"},
+            "start_time": {"title": "Start Time", "type": "string"},
+            "end_time": {"title": "End Time", "type": "string"},
             "user": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
                 "title": "User",
             },
             "activity": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
                 "title": "Activity",
             },
-            "spent_on": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
-                "default": None,
-                "title": "Spent On",
-            },
-            "comment": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
-                "default": None,
-                "title": "Comment",
-            },
+            "spent_on": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Spent On"},
+            "comment": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Comment"},
             "confirm": {
                 "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
                 "title": "Confirm",
                 "type": "boolean",
             },
@@ -894,16 +570,18 @@ def test_update_time_entry_until_schema() -> None:
 
 def test_delete_time_entry_schema() -> None:
     tool = _tools(create_app(_make_settings()))["delete_time_entry"]
-    assert tool.description == "Prepare or delete a time entry."
+    assert tool.description == "Delete a time entry; this cannot be undone."
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "time_entry_id": {
+                "description": "Time entry id, from list_time_entries.",
                 "title": "Time Entry Id",
                 "type": "integer",
             },
             "confirm": {
                 "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
                 "title": "Confirm",
                 "type": "boolean",
             },

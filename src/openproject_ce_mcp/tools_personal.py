@@ -12,7 +12,10 @@ alongside for consistency.
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from mcp.server.mcpserver import Context
+from pydantic import Field
 
 from .models import (
     NotificationListResult,
@@ -21,6 +24,7 @@ from .models import (
     UserPreferences,
     UserPreferencesWriteResult,
 )
+from .tool_params import Confirm, Limit, Offset, select_field
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
     _validate_limit,
@@ -33,18 +37,14 @@ from .tools_validation import (
 @register_tool
 async def list_notifications(
     ctx: Context,
-    unread_only: bool = False,
-    limit: int | None = None,
-    offset: int = 1,
-    select: list[str] | None = None,
+    unread_only: Annotated[bool, Field(description="true returns only notifications not yet read.")] = False,
+    limit: Limit = None,
+    offset: Offset = 1,
+    select: Annotated[list[str] | None, select_field(NotificationSummary)] = None,
 ) -> NotificationListResult:
     """List in-app notifications for the current user.
 
-    select fields: id, subject, reason, read, work_package_id (see server
-    instructions for select's general semantics).
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap.
+    Reading them does not mark them read; use mark_notifications_read for that.
     """
     client = _client_from_context(ctx)
     safe_offset = _validate_offset(offset)
@@ -55,7 +55,7 @@ async def list_notifications(
 
 @register_tool
 async def mark_notifications_read(
-    ctx: Context, notification_id: int | None = None, confirm: bool = False
+    ctx: Context, notification_id: int | None = None, confirm: Confirm = False
 ) -> NotificationMarkResult:
     """Mark a single notification, or all unread notifications, as read.
 
@@ -64,7 +64,6 @@ async def mark_notifications_read(
     Under a restricted OPENPROJECT_READ_PROJECTS, a notification about a
     project outside it is refused (in the preview too), and omitting
     notification_id marks only notifications about the projects it covers.
-    Set confirm=true to write, or call without confirm=true first for a preview.
     """
     client = _client_from_context(ctx)
     if notification_id is None:
@@ -87,14 +86,15 @@ async def get_my_preferences(ctx: Context) -> UserPreferences:
 @register_tool
 async def update_my_preferences(
     ctx: Context,
-    time_zone: str | None = None,
-    comment_sort_descending: bool | None = None,
-    warn_on_leaving_unsaved: bool | None = None,
-    auto_hide_popups: bool | None = None,
-    confirm: bool = False,
+    time_zone: Annotated[str | None, Field(description='Time zone name, e.g. "Europe/Berlin".')] = None,
+    comment_sort_descending: Annotated[bool | None, Field(description="true shows comments newest first.")] = None,
+    warn_on_leaving_unsaved: Annotated[
+        bool | None, Field(description="true warns before leaving a page with unsaved changes.")
+    ] = None,
+    auto_hide_popups: Annotated[bool | None, Field(description="true makes popups close automatically.")] = None,
+    confirm: Confirm = False,
 ) -> UserPreferencesWriteResult:
-    """Prepare or update the current user's preferences (timezone, comment sort order, popups, …).
-    Set confirm=true to write.
+    """Update the current user's preferences; omitted fields stay unchanged.
 
     Note: language is a User attribute, not a preference -- use update_user's
     "language" field to change it.

@@ -12,12 +12,12 @@ import datetime
 import functools
 import re
 from collections.abc import Callable
-from dataclasses import fields as dataclass_fields
 from typing import Any
 
 from .config import TEXT_LIMIT_MAX
 from .models import SortCriterion
 from .sort_criteria import parse_sort_by
+from .tool_params import allowed_select_fields
 from .work_package_reference import canonical_work_package_ref, is_numeric_ref
 
 PROJECT_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -912,7 +912,7 @@ def _validate_select(
     """
     if select is None:
         return None
-    valid = {f.name for f in dataclass_fields(row_type)}
+    valid = allowed_select_fields(row_type)
     chosen: list[str] = []
     wrapper_only = False
     for raw in select:
@@ -923,7 +923,7 @@ def _validate_select(
         elif name in wrapper_fields:
             wrapper_only = True
         else:
-            allowed = ", ".join(sorted(valid | wrapper_fields))
+            allowed = ", ".join(sorted(allowed_select_fields(row_type, wrapper_fields=wrapper_fields)))
             raise ValueError(
                 f"select field '{name}' is not a valid {row_type.__name__} field. Allowed: {allowed}. "
                 f"{_SELECT_NOTHING_SENT}"

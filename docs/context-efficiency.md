@@ -106,11 +106,16 @@ provider may transform or cache the catalog before billing it.
 
 | Configuration | Tools | Catalog tokens |
 | --- | ---: | ---: |
-| Fresh install, no project scope | 14 | ~3,683 |
-| Project reads, no writes | 85 | ~36,328 |
-| Work-package writes only | 109 | ~47,169 |
-| Every write scope | 178 | ~65,857 |
-| Every write scope plus extended metadata | 190 | ~67,811 |
+| Fresh install, no project scope | 14 | ~4,188 |
+| Project reads, no writes | 85 | ~41,120 |
+| Work-package writes only | 109 | ~53,869 |
+| Every project readable and writable, other settings default (Glama build) | 147 | ~69,235 |
+| Every write scope | 178 | ~80,879 |
+| Every write scope plus extended metadata | 190 | ~83,261 |
+
+The figures include each tool's MCP annotations (read-only, destructive,
+idempotent and open-world hints) and the parameter descriptions in its input
+schema.
 
 The extended metadata group adds 12 rarely used tools and is opt-in through
 `OPENPROJECT_ENABLE_EXTENDED_READ=true`; see

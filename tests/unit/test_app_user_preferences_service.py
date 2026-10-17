@@ -190,3 +190,23 @@ async def test_update_does_not_perform_a_prerequisite_get() -> None:
     await service.update(time_zone="UTC", confirm=True)
 
     assert api.get_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_update_sends_only_the_four_preference_keys() -> None:
+    # update_my_preferences is annotated idempotent because a repeat changes
+    # nothing; a notificationSettings key would upsert notification settings on
+    # every call and force reclassifying it.
+    api = _FakeUserPreferencesApi()
+
+    await _service(api).update(
+        time_zone="Europe/Berlin",
+        comment_sort_descending=True,
+        warn_on_leaving_unsaved=False,
+        auto_hide_popups=True,
+        confirm=True,
+    )
+
+    assert [set(payload) for payload in api.commit_update_calls] == [
+        {"timeZone", "commentSortDescending", "warnOnLeavingUnsaved", "autoHidePopups"}
+    ]

@@ -42,35 +42,23 @@ def _tools(mcp) -> dict:
 def test_list_user_non_working_times_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_user_non_working_times"]
     assert tool.description == (
-        "List a user's per-user non-working-time date ranges (e.g. vacation),\n"
-        "distinct from the instance-wide non-working days (list_non_working_days).\n\n"
-        "Requires OpenProject 17.3+ (feature-flag-gated through 17.6, generally\n"
-        "available from 17.7). On an older server, or on 17.3 to 17.6 with the\n"
-        "feature flag off, the route answers 404 and the tool returns a [not_found]\n"
-        "naming the 17.3 floor.\n\n"
-        "OpenProject enforces this at the API level: you may always view your own\n"
-        'schedule (user_ref="me"); viewing another user\'s requires the\n'
-        "manage_working_times global permission, else OpenProject returns 404\n"
-        "(not 403) to avoid confirming the user exists.\n\n"
-        'user_ref: "me" for the current user, a numeric user id, or a login.\n'
-        "year: filter to this calendar year; defaults to the current year.\n"
-        "The collection is unpaginated on OpenProject's side — this MCP fetches\n"
-        "the full requested year and paginates client-side; limit is capped at\n"
-        "OPENPROJECT_MAX_PAGE_SIZE (default 50).\n"
+        'List a user\'s per-user non-working-time date ranges (e.g. vacation),\ndistinct from the instance-wide non-working days (list_non_working_days).\n\nRequires OpenProject 17.3+ (feature-flag-gated through 17.6, generally\navailable from 17.7). On an older server, or on 17.3 to 17.6 with the\nfeature flag off, the route answers 404 and the tool returns a [not_found]\nnaming the 17.3 floor.\n\nOpenProject enforces this at the API level: you may always view your own\nschedule (user_ref="me"); viewing another user\'s requires the\nmanage_working_times global permission, else OpenProject returns 404\n(not 403) to avoid confirming the user exists.\n\nuser_ref: "me" for the current user, a numeric user id, or a login.\nyear: filter to this calendar year; defaults to the current year.\nThe collection is unpaginated on OpenProject\'s side — this MCP fetches\nthe full requested year and paginates client-side; limit is capped at\nOPENPROJECT_MAX_PAGE_SIZE (default 50).\n'
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
-            "year": {
-                "anyOf": [{"type": "integer"}, {"type": "null"}],
-                "default": None,
-                "title": "Year",
+            "year": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Year"},
+            "offset": {
+                "default": 1,
+                "description": "1-based page number; pass the previous result's next_offset.",
+                "title": "Offset",
+                "type": "integer",
             },
-            "offset": {"default": 1, "title": "Offset", "type": "integer"},
             "limit": {
                 "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
                 "title": "Limit",
             },
         },
@@ -86,10 +74,11 @@ def test_list_user_non_working_times_schema() -> None:
 def test_create_user_non_working_time_schema() -> None:
     tool = _tools(create_app(_make_settings()))["create_user_non_working_time"]
     assert tool.description == (
-        "Prepare or create a non-working-time date range for a user; only\n"
-        "writes when called again with confirm=true.\n\n"
+        "Create a non-working-time date range for a user.\n"
+        "\n"
         "Requires OpenProject 17.3+. Same self-service-or-manage_working_times\n"
-        "authorization as list_user_non_working_times.\n\n"
+        "authorization as list_user_non_working_times.\n"
+        "\n"
         'user_ref: "me" for the current user, a numeric user id, or a login.\n'
         "start_date/end_date: ISO 8601 dates (YYYY-MM-DD).\n"
     )
@@ -99,7 +88,12 @@ def test_create_user_non_working_time_schema() -> None:
             "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
             "start_date": {"title": "Start Date", "type": "string"},
             "end_date": {"title": "End Date", "type": "string"},
-            "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+            "confirm": {
+                "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                "title": "Confirm",
+                "type": "boolean",
+            },
         },
         "required": ["user_ref", "start_date", "end_date"],
         "title": "create_user_non_working_timeArguments",
@@ -113,8 +107,7 @@ def test_create_user_non_working_time_schema() -> None:
 def test_update_user_non_working_time_schema() -> None:
     tool = _tools(create_app(_make_settings()))["update_user_non_working_time"]
     assert tool.description == (
-        "Prepare or update a user's non-working-time date range; only writes\n"
-        "when called again with confirm=true.\n"
+        "Update a user's non-working-time date range.\n"
         "\n"
         "Requires OpenProject 17.3+. Same authorization as\n"
         "list_user_non_working_times. No single-item GET exists on OpenProject's\n"
@@ -127,17 +120,14 @@ def test_update_user_non_working_time_schema() -> None:
         "properties": {
             "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
             "non_working_time_id": {"title": "Non Working Time Id", "type": "integer"},
-            "start_date": {
-                "anyOf": [{"type": "string"}, {"type": "null"}],
-                "default": None,
-                "title": "Start Date",
+            "start_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Start Date"},
+            "end_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "End Date"},
+            "confirm": {
+                "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                "title": "Confirm",
+                "type": "boolean",
             },
-            "end_date": {
-                "anyOf": [{"type": "string"}, {"type": "null"}],
-                "default": None,
-                "title": "End Date",
-            },
-            "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
         },
         "required": ["user_ref", "non_working_time_id"],
         "title": "update_user_non_working_timeArguments",
@@ -157,8 +147,8 @@ def test_update_user_non_working_time_schema() -> None:
 def test_delete_user_non_working_time_schema() -> None:
     tool = _tools(create_app(_make_settings()))["delete_user_non_working_time"]
     assert tool.description == (
-        "Prepare or delete a user's non-working-time date range; only deletes\n"
-        "when called again with confirm=true.\n\n"
+        "Delete a user's non-working-time date range; this cannot be undone.\n"
+        "\n"
         "Requires OpenProject 17.3+. Same authorization as\n"
         "list_user_non_working_times.\n"
     )
@@ -167,7 +157,12 @@ def test_delete_user_non_working_time_schema() -> None:
         "properties": {
             "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
             "non_working_time_id": {"title": "Non Working Time Id", "type": "integer"},
-            "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+            "confirm": {
+                "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                "title": "Confirm",
+                "type": "boolean",
+            },
         },
         "required": ["user_ref", "non_working_time_id"],
         "title": "delete_user_non_working_timeArguments",
@@ -197,10 +192,16 @@ def test_list_user_working_hours_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
-            "offset": {"default": 1, "title": "Offset", "type": "integer"},
+            "offset": {
+                "default": 1,
+                "description": "1-based page number; pass the previous result's next_offset.",
+                "title": "Offset",
+                "type": "integer",
+            },
             "limit": {
                 "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
                 "title": "Limit",
             },
         },
@@ -223,8 +224,16 @@ def test_get_user_working_hours_schema() -> None:
     assert tool.output_schema is not None
     assert tool.parameters == {
         "properties": {
-            "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
-            "working_hours_id": {"title": "Working Hours Id", "type": "integer"},
+            "user_ref": {
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": '"me", a numeric user id, or a login.',
+                "title": "User Ref",
+            },
+            "working_hours_id": {
+                "description": "Schedule entry id, from list_user_working_hours.",
+                "title": "Working Hours Id",
+                "type": "integer",
+            },
         },
         "required": ["user_ref", "working_hours_id"],
         "title": "get_user_working_hoursArguments",
@@ -238,48 +247,79 @@ def test_get_user_working_hours_schema() -> None:
 def test_create_user_working_hours_schema() -> None:
     tool = _tools(create_app(_make_settings()))["create_user_working_hours"]
     assert tool.description == (
-        "Prepare or create a new weekly working-hours schedule version for a\n"
-        "user, effective from valid_from; only writes when called again with\n"
-        "confirm=true.\n\n"
+        "Create a new weekly working-hours schedule version for a user, effective from valid_from.\n"
+        "\n"
         "Requires OpenProject 17.3+. Same self-service-or-manage_working_times\n"
-        "authorization as list_user_working_hours.\n\n"
-        'user_ref: "me" for the current user, a numeric user id, or a login.\n'
-        "valid_from: ISO 8601 date (YYYY-MM-DD) this schedule version takes effect.\n"
-        "*_hours: hours worked on that weekday; a weekday you omit is treated as\n"
-        "0 (not a working day) -- OpenProject requires every weekday to have a\n"
-        "value on create, so this MCP fills in 0 for you rather than sending an\n"
-        "incomplete schedule.\n"
-        "availability_factor: percentage of the working time dedicated to project\n"
-        "work, a whole number 0 to 100 (OpenProject's default: 100).\n"
+        "authorization as list_user_working_hours. The earlier version keeps\n"
+        "applying to the dates before valid_from.\n"
     )
     assert tool.output_schema is None
-    day_props = {
-        day: {
-            "anyOf": [{"type": "number"}, {"type": "null"}],
-            "default": None,
-            "title": title,
-        }
-        for day, title in [
-            ("monday_hours", "Monday Hours"),
-            ("tuesday_hours", "Tuesday Hours"),
-            ("wednesday_hours", "Wednesday Hours"),
-            ("thursday_hours", "Thursday Hours"),
-            ("friday_hours", "Friday Hours"),
-            ("saturday_hours", "Saturday Hours"),
-            ("sunday_hours", "Sunday Hours"),
-        ]
-    }
     assert tool.parameters == {
         "properties": {
-            "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
-            "valid_from": {"title": "Valid From", "type": "string"},
-            **day_props,
+            "user_ref": {
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": '"me", a numeric user id, or a login.',
+                "title": "User Ref",
+            },
+            "valid_from": {
+                "description": "Date (YYYY-MM-DD) this schedule version takes effect; unique per user.",
+                "title": "Valid From",
+                "type": "string",
+            },
+            "monday_hours": {
+                "anyOf": [{"type": "number"}, {"type": "null"}],
+                "default": None,
+                "description": "Hours that day, 0 to 24; omitted means 0 (not a working day). At least one day must be above 0.",
+                "title": "Monday Hours",
+            },
+            "tuesday_hours": {
+                "anyOf": [{"type": "number"}, {"type": "null"}],
+                "default": None,
+                "description": "Hours that day, 0 to 24; omitted means 0 (not a working day). At least one day must be above 0.",
+                "title": "Tuesday Hours",
+            },
+            "wednesday_hours": {
+                "anyOf": [{"type": "number"}, {"type": "null"}],
+                "default": None,
+                "description": "Hours that day, 0 to 24; omitted means 0 (not a working day). At least one day must be above 0.",
+                "title": "Wednesday Hours",
+            },
+            "thursday_hours": {
+                "anyOf": [{"type": "number"}, {"type": "null"}],
+                "default": None,
+                "description": "Hours that day, 0 to 24; omitted means 0 (not a working day). At least one day must be above 0.",
+                "title": "Thursday Hours",
+            },
+            "friday_hours": {
+                "anyOf": [{"type": "number"}, {"type": "null"}],
+                "default": None,
+                "description": "Hours that day, 0 to 24; omitted means 0 (not a working day). At least one day must be above 0.",
+                "title": "Friday Hours",
+            },
+            "saturday_hours": {
+                "anyOf": [{"type": "number"}, {"type": "null"}],
+                "default": None,
+                "description": "Hours that day, 0 to 24; omitted means 0 (not a working day). At least one day must be above 0.",
+                "title": "Saturday Hours",
+            },
+            "sunday_hours": {
+                "anyOf": [{"type": "number"}, {"type": "null"}],
+                "default": None,
+                "description": "Hours that day, 0 to 24; omitted means 0 (not a working day). At least one day must be above 0.",
+                "title": "Sunday Hours",
+            },
             "availability_factor": {
                 "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "Percentage of the working time dedicated to project work: pass a whole number 0 to 100.",
                 "title": "Availability Factor",
             },
-            "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+            "confirm": {
+                "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                "title": "Confirm",
+                "type": "boolean",
+            },
         },
         "required": ["user_ref", "valid_from"],
         "title": "create_user_working_hoursArguments",
@@ -305,45 +345,85 @@ def test_create_user_working_hours_schema() -> None:
 def test_update_user_working_hours_schema() -> None:
     tool = _tools(create_app(_make_settings()))["update_user_working_hours"]
     assert tool.description == (
-        "Prepare or update a user's working-hours schedule entry; only writes\n"
-        "when called again with confirm=true.\n\n"
-        "Requires OpenProject 17.3+. Same authorization as list_user_working_hours.\n\n"
-        "availability_factor: percentage of the working time dedicated to project\n"
-        "work, a whole number 0 to 100.\n"
+        "Correct an existing working-hours schedule entry in place; omitted fields stay unchanged.\n"
+        "\n"
+        "Requires OpenProject 17.3+. Same authorization as list_user_working_hours. The entry applies from its\n"
+        "valid_from until the next entry's; to change a schedule from a later date on, add a new entry with\n"
+        "create_user_working_hours instead, which keeps the earlier one for the dates before.\n"
     )
     assert tool.output_schema is None
-    day_props = {
-        day: {
-            "anyOf": [{"type": "number"}, {"type": "null"}],
-            "default": None,
-            "title": title,
-        }
-        for day, title in [
-            ("monday_hours", "Monday Hours"),
-            ("tuesday_hours", "Tuesday Hours"),
-            ("wednesday_hours", "Wednesday Hours"),
-            ("thursday_hours", "Thursday Hours"),
-            ("friday_hours", "Friday Hours"),
-            ("saturday_hours", "Saturday Hours"),
-            ("sunday_hours", "Sunday Hours"),
-        ]
-    }
     assert tool.parameters == {
         "properties": {
-            "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
-            "working_hours_id": {"title": "Working Hours Id", "type": "integer"},
+            "user_ref": {
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": '"me", a numeric user id, or a login.',
+                "title": "User Ref",
+            },
+            "working_hours_id": {
+                "description": "Schedule entry id, from list_user_working_hours.",
+                "title": "Working Hours Id",
+                "type": "integer",
+            },
             "valid_from": {
                 "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "New start date (YYYY-MM-DD) of this entry; unique per user.",
                 "title": "Valid From",
             },
-            **day_props,
+            "monday_hours": {
+                "anyOf": [{"type": "number"}, {"type": "null"}],
+                "default": None,
+                "description": "Hours that day, 0 to 24; at least one day must be above 0.",
+                "title": "Monday Hours",
+            },
+            "tuesday_hours": {
+                "anyOf": [{"type": "number"}, {"type": "null"}],
+                "default": None,
+                "description": "Hours that day, 0 to 24; at least one day must be above 0.",
+                "title": "Tuesday Hours",
+            },
+            "wednesday_hours": {
+                "anyOf": [{"type": "number"}, {"type": "null"}],
+                "default": None,
+                "description": "Hours that day, 0 to 24; at least one day must be above 0.",
+                "title": "Wednesday Hours",
+            },
+            "thursday_hours": {
+                "anyOf": [{"type": "number"}, {"type": "null"}],
+                "default": None,
+                "description": "Hours that day, 0 to 24; at least one day must be above 0.",
+                "title": "Thursday Hours",
+            },
+            "friday_hours": {
+                "anyOf": [{"type": "number"}, {"type": "null"}],
+                "default": None,
+                "description": "Hours that day, 0 to 24; at least one day must be above 0.",
+                "title": "Friday Hours",
+            },
+            "saturday_hours": {
+                "anyOf": [{"type": "number"}, {"type": "null"}],
+                "default": None,
+                "description": "Hours that day, 0 to 24; at least one day must be above 0.",
+                "title": "Saturday Hours",
+            },
+            "sunday_hours": {
+                "anyOf": [{"type": "number"}, {"type": "null"}],
+                "default": None,
+                "description": "Hours that day, 0 to 24; at least one day must be above 0.",
+                "title": "Sunday Hours",
+            },
             "availability_factor": {
                 "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "Percentage of the working time dedicated to project work: pass a whole number 0 to 100.",
                 "title": "Availability Factor",
             },
-            "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+            "confirm": {
+                "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                "title": "Confirm",
+                "type": "boolean",
+            },
         },
         "required": ["user_ref", "working_hours_id"],
         "title": "update_user_working_hoursArguments",
@@ -370,16 +450,22 @@ def test_update_user_working_hours_schema() -> None:
 def test_delete_user_working_hours_schema() -> None:
     tool = _tools(create_app(_make_settings()))["delete_user_working_hours"]
     assert tool.description == (
-        "Prepare or delete a user's working-hours schedule entry; only deletes\n"
-        "when called again with confirm=true.\n\n"
-        "Requires OpenProject 17.3+. Same authorization as list_user_working_hours.\n"
+        "Delete a user's working-hours schedule entry; this cannot be undone.\n"
+        "\n"
+        "Requires OpenProject 17.3+. Same authorization as list_user_working_hours. For the dates it covered, the\n"
+        "previous entry applies again.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
             "working_hours_id": {"title": "Working Hours Id", "type": "integer"},
-            "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+            "confirm": {
+                "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                "title": "Confirm",
+                "type": "boolean",
+            },
         },
         "required": ["user_ref", "working_hours_id"],
         "title": "delete_user_working_hoursArguments",

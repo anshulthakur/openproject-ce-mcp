@@ -24,8 +24,10 @@ from __future__ import annotations
 
 import datetime
 import re
+from typing import Annotated
 
 from mcp.server.mcpserver import Context
+from pydantic import Field
 
 from .models import (
     TimeEntryActivityListResult,
@@ -33,6 +35,7 @@ from .models import (
     TimeEntrySummary,
     TimeEntryWriteResult,
 )
+from .tool_params import Confirm, Limit, Offset, OptionalProjectRef, OptionalWorkPackageRef, select_field
 from .tool_types import IdOrName
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
@@ -68,29 +71,21 @@ async def list_time_entry_activities(ctx: Context) -> TimeEntryActivityListResul
 @register_tool
 async def list_time_entries(
     ctx: Context,
-    project: IdOrName | None = None,
-    work_package_id: int | str | None = None,
+    project: OptionalProjectRef = None,
+    work_package_id: OptionalWorkPackageRef = None,
     user: IdOrName | None = None,
     spent_on_from: str | None = None,
     spent_on_to: str | None = None,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(TimeEntrySummary)] = None,
     include_total_hours: bool = False,
 ) -> TimeEntryListResult:
     """List time entries with optional project, work package, user, and date filters.
 
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
-
-    select fields: id, hours, spent_on, comment, activity, user, work_package_id
-    (see server instructions for select's general semantics).
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap. total is only
-    the count of allowed time entries returned on THIS page, not a full
-    count of all matches — the search stops as soon as it has enough, so an
-    exact total would need an extra full walk. Page until next_offset is
-    null.
+    total is only the count of allowed time entries returned on THIS page, not a full count of all matches; the
+    search stops as soon as it has enough, so an exact total would need an extra full walk. Page until next_offset
+    is null.
 
     include_total_hours=true sums `hours` (as an ISO 8601 duration) across
     every matching entry, independent of limit/offset — this runs its own
@@ -148,17 +143,16 @@ async def create_time_entry(
     activity: IdOrName,
     hours: str,
     spent_on: str,
-    project: IdOrName | None = None,
-    work_package_id: int | str | None = None,
+    project: OptionalProjectRef = None,
+    work_package_id: OptionalWorkPackageRef = None,
     user: IdOrName | None = None,
     start_time: str | None = None,
     comment: str | None = None,
     ongoing: bool | None = None,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> TimeEntryWriteResult:
-    """Prepare or create a time entry.
+    """Create a time entry.
 
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
     hours accepts an ISO8601 duration string (e.g., 'PT8H' for 8 hours, 'P1D' for 1 day).
     start_time is an ISO 8601 date-time and requires the instance setting "allow
     tracking of start and end times"; ignored otherwise. No end_time parameter --
@@ -203,9 +197,9 @@ async def update_time_entry(
     start_time: str | None = None,
     comment: str | None = None,
     ongoing: bool | None = None,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> TimeEntryWriteResult:
-    """Prepare or update a time entry.
+    """Update a time entry.
 
     hours accepts an ISO8601 duration string (e.g., 'PT8H' for 8 hours, 'P1D' for 1 day).
     start_time is an ISO 8601 date-time. No end_time parameter -- OpenProject
@@ -252,13 +246,13 @@ async def create_time_entry_until(
     start_time: str,
     end_time: str,
     spent_on: str,
-    project: IdOrName | None = None,
-    work_package_id: int | str | None = None,
+    project: OptionalProjectRef = None,
+    work_package_id: OptionalWorkPackageRef = None,
     user: IdOrName | None = None,
     comment: str | None = None,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> TimeEntryWriteResult:
-    """Prepare or create a time entry by start/end time instead of a duration.
+    """Create a time entry by start/end time instead of a duration.
 
     Computes hours = end_time - start_time locally; only hours and start_time
     are sent to OpenProject (end_time itself is never accepted by the server,
@@ -304,9 +298,9 @@ async def update_time_entry_until(
     activity: IdOrName | None = None,
     spent_on: str | None = None,
     comment: str | None = None,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> TimeEntryWriteResult:
-    """Prepare or update a time entry by start/end time instead of a duration.
+    """Update a time entry by start/end time instead of a duration.
 
     Computes hours = end_time - start_time locally; only hours and start_time
     are sent to OpenProject (end_time itself is never accepted by the server,
@@ -341,10 +335,10 @@ async def update_time_entry_until(
 @register_tool
 async def delete_time_entry(
     ctx: Context,
-    time_entry_id: int,
-    confirm: bool = False,
+    time_entry_id: Annotated[int, Field(description="Time entry id, from list_time_entries.")],
+    confirm: Confirm = False,
 ) -> TimeEntryWriteResult:
-    """Prepare or delete a time entry."""
+    """Delete a time entry; this cannot be undone."""
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(time_entry_id, field_name="time_entry_id")
     return await _run_tool(client.time_entry.delete(time_entry_id=safe_id, confirm=confirm))

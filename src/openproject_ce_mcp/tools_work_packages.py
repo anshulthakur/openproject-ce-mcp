@@ -26,10 +26,10 @@ fifteen public names: thirteen because existing tests
 from __future__ import annotations
 
 import functools
-from typing import Any
+from typing import Annotated, Any
 
 from mcp.server.mcpserver import Context
-from pydantic import StrictInt
+from pydantic import Field, StrictInt
 
 from .client import BATCH_READ_MAX_IDS, CLEAR, CLEAR_PARENT, CLEAR_VERSION
 from .models import (
@@ -45,6 +45,16 @@ from .models import (
     WorkPackageListResult,
     WorkPackageSummary,
     WorkPackageWriteResult,
+)
+from .tool_params import (
+    BulkConfirm,
+    Confirm,
+    Limit,
+    Offset,
+    OptionalProjectRef,
+    ProjectRef,
+    WorkPackageRef,
+    select_field,
 )
 from .tool_types import IdOrName
 from .tools_runtime import _client_from_context, _run_tool, register_tool
@@ -91,7 +101,7 @@ from .tools_validation import (
 async def search_work_packages(
     ctx: Context,
     search: str,
-    project: IdOrName | None = None,
+    project: OptionalProjectRef = None,
     status: IdOrName | None = None,
     open_only: bool = False,
     assignee_me: bool = False,
@@ -107,9 +117,9 @@ async def search_work_packages(
     due_within_days: int | None = None,
     sort_by: list[str] | None = None,
     group_by: str | None = None,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(WorkPackageSummary)] = None,
     include_sums: bool = False,
     custom_field_filters: dict[str, dict[str, Any]] | None = None,
 ) -> WorkPackageListResult:
@@ -212,7 +222,7 @@ async def search_work_packages(
 @register_tool
 async def list_work_packages(
     ctx: Context,
-    project: IdOrName | None = None,
+    project: OptionalProjectRef = None,
     type: IdOrName | None = None,
     version: IdOrName | None = None,
     version_status: str | None = None,
@@ -231,9 +241,9 @@ async def list_work_packages(
     due_within_days: int | None = None,
     sort_by: list[str] | None = None,
     group_by: str | None = None,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(WorkPackageSummary)] = None,
     include_sums: bool = False,
     custom_field_filters: dict[str, dict[str, Any]] | None = None,
 ) -> WorkPackageListResult:
@@ -297,19 +307,14 @@ async def list_work_packages(
     parent_display_id is only populated on OpenProject 17.5+ (semantic mode);
     it stays null on older/classic instances even when parent_id is set.
 
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap. total is the real
-    matching count only when the query is provably restricted to
-    OPENPROJECT_READ_PROJECTS server-side — scope is unrestricted, an explicit
-    project was given, or (no project, restricted scope) a server-side filter for
-    the resolved allowed project IDs was sent. Otherwise total falls back to this
-    page's item count, and next_offset/truncated are based on whether this page
-    came back full rather than the server's own total, so nothing here ever
-    reveals how many matches exist in projects you can't see. Because of this,
-    total can read 0 while next_offset is still non-null (a restrictive scope
-    filtered out every match on this page, but the raw server page was full) —
-    that is not an inconsistency, keep paging via next_offset rather than
-    stopping on a low/zero total. Page until next_offset is null either way.
+    total is the real matching count only when the query is provably restricted to OPENPROJECT_READ_PROJECTS
+    server-side: scope is unrestricted, an explicit project was given, or (no project, restricted scope) a
+    server-side filter for the resolved allowed project IDs was sent. Otherwise total falls back to this page's item
+    count, and next_offset/truncated are based on whether this page came back full rather than the server's own
+    total, so nothing here ever reveals how many matches exist in projects you can't see. Because of this, total can
+    read 0 while next_offset is still non-null (a restrictive scope filtered out every match on this page, but the
+    raw server page was full); that is not an inconsistency, keep paging via next_offset rather than stopping on a
+    low/zero total. Page until next_offset is null either way.
 
     include_sums=true adds server-computed aggregates instead of requiring
     client-side pagination and summation: groups (one entry per group_by
@@ -444,15 +449,11 @@ async def list_work_packages(
 @register_tool
 async def get_work_package(
     ctx: Context,
-    work_package_id: int | str,
+    work_package_id: WorkPackageRef,
     text_limit: int | None = None,
-    select: list[str] | None = None,
+    select: Annotated[list[str] | None, select_field(WorkPackageDetail)] = None,
 ) -> WorkPackageDetail:
     """Get a work package by id, including its full description.
-
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"),
-    not UI display number (e.g., 51) — the same value list_work_packages/
-    search_work_packages return as each row's `id` field.
 
     The description is returned in full by default (single work packages are not
     truncated). Pass ``text_limit`` to cap it at that many characters; when the
@@ -481,9 +482,11 @@ async def get_work_packages(
     ctx: Context,
     ids: list[int | str],
     text_limit: int | None = None,
-    select: list[str] | None = None,
+    select: Annotated[
+        list[str] | None, select_field(WorkPackageDetail, wrapper_fields=BATCH_READ_ITEM_WRAPPER_FIELDS)
+    ] = None,
 ) -> BatchWorkPackageReadResult:
-    """Get multiple work packages by ID in a single batch call.
+    """Get several work packages by id in one batch call.
 
     Fetches work packages in parallel and returns per-item results.
     Failed fetches are reported individually without stopping the batch.
@@ -582,7 +585,7 @@ def _validate_work_package_create_fields(
 @register_tool
 async def create_work_package(
     ctx: Context,
-    project: IdOrName,
+    project: ProjectRef,
     type: IdOrName,
     subject: str,
     description: str | None = None,
@@ -600,11 +603,11 @@ async def create_work_package(
     estimated_time: str | None = None,
     remaining_time: str | None = None,
     duration: str | None = None,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> WorkPackageWriteResult:
-    """Prepare or create a work package.
+    """Create a work package.
 
-    The tool validates the payload first. Set confirm=true to write.
+    The tool validates the payload first.
     assignee: 'me' or numeric user id (e.g., 42). Call list_users to find ids. parent: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number to nest the new work package under a parent.
     estimated_time, remaining_time, duration accept ISO8601 duration strings (e.g., 'PT8H' for 8 hours, 'PT1H30M' for 1.5 hours, 'P1D' for 1 day, 'P2W' for 2 weeks).
     target_versions accepts a list of version names/ids to assign multiple target versions at once
@@ -754,7 +757,7 @@ def _validate_work_package_update_fields(
 @register_tool
 async def update_work_package(
     ctx: Context,
-    work_package_id: int | str,
+    work_package_id: WorkPackageRef,
     subject: str | None = None,
     description: str | None = None,
     type: IdOrName | None = None,
@@ -775,12 +778,11 @@ async def update_work_package(
     remaining_time: str | None = None,
     duration: str | None = None,
     percentage_done: StrictInt | None = None,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> WorkPackageWriteResult:
-    """Prepare or update a work package.
+    """Update a work package.
 
-    The tool validates the patch first. Set confirm=true to write.
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
+    The tool validates the patch first.
     assignee: 'me' or numeric user id (e.g., 42). Call list_users to find ids. parent re-parents the work package (numeric id or a PROJ-123 reference); pass 'none' to remove the parent and make it top-level. version accepts a version name/id, or 'none' to unassign the version. sprint accepts a Backlogs sprint name/id (requires the Backlogs module and OpenProject 17.3+), or 'none' to unassign it. Pass 'none' to assignee, responsible, category or project_phase to unassign that field. Omitted fields stay unchanged.
     target_versions accepts a list of version names/ids to assign multiple target versions at once
     (OpenProject's multi-version feature); pass [] to clear all. target_versions and version write
@@ -892,8 +894,11 @@ _BULK_CREATE_WORK_PACKAGE_ITEM_FIELDS = frozenset(
 async def bulk_create_work_packages(
     ctx: Context,
     items: list[dict[str, Any]],
-    select: list[str] | None = None,
-    confirm: bool = False,
+    select: Annotated[
+        list[str] | None,
+        select_field(WorkPackageWriteResult, wrapper_fields=BULK_ITEM_WRAPPER_FIELDS),
+    ] = None,
+    confirm: BulkConfirm = False,
 ) -> BulkWorkPackageWriteResult:
     """Create multiple work packages in one call.
 
@@ -915,10 +920,7 @@ async def bulk_create_work_packages(
     way to opt out of that shift (OpenProject's own `ignoreNonWorkingDays` flag is not a write
     parameter here).
 
-    With confirm=false (default) all items are validated and a preview is returned.
-    With confirm=true all items are created. Failed items are reported in the result — the operation
-    continues for remaining items regardless of individual failures. A rejected
-    item's validation is not a tool error; inspect each item's `success`,
+    A rejected item's validation is not a tool error; inspect each item's `success`,
     `error`, and nested `result` rather than the MCP error envelope.
 
     select restricts each item's nested result to the given fields (e.g.
@@ -1041,8 +1043,11 @@ _BULK_UPDATE_WORK_PACKAGE_ITEM_FIELDS = frozenset(
 async def bulk_update_work_packages(
     ctx: Context,
     items: list[dict[str, Any]],
-    select: list[str] | None = None,
-    confirm: bool = False,
+    select: Annotated[
+        list[str] | None,
+        select_field(WorkPackageWriteResult, wrapper_fields=BULK_ITEM_WRAPPER_FIELDS),
+    ] = None,
+    confirm: BulkConfirm = False,
 ) -> BulkWorkPackageWriteResult:
     """Update multiple work packages in one call.
 
@@ -1152,13 +1157,13 @@ async def bulk_update_work_packages(
 @register_tool
 async def delete_work_package(
     ctx: Context,
-    work_package_id: int | str,
-    confirm: bool = False,
+    work_package_id: WorkPackageRef,
+    confirm: Confirm = False,
 ) -> WorkPackageWriteResult:
-    """Prepare or delete a work package.
+    """Delete a work package with its time and cost entries, relations, attachments and history.
 
-    The tool previews the target first. Set confirm=true to delete.
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
+    This cannot be undone. Up to 17.6 all its descendants are deleted too; 17.7+ only those you may delete,
+    the others lose their parent.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_work_package_ref(work_package_id)
@@ -1168,7 +1173,7 @@ async def delete_work_package(
 @register_tool
 async def create_subtask(
     ctx: Context,
-    parent_work_package_id: int | str,
+    parent_work_package_id: WorkPackageRef,
     type: IdOrName,
     subject: str,
     description: str | None = None,
@@ -1182,15 +1187,11 @@ async def create_subtask(
     custom_fields: dict[str, Any] | None = None,
     start_date: str | None = None,
     due_date: str | None = None,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> WorkPackageWriteResult:
-    """Prepare or create a subtask under an existing work package.
+    """Create a subtask under an existing work package.
 
-    The tool validates the payload first. Set confirm=true to write.
-    parent_work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"),
-    not UI display number (e.g., 51) — the same value list_work_packages/
-    get_work_package return as each row's `id` field (and as `parent_id`/
-    `parent_display_id` on a child work package).
+    The tool validates the payload first.
     Concurrent calls to this tool (or create_work_package) do not preserve call order in the resulting IDs;
     use bulk_create_work_packages when order across several new items matters.
     target_versions accepts a list of version names/ids to assign multiple target versions at once
@@ -1238,16 +1239,15 @@ async def create_subtask(
 @register_tool
 async def add_work_package_comment(
     ctx: Context,
-    work_package_id: int | str,
+    work_package_id: WorkPackageRef,
     comment: str,
     internal: bool = False,
     notify: bool = False,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> ActivityWriteResult:
-    """Prepare or add a comment to a work package.
+    """Add a comment to a work package.
 
-    The tool only writes when confirm=true. notify=false avoids change emails by default.
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
+    notify=false avoids change emails by default.
     The result never includes `details`/`created_at`, even on an ordinary,
     non-aggregated comment: OpenProject can aggregate a new comment into an
     existing, more recent journal entry (e.g. a prior status change) instead
@@ -1277,28 +1277,21 @@ async def add_work_package_comment(
 @register_tool
 async def list_my_open_work_packages(
     ctx: Context,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(WorkPackageSummary)] = None,
 ) -> WorkPackageListResult:
     """List the current user's open assigned work packages.
 
-    select fields: id, subject, due_date (see server instructions for
-    select's general semantics).
+    This query has no project scope of its own, so total is the real matching count only when
+    OPENPROJECT_READ_PROJECTS is unrestricted ("*"); under a restricted scope, total always falls back to this
+    page's item count, and next_offset/truncated are based on whether this page came back full rather than the
+    server's own total, so nothing here ever reveals how many matches exist in projects you can't see. Page until
+    next_offset is null either way.
 
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap. This query has no
-    project scope of its own, so total is the real matching count only when
-    OPENPROJECT_READ_PROJECTS is unrestricted ("*"); under a restricted scope,
-    total always falls back to this page's item count, and next_offset/truncated
-    are based on whether this page came back full rather than the server's own
-    total, so nothing here ever reveals how many matches exist in projects you
-    can't see. Page until next_offset is null either way.
-
-    Each result row also carries custom_fields/custom_comments (not listed
-    under "select fields" above since they are selectable/hideable only as a
-    whole field, like every other field) with the same shape, caps, and
-    OPENPROJECT_HIDE_CUSTOM_FIELDS key-only hide-matching as
+    Each result row also carries custom_fields/custom_comments, selectable or
+    hideable only as a whole field like every other field, with the same
+    shape, caps, and OPENPROJECT_HIDE_CUSTOM_FIELDS key-only hide-matching as
     list_work_packages -- see that tool's docstring for the full details.
     """
     client = _client_from_context(ctx)
@@ -1311,22 +1304,21 @@ async def list_my_open_work_packages(
 @register_tool
 async def get_work_package_activities(
     ctx: Context,
-    work_package_id: int | str,
-    limit: int | None = None,
+    work_package_id: WorkPackageRef,
+    limit: Annotated[
+        int | None,
+        Field(description="Number of most recent activities, capped at OPENPROJECT_MAX_PAGE_SIZE. Not paged."),
+    ] = None,
     text_limit: int | None = None,
-    select: list[str] | None = None,
+    select: Annotated[list[str] | None, select_field(ActivitySummary)] = None,
 ) -> ActivityListResult:
     """Get the activity log for a work package, most recent first.
-
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
 
     Comments are returned in full by default (this is one work package's own
     history, not an open-ended multi-row list — same rationale as
     get_work_package). Pass ``text_limit`` to cap each comment at that many
     characters; when a comment is cut, ``comment_truncated`` is true and
     ``comment_length`` reports its real length.
-
-    select fields: id, type, created_at (see server instructions for select's general semantics).
     """
     client = _client_from_context(ctx)
     safe_id = _validate_work_package_ref(work_package_id)
@@ -1339,15 +1331,12 @@ async def get_work_package_activities(
 @register_tool
 async def list_work_package_reactions(
     ctx: Context,
-    work_package_id: int | str,
-    select: list[str] | None = None,
+    work_package_id: WorkPackageRef,
+    select: Annotated[list[str] | None, select_field(EmojiReactionSummary)] = None,
 ) -> EmojiReactionListResult:
     """List emoji reactions across a work package's comment activities.
 
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
-
-    select fields: reaction, count (see server instructions for select's general semantics).
-    """
+    One row per comment and reaction, without the activity id, so a reaction can repeat."""
     client = _client_from_context(ctx)
     safe_id = _validate_work_package_ref(work_package_id)
     _validate_select(select, row_type=EmojiReactionSummary)
@@ -1359,14 +1348,13 @@ async def toggle_activity_emoji_reaction(
     ctx: Context,
     activity_id: int,
     reaction: str,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> EmojiReactionWriteResult:
     """Toggle an emoji reaction on a work package comment activity.
 
     Adds the reaction if absent, removes it if already present. `reaction` is
     one of: thumbs_up, thumbs_down, grinning_face_with_smiling_eyes,
-    confused_face, heart, party_popper, rocket, eyes. Set confirm=true to apply
-    it; call without confirm=true first to get a preview.
+    confused_face, heart, party_popper, rocket, eyes.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(activity_id, field_name="activity_id")

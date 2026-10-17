@@ -48,64 +48,36 @@ def test_list_work_package_attachments_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_work_package_attachments"]
     assert (
         tool.description
-        == "List attachments on a work package.\n\nwork_package_id: internal id (e.g., 952) or display_id (e.g., \"PROJ-51\"), not UI display number.\n\nselect fields: id, title, file_name, description (see server instructions\nfor select's general semantics).\n\nlimit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned\nnext_offset as the next call's offset to page past the cap.\n\ninclude_total_size=true sums file_size_bytes across every attachment\n(independent of limit/offset) — OpenProject's attachments endpoint\nalways returns the full list in one response, so this costs no extra\nrequest in the common case. Null if file_size_bytes is hidden by\nserver configuration, rather than leaking it indirectly through a sum.\n\ninclude_images=true also reads the listed PNG/JPEG/GIF/WebP attachments\nand returns them as images the model can see, appended after the list.\nOne shared byte budget covers the whole call\n(OPENPROJECT_ATTACHMENT_CONTENT_MAX_BYTES, 5 MB by default), taken in\nlisting order; every attachment that was not inlined is reported in\n`images` with its reason. Use get_attachment_content for one specific\nattachment, or for text content.\n"
+        == "List attachments on a work package.\n\ninclude_total_size=true sums file_size_bytes across every attachment\n(independent of limit/offset) — OpenProject's attachments endpoint\nalways returns the full list in one response, so this costs no extra\nrequest in the common case. Null if file_size_bytes is hidden by\nserver configuration, rather than leaking it indirectly through a sum.\n\ninclude_images=true also reads the listed PNG/JPEG/GIF/WebP attachments\nand returns them as images the model can see, appended after the list.\nOne shared byte budget covers the whole call\n(OPENPROJECT_ATTACHMENT_CONTENT_MAX_BYTES, 5 MB by default), taken in\nlisting order; every attachment that was not inlined is reported in\n`images` with its reason. Use get_attachment_content for one specific\nattachment, or for text content.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "work_package_id": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                 "title": "Work Package Id",
             },
             "offset": {
                 "default": 1,
+                "description": "1-based page number; pass the previous result's next_offset.",
                 "title": "Offset",
                 "type": "integer",
             },
             "limit": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
                 "title": "Limit",
             },
             "select": {
-                "anyOf": [
-                    {
-                        "items": {
-                            "type": "string",
-                        },
-                        "type": "array",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,
+                "description": "Fields to return; a requested unset field comes back as null. Allowed: author, container_id, container_type, content_type, created_at, description, download_url, file_name, file_size_bytes, id, status, title.",
                 "title": "Select",
             },
-            "include_total_size": {
-                "default": False,
-                "title": "Include Total Size",
-                "type": "boolean",
-            },
-            "include_images": {
-                "default": False,
-                "title": "Include Images",
-                "type": "boolean",
-            },
+            "include_total_size": {"default": False, "title": "Include Total Size", "type": "boolean"},
+            "include_images": {"default": False, "title": "Include Images", "type": "boolean"},
         },
         "required": ["work_package_id"],
         "title": "list_work_package_attachmentsArguments",
@@ -307,40 +279,30 @@ def test_create_work_package_attachment_schema() -> None:
     tool = _tools(create_app(_make_settings()))["create_work_package_attachment"]
     assert (
         tool.description
-        == 'Prepare or upload an attachment to a work package.\n\nwork_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.\n'
+        == "Upload a local file as an attachment to a work package.\n\nThe preview checks that the file exists inside OPENPROJECT_ATTACHMENT_ROOT, is not a credential or\nconfiguration file, and fits OpenProject's maximum attachment size.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "work_package_id": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                 "title": "Work Package Id",
             },
             "file_path": {
+                "description": "Path on the MCP server's machine, inside OPENPROJECT_ATTACHMENT_ROOT; uploaded under its file name.",
                 "title": "File Path",
                 "type": "string",
             },
             "description": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Markdown text stored with the attachment.",
                 "title": "Description",
             },
             "confirm": {
                 "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
                 "title": "Confirm",
                 "type": "boolean",
             },
@@ -356,16 +318,18 @@ def test_create_work_package_attachment_schema() -> None:
 
 def test_delete_attachment_schema() -> None:
     tool = _tools(create_app(_make_settings()))["delete_attachment"]
-    assert tool.description == "Prepare or delete an attachment."
+    assert tool.description == "Delete an attachment; this cannot be undone."
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "attachment_id": {
+                "description": "Attachment id, from list_work_package_attachments.",
                 "title": "Attachment Id",
                 "type": "integer",
             },
             "confirm": {
                 "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
                 "title": "Confirm",
                 "type": "boolean",
             },
@@ -383,17 +347,32 @@ def test_list_work_package_file_links_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_work_package_file_links"]
     assert (
         tool.description
-        == "List Nextcloud file links attached to a work package (Community Edition).\n\nwork_package_id: internal id (e.g., 952) or display_id (e.g., \"PROJ-51\"), not UI display number.\n\nselect fields: id, title (see server instructions for select's general semantics).\n\nlimit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned\nnext_offset as the next call's offset to page past the cap.\n"
+        == "List Nextcloud file links attached to a work package (Community Edition).\n\nFor files uploaded to OpenProject itself, use list_work_package_attachments."
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Work Package Id"},
-            "offset": {"default": 1, "title": "Offset", "type": "integer"},
-            "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Limit"},
+            "work_package_id": {
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                "title": "Work Package Id",
+            },
+            "offset": {
+                "default": 1,
+                "description": "1-based page number; pass the previous result's next_offset.",
+                "title": "Offset",
+                "type": "integer",
+            },
+            "limit": {
+                "anyOf": [{"type": "integer"}, {"type": "null"}],
+                "default": None,
+                "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                "title": "Limit",
+            },
             "select": {
                 "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,
+                "description": "Fields to return; a requested unset field comes back as null. Allowed: created_at, id, storage_id, storage_name, title, updated_at.",
                 "title": "Select",
             },
         },
@@ -408,7 +387,10 @@ def test_list_work_package_file_links_schema() -> None:
 
 def test_delete_file_link_schema() -> None:
     tool = _tools(create_app(_make_settings()))["delete_file_link"]
-    assert tool.description == "Prepare or delete a Nextcloud file link."
+    assert (
+        tool.description
+        == "Delete a file link; this cannot be undone, but the file itself stays in the external storage."
+    )
     assert tool.output_schema == {
         "$defs": {
             "FileLinkSummary": {
@@ -543,11 +525,13 @@ def test_delete_file_link_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "file_link_id": {
+                "description": "File link id, from list_work_package_file_links.",
                 "title": "File Link Id",
                 "type": "integer",
             },
             "confirm": {
                 "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
                 "title": "Confirm",
                 "type": "boolean",
             },

@@ -20,13 +20,13 @@ from __future__ import annotations
 import functools
 import inspect
 import json
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import fields as dataclass_fields
 from dataclasses import is_dataclass
 from typing import Any, TypeVar, cast
 
 from mcp.server.mcpserver import Context, MCPServer
-from mcp.types import TextContent
+from mcp.types import TextContent, ToolAnnotations
 
 from .client import (
     AuthenticationError,
@@ -62,7 +62,13 @@ def register_tool(fn: _ToolFunc) -> _ToolFunc:
     return fn
 
 
-def register_selected_tools(mcp: MCPServer, *, names: Iterable[str], hide_active: bool) -> None:
+def register_selected_tools(
+    mcp: MCPServer,
+    *,
+    names: Iterable[str],
+    hide_active: bool,
+    annotations: Mapping[str, ToolAnnotations],
+) -> None:
     """Register exactly the given (already policy-selected) tool names with `mcp`.
 
     `names` is the caller's already-decided set of enabled tool names (the
@@ -83,9 +89,12 @@ def register_selected_tools(mcp: MCPServer, *, names: Iterable[str], hide_active
     dataclass-returning tool is trimmed too, so single-entity reads (get_*) can
     drop hidden keys entirely rather than emit them as null. This only widens
     schema loss when the operator opted into hiding.
+
+    `annotations` carries the MCP tool annotations the Catalog/Policy layer
+    derived for each name.
     """
 
-    def tool(fn):
+    def tool(fn, tool_annotations: ToolAnnotations):
         wrapped = _categorize_tool_errors(fn)
         # Python 3.13 dedents function docstrings at compile time; older
         # supported interpreters preserve indentation after blank lines.
@@ -96,7 +105,7 @@ def register_selected_tools(mcp: MCPServer, *, names: Iterable[str], hide_active
         wrapped.__doc__ = inspect.cleandoc(description) + trailing_newline
 
         if not (_returns_trimmable(fn) or (hide_active and _returns_dataclass(fn))):
-            return mcp.tool()(wrapped)
+            return mcp.tool(annotations=tool_annotations)(wrapped)
 
         # Whether this tool's own signature accepts `select` -- NOT whether its
         # return model happens to carry a `results`/`items` field. Some list
@@ -122,7 +131,7 @@ def register_selected_tools(mcp: MCPServer, *, names: Iterable[str], hide_active
                 ]
             return _to_payload(result, select=select, elide_none=elide_none)
 
-        return mcp.tool(structured_output=False)(trimming)
+        return mcp.tool(annotations=tool_annotations, structured_output=False)(trimming)
 
     # Materialize once: `names` is consumed twice below (the completeness
     # check, then the registration loop), which would silently register
@@ -138,8 +147,12 @@ def register_selected_tools(mcp: MCPServer, *, names: Iterable[str], hide_active
             "never imported by the composition root: " + ", ".join(sorted(missing))
         )
 
+    unannotated = [name for name in names if name not in annotations]
+    if unannotated:
+        raise RuntimeError("No MCP tool annotations for: " + ", ".join(sorted(unannotated)))
+
     for name in names:
-        tool(_TOOL_FUNCTIONS[name])
+        tool(_TOOL_FUNCTIONS[name], annotations[name])
 
 
 def _client_from_context(ctx: Context) -> OpenProjectClient:

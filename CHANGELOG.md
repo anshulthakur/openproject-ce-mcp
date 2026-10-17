@@ -61,9 +61,16 @@ development baseline.
 - Installable on macOS with Homebrew from the `jtauschl/tap` tap:
   `brew tap jtauschl/tap`, `brew trust --formula jtauschl/tap/openproject-ce-mcp`,
   then `brew install openproject-ce-mcp`.
+- Every tool declares MCP tool annotations (read-only, destructive, idempotent,
+  open-world), so clients can tell reading tools from tools that change or
+  delete data.
 
 ### Changed
 
+- Tool descriptions state each action and its consequences directly, delete
+  tools say when a deletion cannot be undone, and the parameters most tools
+  share describe themselves in the tool schema; `select` lists every field it
+  accepts.
 - If `OPENPROJECT_BASE_URL` has a different path than the one OpenProject uses
   in its links, for example behind a path-rewriting proxy, project checks now
   fail with a `[configuration_error]` naming both paths. Such links used to

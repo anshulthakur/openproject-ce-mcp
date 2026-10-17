@@ -16,7 +16,7 @@ from mcp import types
 from mcp.client import Client
 
 import openproject_ce_mcp.tools_runtime as tools_runtime
-from openproject_ce_mcp import tools_meetings
+from openproject_ce_mcp import tools, tools_meetings
 from openproject_ce_mcp.strict_mcpserver import StrictMCPServer
 
 
@@ -68,7 +68,12 @@ async def _call(recorder: _Recorder, arguments: dict) -> types.CallToolResult:
             await client.aclose()
 
     server = StrictMCPServer("test", lifespan=lifespan)
-    tools_runtime.register_selected_tools(server, names=[tools_meetings.delete_meeting.__name__], hide_active=False)
+    tools_runtime.register_selected_tools(
+        server,
+        names=[tools_meetings.delete_meeting.__name__],
+        hide_active=False,
+        annotations=tools.TOOL_ANNOTATIONS,
+    )
     async with Client(server, mode="legacy") as client:
         return await client.call_tool("delete_meeting", arguments)
 

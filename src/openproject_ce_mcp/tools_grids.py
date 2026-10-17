@@ -15,9 +15,13 @@ otherwise related.
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from mcp.server.mcpserver import Context
+from pydantic import Field
 
 from .models import GridListResult, GridSummary, GridWriteResult
+from .tool_params import Confirm, Limit, Offset, select_field
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
     _require_at_least_one,
@@ -34,19 +38,14 @@ from .tools_validation import (
 async def list_grids(
     ctx: Context,
     scope: str | None = None,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(GridSummary)] = None,
 ) -> GridListResult:
     """List dashboard grids, optionally filtered by scope (page path).
 
-    select fields: id, scope (see server instructions for select's general
-    semantics). limit is capped at
-    OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned next_offset as
-    the next call's offset to page past the cap. total is only the count of
-    allowed grids returned on THIS page, not a full count of all matches —
-    the search stops as soon as it has enough, so an exact total would need
-    an extra full walk. Page until next_offset is null.
+    total is only the count of allowed grids returned on THIS page, not a full count of all matches; the search
+    stops as soon as it has enough, so an exact total would need an extra full walk. Page until next_offset is null.
     """
     client = _client_from_context(ctx)
     safe_scope = _validate_optional_query(scope, field_name="scope", max_length=500)
@@ -67,15 +66,26 @@ async def get_grid(ctx: Context, grid_id: int) -> GridSummary:
 @register_tool
 async def create_grid(
     ctx: Context,
-    name: str,
-    scope: str,
-    row_count: int | None = None,
-    column_count: int | None = None,
-    confirm: bool = False,
+    name: Annotated[str, Field(description="Display name, at most 255 characters.")],
+    scope: Annotated[
+        str,
+        Field(
+            description=(
+                'Page path: "/my/page", "/projects/<identifier>" or "/projects/<identifier>/boards", after the '
+                "instance's root path on a subpath install. Any other scope is rejected before a request."
+            )
+        ),
+    ],
+    row_count: Annotated[int | None, Field(description="Positive integer; omitted lets OpenProject choose.")] = None,
+    column_count: Annotated[int | None, Field(description="Positive integer; omitted lets OpenProject choose.")] = None,
+    confirm: Confirm = False,
 ) -> GridWriteResult:
-    """Prepare or create a dashboard grid for the scope `/my/page`, `/projects/<identifier>` or
-    `/projects/<identifier>/boards` (after the instance's root path on a subpath install).
-    Any other scope is rejected before a request."""
+    """Create a dashboard grid on a page.
+
+    A grid is the widget layout of My Page, a project overview or a board. The grid starts with OpenProject's
+    default widgets for that page; other widgets are added in OpenProject. A board's saved work package
+    queries are created with create_board.
+    """
     client = _client_from_context(ctx)
     safe_name = _validate_required_query(name, field_name="name", max_length=255)
     safe_scope = _validate_required_query(scope, field_name="scope", max_length=500)
@@ -99,15 +109,15 @@ async def create_grid(
 @register_tool
 async def update_grid(
     ctx: Context,
-    grid_id: int,
-    name: str | None = None,
-    row_count: int | None = None,
-    column_count: int | None = None,
-    confirm: bool = False,
+    grid_id: Annotated[int, Field(description="Grid id, from list_grids.")],
+    name: Annotated[str | None, Field(description="New display name, at most 255 characters.")] = None,
+    row_count: Annotated[int | None, Field(description="New number of rows, a positive integer.")] = None,
+    column_count: Annotated[int | None, Field(description="New number of columns, a positive integer.")] = None,
+    confirm: Confirm = False,
 ) -> GridWriteResult:
-    """Prepare or update a dashboard grid.
+    """Rename or resize a dashboard grid; omitted fields stay unchanged.
 
-    Omitted fields stay unchanged. Set confirm=true to write.
+    The widgets stay as they are; a size that would leave a widget outside the grid is rejected.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(grid_id, field_name="grid_id")
@@ -134,9 +144,12 @@ async def update_grid(
 async def delete_grid(
     ctx: Context,
     grid_id: int,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> GridWriteResult:
-    """Prepare or delete a dashboard grid. Only deletes when called again with confirm=true."""
+    """Delete a board grid; My Page and project overview grids cannot be deleted.
+
+    17.0+: its column queries are deleted too, as far as you may delete them. This cannot be undone.
+    """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(grid_id, field_name="grid_id")
     return await _run_tool(client.grid.delete(grid_id=safe_id, confirm=confirm))

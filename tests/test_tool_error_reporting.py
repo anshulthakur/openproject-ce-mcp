@@ -19,7 +19,7 @@ from mcp.server.mcpserver import Context
 from mcp.server.mcpserver.exceptions import ToolError
 
 import openproject_ce_mcp.tools_runtime as tools_runtime
-from openproject_ce_mcp import tools_work_packages
+from openproject_ce_mcp import tools, tools_work_packages
 from openproject_ce_mcp.client import InvalidInputError, PermissionDeniedError
 from openproject_ce_mcp.strict_mcpserver import StrictMCPServer
 
@@ -65,7 +65,18 @@ def call_tool(request, monkeypatch) -> CallTool:
         yield SimpleNamespace(client=None)
 
     server = StrictMCPServer("test", lifespan=no_client)
-    tools_runtime.register_selected_tools(server, names=tools_runtime._TOOL_FUNCTIONS, hide_active=False)
+    probe_annotations = types.ToolAnnotations(read_only_hint=True)
+    tools_runtime.register_selected_tools(
+        server,
+        names=tools_runtime._TOOL_FUNCTIONS,
+        hide_active=False,
+        annotations={
+            **tools.TOOL_ANNOTATIONS,
+            "probe_rejects_input": probe_annotations,
+            "probe_openproject_denies": probe_annotations,
+            "probe_crashes": probe_annotations,
+        },
+    )
 
     async def call(name: str, arguments: dict) -> types.CallToolResult:
         async with Client(server, mode=request.param) as client:

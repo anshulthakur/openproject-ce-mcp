@@ -47,53 +47,28 @@ def test_list_projects_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_projects"]
     assert (
         tool.description
-        == "List visible projects with optional name or identifier search.\n\nselect fields: id, name, identifier, active, public, status, parent_name,\ncreated_at, updated_at (see server instructions for select's general semantics).\n\nlimit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned\nnext_offset as the next call's offset to page past the cap. Under a\nrestrictive OPENPROJECT_READ_PROJECTS, total reflects only the allowed\nprojects already scanned to fill this page, not a full count of all\nmatches — the search stops as soon as it has enough, so an exact total\nwould need an extra full walk. Page until next_offset is null.\n"
+        == "List visible projects with optional name or identifier search.\n\nUnder a restrictive OPENPROJECT_READ_PROJECTS, total reflects only the allowed projects already scanned to fill\nthis page, not a full count of all matches; the search stops as soon as it has enough, so an exact total would\nneed an extra full walk. Page until next_offset is null."
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "search": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
-                "default": None,
-                "title": "Search",
-            },
+            "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
             "offset": {
                 "default": 1,
+                "description": "1-based page number; pass the previous result's next_offset.",
                 "title": "Offset",
                 "type": "integer",
             },
             "limit": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
                 "title": "Limit",
             },
             "select": {
-                "anyOf": [
-                    {
-                        "items": {
-                            "type": "string",
-                        },
-                        "type": "array",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,
+                "description": "Fields to return; a requested unset field comes back as null. Allowed: active, can_delete, can_update, created_at, description, description_length, description_truncated, favorited, id, identifier, name, parent_id, parent_name, public, status, status_explanation, status_explanation_length, status_explanation_truncated, updated_at.",
                 "title": "Select",
             },
         },
@@ -109,7 +84,7 @@ def test_get_project_schema() -> None:
     tool = _tools(create_app(_make_settings()))["get_project"]
     assert (
         tool.description
-        == 'Get a project by id, identifier or name, including its ancestor chain.\n\nproject: identifier (e.g., "my-project"), numeric id (e.g., 7), or name; a unique\npart of a name or identifier also matches.\n\ndescription/status_explanation are returned in full by default (single projects\nare not truncated). Pass ``text_limit`` to cap them at that many characters; when\ncut, ``description_truncated``/``status_explanation_truncated`` are true and\n``description_length``/``status_explanation_length`` report the real length.\n'
+        == "Get a project by id, identifier or name, including its ancestor chain.\n\ndescription/status_explanation are returned in full by default (single projects\nare not truncated). Pass ``text_limit`` to cap them at that many characters; when\ncut, ``description_truncated``/``status_explanation_truncated`` are true and\n``description_length``/``status_explanation_length`` report the real length.\n"
     )
     assert tool.output_schema == {
         "properties": {
@@ -332,28 +307,11 @@ def test_get_project_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "project": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Project",
             },
-            "text_limit": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
-                "default": None,
-                "title": "Text Limit",
-            },
+            "text_limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Text Limit"},
         },
         "required": ["project"],
         "title": "get_projectArguments",
@@ -726,16 +684,10 @@ def test_get_project_admin_context_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "project": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Project",
-            },
+            }
         },
         "required": ["project"],
         "title": "get_project_admin_contextArguments",
@@ -748,7 +700,10 @@ def test_get_project_admin_context_schema() -> None:
 
 def test_get_project_configuration_schema() -> None:
     tool = _tools(create_app(_make_settings()))["get_project_configuration"]
-    assert tool.description == "Return project-scoped configuration such as internal comment support."
+    assert (
+        tool.description
+        == "Return a project's configuration: get_instance_configuration's fields plus enabled_internal_comments."
+    )
     assert tool.output_schema == {
         "properties": {
             "project_id": {
@@ -880,16 +835,10 @@ def test_get_project_configuration_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "project": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Project",
-            },
+            }
         },
         "required": ["project"],
         "title": "get_project_configurationArguments",
@@ -904,96 +853,56 @@ def test_create_project_schema() -> None:
     tool = _tools(create_app(_make_settings()))["create_project"]
     assert (
         tool.description
-        == "Prepare or create a project.\n\nA rejected validation preview is not a tool error; inspect `ready` and\n`validation_errors` in the result rather than the MCP error envelope.\n"
+        == "Create a project.\n\nOmitted optional fields are not sent, so OpenProject's defaults apply.\nA rejected validation preview is not a tool error; inspect `ready` and\n`validation_errors` in the result rather than the MCP error envelope.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "name": {
-                "title": "Name",
-                "type": "string",
-            },
+            "name": {"description": "Display name, at most 255 characters.", "title": "Name", "type": "string"},
             "identifier": {
+                "description": 'URL identifier such as "my-proj": letters, digits, ".", "_" and "-".',
                 "title": "Identifier",
                 "type": "string",
             },
             "description": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Markdown text.",
                 "title": "Description",
             },
             "public": {
-                "anyOf": [
-                    {
-                        "type": "boolean",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "boolean"}, {"type": "null"}],
                 "default": None,
+                "description": "Whether the project is public.",
                 "title": "Public",
             },
             "active": {
-                "anyOf": [
-                    {
-                        "type": "boolean",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "boolean"}, {"type": "null"}],
                 "default": None,
+                "description": "false means archived.",
                 "title": "Active",
             },
             "status": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Status title, any case, as listed in get_project_admin_context's available_statuses.",
                 "title": "Status",
             },
             "status_explanation": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Markdown text explaining the status.",
                 "title": "Status Explanation",
             },
             "parent": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Parent project identifier, id, or name; omit for a top-level project.",
                 "title": "Parent",
             },
             "confirm": {
                 "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
                 "title": "Confirm",
                 "type": "boolean",
             },
@@ -1021,107 +930,61 @@ def test_copy_project_schema() -> None:
     tool = _tools(create_app(_make_settings()))["copy_project"]
     assert (
         tool.description
-        == "Prepare or copy an existing project into a new project.\n\nA rejected validation preview is not a tool error; inspect `ready` and\n`validation_errors` in the result rather than the MCP error envelope.\n"
+        == "Copy an existing project into a new project.\n\nname, identifier and the optional fields describe the new project. A confirmed\ncopy starts a background job; poll get_job_status with the returned job_status_id.\nA rejected validation preview is not a tool error; inspect `ready` and\n`validation_errors` in the result rather than the MCP error envelope.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "source_project": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Source Project",
             },
-            "name": {
-                "title": "Name",
-                "type": "string",
-            },
+            "name": {"description": "Display name, at most 255 characters.", "title": "Name", "type": "string"},
             "identifier": {
+                "description": 'URL identifier such as "my-proj": letters, digits, ".", "_" and "-".',
                 "title": "Identifier",
                 "type": "string",
             },
             "description": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Markdown text.",
                 "title": "Description",
             },
             "public": {
-                "anyOf": [
-                    {
-                        "type": "boolean",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "boolean"}, {"type": "null"}],
                 "default": None,
+                "description": "Whether the project is public.",
                 "title": "Public",
             },
             "active": {
-                "anyOf": [
-                    {
-                        "type": "boolean",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "boolean"}, {"type": "null"}],
                 "default": None,
+                "description": "false means archived.",
                 "title": "Active",
             },
             "status": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Status title, any case, as listed in get_project_admin_context's available_statuses.",
                 "title": "Status",
             },
             "status_explanation": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Markdown text explaining the status.",
                 "title": "Status Explanation",
             },
             "parent": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Parent project identifier, id, or name; omit for a top-level project.",
                 "title": "Parent",
             },
             "confirm": {
                 "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
                 "title": "Confirm",
                 "type": "boolean",
             },
@@ -1285,123 +1148,67 @@ def test_update_project_schema() -> None:
     tool = _tools(create_app(_make_settings()))["update_project"]
     assert (
         tool.description
-        == "Prepare or update a project.\n\nPass 'none' to parent to make the project top-level (remove its parent).\nA rejected validation preview is not a tool error; inspect `ready` and\n`validation_errors` in the result rather than the MCP error envelope.\n"
+        == "Update a project.\n\nOmitted fields stay unchanged.\nA rejected validation preview is not a tool error; inspect `ready` and\n`validation_errors` in the result rather than the MCP error envelope.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "project": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Project",
             },
             "name": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Display name, at most 255 characters.",
                 "title": "Name",
             },
             "identifier": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": 'URL identifier such as "my-proj": letters, digits, ".", "_" and "-".',
                 "title": "Identifier",
             },
             "description": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": 'Markdown text; "" clears it.',
                 "title": "Description",
             },
             "public": {
-                "anyOf": [
-                    {
-                        "type": "boolean",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "boolean"}, {"type": "null"}],
                 "default": None,
+                "description": "Whether the project is public.",
                 "title": "Public",
             },
             "active": {
-                "anyOf": [
-                    {
-                        "type": "boolean",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "boolean"}, {"type": "null"}],
                 "default": None,
+                "description": "false means archived.",
                 "title": "Active",
             },
             "status": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Status title, any case, as listed in get_project_admin_context's available_statuses.",
                 "title": "Status",
             },
             "status_explanation": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": 'Markdown text explaining the status; "" clears it.',
                 "title": "Status Explanation",
             },
             "parent": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Parent project identifier, id, or name; 'none' makes the project top-level.",
                 "title": "Parent",
             },
             "confirm": {
                 "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
                 "title": "Confirm",
                 "type": "boolean",
             },
@@ -1428,23 +1235,21 @@ def test_update_project_schema() -> None:
 
 def test_delete_project_schema() -> None:
     tool = _tools(create_app(_make_settings()))["delete_project"]
-    assert tool.description == "Prepare or delete a project."
+    assert (
+        tool.description
+        == "Delete a project and its subprojects (admin operation).\n\nOpenProject archives them at once and deletes them in a background job, with their work packages,\nmemberships, versions, time entries, news, wiki, forums, meetings, documents and storage links; this\ncannot be undone. OpenProject also tries to delete storage project folders managed automatically, with\ntheir files. Unless the project is already archived, rejected while work packages of other projects use\none of their versions.\n"
+    )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "project": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Project",
             },
             "confirm": {
                 "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
                 "title": "Confirm",
                 "type": "boolean",
             },
@@ -1655,16 +1460,10 @@ def test_get_my_project_access_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "project": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Project",
-            },
+            }
         },
         "required": ["project"],
         "title": "get_my_project_accessArguments",
@@ -2035,56 +1834,33 @@ def test_list_project_storages_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_project_storages"]
     assert (
         tool.description
-        == "List a project's links to configured external file storages, optionally filtered to one project.\n\nRead-only in OpenProject's API -- no create/update/delete endpoint exists\nfor this resource; manage the underlying connection with the storages\ntools instead.\n\nselect fields: id, project, storage_name, project_folder_mode (see server\ninstructions for select's general semantics).\n\nlimit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned\nnext_offset as the next call's offset to page past the cap.\n"
+        == "List a project's links to configured external file storages, optionally filtered to one project.\n\nRead-only in OpenProject's API -- no create/update/delete endpoint exists\nfor this resource; manage the underlying connection with the storages\ntools instead.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "project": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Project",
             },
             "offset": {
                 "default": 1,
+                "description": "1-based page number; pass the previous result's next_offset.",
                 "title": "Offset",
                 "type": "integer",
             },
             "limit": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
                 "title": "Limit",
             },
             "select": {
-                "anyOf": [
-                    {
-                        "items": {
-                            "type": "string",
-                        },
-                        "type": "array",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,
+                "description": "Fields to return; a requested unset field comes back as null. Allowed: created_at, id, project, project_folder_mode, project_id, storage_id, storage_name, updated_at.",
                 "title": "Select",
             },
         },
@@ -2606,28 +2382,12 @@ def test_get_project_work_package_context_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "project": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Project",
             },
             "type": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
                 "title": "Type",
             },
@@ -2643,10 +2403,7 @@ def test_get_project_work_package_context_schema() -> None:
 
 def test_set_project_favorite_schema() -> None:
     tool = _tools(create_app(_make_settings()))["set_project_favorite"]
-    assert (
-        tool.description
-        == 'Prepare or mark/unmark a project as a favorite; only writes when called again with confirm=true.\n\nproject: identifier (e.g., "my-project"), numeric id (e.g., 7), or name; a unique\npart of a name or identifier also matches.\nfavorite=true marks it as a favorite; favorite=false removes it.\n'
-    )
+    assert tool.description == "Mark or unmark a project as a favorite. Requires OpenProject 17.0 or later."
     assert tool.output_schema == {
         "properties": {
             "action": {
@@ -2696,22 +2453,18 @@ def test_set_project_favorite_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "project": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Project",
             },
             "favorite": {
+                "description": "true adds the project to favorites, false removes it.",
                 "title": "Favorite",
                 "type": "boolean",
             },
             "confirm": {
                 "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
                 "title": "Confirm",
                 "type": "boolean",
             },

@@ -9,10 +9,12 @@ them directly from `openproject_ce_mcp.tools`.
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from mcp.server.mcpserver import Context
 
 from .models import ViewDetail, ViewListResult, ViewSummary
-from .tool_types import IdOrName
+from .tool_params import Limit, Offset, OptionalProjectRef, select_field
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
     _validate_list_query_params,
@@ -26,22 +28,17 @@ from .tools_validation import (
 @register_tool
 async def list_views(
     ctx: Context,
-    project: IdOrName | None = None,
+    project: OptionalProjectRef = None,
     type: str | None = None,
     search: str | None = None,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(ViewSummary)] = None,
 ) -> ViewListResult:
     """List saved OpenProject views, optionally filtered by project, view subtype, or name search.
 
-    select fields: id, name (see server instructions for select's general semantics).
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap. total is only
-    the count of allowed views returned on THIS page, not a full count of all
-    matches — the search stops as soon as it has enough, so an exact total
-    would need an extra full walk. Page until next_offset is null.
+    total is only the count of allowed views returned on THIS page, not a full count of all matches; the search
+    stops as soon as it has enough, so an exact total would need an extra full walk. Page until next_offset is null.
     """
     client = _client_from_context(ctx)
     safe_project = _validate_optional_project_ref(project)

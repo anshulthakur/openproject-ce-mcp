@@ -16,8 +16,10 @@ function).
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from mcp.server.mcpserver import Context
-from pydantic import StrictInt
+from pydantic import Field, StrictInt
 
 from .models import (
     UserNonWorkingTimeListResult,
@@ -26,6 +28,7 @@ from .models import (
     UserWorkingHoursSummary,
     UserWorkingHoursWriteResult,
 )
+from .tool_params import Confirm, Limit, Offset
 from .tool_types import IdOrName
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
@@ -39,14 +42,21 @@ from .tools_validation import (
     _validate_required_date,
 )
 
+_USER_REF = '"me", a numeric user id, or a login.'
+_HOURS = "Hours that day, 0 to 24; at least one day must be above 0."
+# OpenProject requires every day on create, and 17.3 to 17.8 answer a missing
+# one with a raw 500 instead of a validation error, so an omitted day is sent as 0.
+_NEW_HOURS = "Hours that day, 0 to 24; omitted means 0 (not a working day). At least one day must be above 0."
+_AVAILABILITY = "Percentage of the working time dedicated to project work: pass a whole number 0 to 100."
+
 
 @register_tool
 async def list_user_non_working_times(
     ctx: Context,
     user_ref: IdOrName,
     year: int | None = None,
-    offset: int = 1,
-    limit: int | None = None,
+    offset: Offset = 1,
+    limit: Limit = None,
 ) -> UserNonWorkingTimeListResult:
     """List a user's per-user non-working-time date ranges (e.g. vacation),
     distinct from the instance-wide non-working days (list_non_working_days).
@@ -83,10 +93,9 @@ async def create_user_non_working_time(
     user_ref: IdOrName,
     start_date: str,
     end_date: str,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> UserNonWorkingTimeWriteResult:
-    """Prepare or create a non-working-time date range for a user; only
-    writes when called again with confirm=true.
+    """Create a non-working-time date range for a user.
 
     Requires OpenProject 17.3+. Same self-service-or-manage_working_times
     authorization as list_user_non_working_times.
@@ -110,10 +119,9 @@ async def update_user_non_working_time(
     non_working_time_id: int,
     start_date: str | None = None,
     end_date: str | None = None,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> UserNonWorkingTimeWriteResult:
-    """Prepare or update a user's non-working-time date range; only writes
-    when called again with confirm=true.
+    """Update a user's non-working-time date range.
 
     Requires OpenProject 17.3+. Same authorization as
     list_user_non_working_times. No single-item GET exists on OpenProject's
@@ -138,10 +146,9 @@ async def delete_user_non_working_time(
     ctx: Context,
     user_ref: IdOrName,
     non_working_time_id: int,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> UserNonWorkingTimeWriteResult:
-    """Prepare or delete a user's non-working-time date range; only deletes
-    when called again with confirm=true.
+    """Delete a user's non-working-time date range; this cannot be undone.
 
     Requires OpenProject 17.3+. Same authorization as
     list_user_non_working_times.
@@ -156,8 +163,8 @@ async def delete_user_non_working_time(
 async def list_user_working_hours(
     ctx: Context,
     user_ref: IdOrName,
-    offset: int = 1,
-    limit: int | None = None,
+    offset: Offset = 1,
+    limit: Limit = None,
 ) -> UserWorkingHoursListResult:
     """List a user's recurring weekly working-hours schedules, ordered by
     valid_from descending (most recent first).
@@ -184,8 +191,8 @@ async def list_user_working_hours(
 @register_tool
 async def get_user_working_hours(
     ctx: Context,
-    user_ref: IdOrName,
-    working_hours_id: int,
+    user_ref: Annotated[IdOrName, Field(description=_USER_REF)],
+    working_hours_id: Annotated[int, Field(description="Schedule entry id, from list_user_working_hours.")],
 ) -> UserWorkingHoursSummary:
     """Get a single working-hours schedule entry for a user.
 
@@ -201,33 +208,25 @@ async def get_user_working_hours(
 @register_tool
 async def create_user_working_hours(
     ctx: Context,
-    user_ref: IdOrName,
-    valid_from: str,
-    monday_hours: float | None = None,
-    tuesday_hours: float | None = None,
-    wednesday_hours: float | None = None,
-    thursday_hours: float | None = None,
-    friday_hours: float | None = None,
-    saturday_hours: float | None = None,
-    sunday_hours: float | None = None,
-    availability_factor: StrictInt | None = None,
-    confirm: bool = False,
+    user_ref: Annotated[IdOrName, Field(description=_USER_REF)],
+    valid_from: Annotated[
+        str, Field(description="Date (YYYY-MM-DD) this schedule version takes effect; unique per user.")
+    ],
+    monday_hours: Annotated[float | None, Field(description=_NEW_HOURS)] = None,
+    tuesday_hours: Annotated[float | None, Field(description=_NEW_HOURS)] = None,
+    wednesday_hours: Annotated[float | None, Field(description=_NEW_HOURS)] = None,
+    thursday_hours: Annotated[float | None, Field(description=_NEW_HOURS)] = None,
+    friday_hours: Annotated[float | None, Field(description=_NEW_HOURS)] = None,
+    saturday_hours: Annotated[float | None, Field(description=_NEW_HOURS)] = None,
+    sunday_hours: Annotated[float | None, Field(description=_NEW_HOURS)] = None,
+    availability_factor: Annotated[StrictInt | None, Field(description=_AVAILABILITY)] = None,
+    confirm: Confirm = False,
 ) -> UserWorkingHoursWriteResult:
-    """Prepare or create a new weekly working-hours schedule version for a
-    user, effective from valid_from; only writes when called again with
-    confirm=true.
+    """Create a new weekly working-hours schedule version for a user, effective from valid_from.
 
     Requires OpenProject 17.3+. Same self-service-or-manage_working_times
-    authorization as list_user_working_hours.
-
-    user_ref: "me" for the current user, a numeric user id, or a login.
-    valid_from: ISO 8601 date (YYYY-MM-DD) this schedule version takes effect.
-    *_hours: hours worked on that weekday; a weekday you omit is treated as
-    0 (not a working day) -- OpenProject requires every weekday to have a
-    value on create, so this MCP fills in 0 for you rather than sending an
-    incomplete schedule.
-    availability_factor: percentage of the working time dedicated to project
-    work, a whole number 0 to 100 (OpenProject's default: 100).
+    authorization as list_user_working_hours. The earlier version keeps
+    applying to the dates before valid_from.
     """
     client = _client_from_context(ctx)
     safe_user = _validate_ref(user_ref, field_name="user_ref", max_length=100)
@@ -253,26 +252,27 @@ async def create_user_working_hours(
 @register_tool
 async def update_user_working_hours(
     ctx: Context,
-    user_ref: IdOrName,
-    working_hours_id: int,
-    valid_from: str | None = None,
-    monday_hours: float | None = None,
-    tuesday_hours: float | None = None,
-    wednesday_hours: float | None = None,
-    thursday_hours: float | None = None,
-    friday_hours: float | None = None,
-    saturday_hours: float | None = None,
-    sunday_hours: float | None = None,
-    availability_factor: StrictInt | None = None,
-    confirm: bool = False,
+    user_ref: Annotated[IdOrName, Field(description=_USER_REF)],
+    working_hours_id: Annotated[int, Field(description="Schedule entry id, from list_user_working_hours.")],
+    valid_from: Annotated[
+        str | None,
+        Field(description="New start date (YYYY-MM-DD) of this entry; unique per user."),
+    ] = None,
+    monday_hours: Annotated[float | None, Field(description=_HOURS)] = None,
+    tuesday_hours: Annotated[float | None, Field(description=_HOURS)] = None,
+    wednesday_hours: Annotated[float | None, Field(description=_HOURS)] = None,
+    thursday_hours: Annotated[float | None, Field(description=_HOURS)] = None,
+    friday_hours: Annotated[float | None, Field(description=_HOURS)] = None,
+    saturday_hours: Annotated[float | None, Field(description=_HOURS)] = None,
+    sunday_hours: Annotated[float | None, Field(description=_HOURS)] = None,
+    availability_factor: Annotated[StrictInt | None, Field(description=_AVAILABILITY)] = None,
+    confirm: Confirm = False,
 ) -> UserWorkingHoursWriteResult:
-    """Prepare or update a user's working-hours schedule entry; only writes
-    when called again with confirm=true.
+    """Correct an existing working-hours schedule entry in place; omitted fields stay unchanged.
 
-    Requires OpenProject 17.3+. Same authorization as list_user_working_hours.
-
-    availability_factor: percentage of the working time dedicated to project
-    work, a whole number 0 to 100.
+    Requires OpenProject 17.3+. Same authorization as list_user_working_hours. The entry applies from its
+    valid_from until the next entry's; to change a schedule from a later date on, add a new entry with
+    create_user_working_hours instead, which keeps the earlier one for the dates before.
     """
     client = _client_from_context(ctx)
     safe_user = _validate_ref(user_ref, field_name="user_ref", max_length=100)
@@ -302,12 +302,12 @@ async def delete_user_working_hours(
     ctx: Context,
     user_ref: IdOrName,
     working_hours_id: int,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> UserWorkingHoursWriteResult:
-    """Prepare or delete a user's working-hours schedule entry; only deletes
-    when called again with confirm=true.
+    """Delete a user's working-hours schedule entry; this cannot be undone.
 
-    Requires OpenProject 17.3+. Same authorization as list_user_working_hours.
+    Requires OpenProject 17.3+. Same authorization as list_user_working_hours. For the dates it covered, the
+    previous entry applies again.
     """
     client = _client_from_context(ctx)
     safe_user = _validate_ref(user_ref, field_name="user_ref", max_length=100)

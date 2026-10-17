@@ -25,9 +25,11 @@ here, not the gating metadata.
 from __future__ import annotations
 
 import base64
+from typing import Annotated
 
 from mcp.server.mcpserver import Context
 from mcp.types import ImageContent, TextContent
+from pydantic import Field
 
 from .models import (
     AttachmentContentOutcome,
@@ -39,6 +41,7 @@ from .models import (
     FileLinkWriteResult,
 )
 from .presentation import ContentBundle
+from .tool_params import Confirm, Limit, Offset, WorkPackageRef, select_field
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
     _validate_limit,
@@ -121,22 +124,14 @@ async def get_attachment_content(
 @register_tool
 async def list_work_package_attachments(
     ctx: Context,
-    work_package_id: int | str,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    work_package_id: WorkPackageRef,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(AttachmentSummary)] = None,
     include_total_size: bool = False,
     include_images: bool = False,
 ) -> AttachmentListResult | ContentBundle:
     """List attachments on a work package.
-
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
-
-    select fields: id, title, file_name, description (see server instructions
-    for select's general semantics).
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap.
 
     include_total_size=true sums file_size_bytes across every attachment
     (independent of limit/offset) — OpenProject's attachments endpoint
@@ -186,14 +181,20 @@ async def get_attachment(
 @register_tool
 async def create_work_package_attachment(
     ctx: Context,
-    work_package_id: int | str,
-    file_path: str,
-    description: str | None = None,
-    confirm: bool = False,
+    work_package_id: WorkPackageRef,
+    file_path: Annotated[
+        str,
+        Field(
+            description="Path on the MCP server's machine, inside OPENPROJECT_ATTACHMENT_ROOT; uploaded under its file name."
+        ),
+    ],
+    description: Annotated[str | None, Field(description="Markdown text stored with the attachment.")] = None,
+    confirm: Confirm = False,
 ) -> AttachmentWriteResult:
-    """Prepare or upload an attachment to a work package.
+    """Upload a local file as an attachment to a work package.
 
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
+    The preview checks that the file exists inside OPENPROJECT_ATTACHMENT_ROOT, is not a credential or
+    configuration file, and fits OpenProject's maximum attachment size.
     """
     client = _client_from_context(ctx)
     safe_work_package_id = _validate_work_package_ref(work_package_id)
@@ -212,10 +213,10 @@ async def create_work_package_attachment(
 @register_tool
 async def delete_attachment(
     ctx: Context,
-    attachment_id: int,
-    confirm: bool = False,
+    attachment_id: Annotated[int, Field(description="Attachment id, from list_work_package_attachments.")],
+    confirm: Confirm = False,
 ) -> AttachmentWriteResult:
-    """Prepare or delete an attachment."""
+    """Delete an attachment; this cannot be undone."""
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(attachment_id, field_name="attachment_id")
     return await _run_tool(client.attachment.delete(attachment_id=safe_id, confirm=confirm))
@@ -224,20 +225,14 @@ async def delete_attachment(
 @register_tool
 async def list_work_package_file_links(
     ctx: Context,
-    work_package_id: int | str,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    work_package_id: WorkPackageRef,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(FileLinkSummary)] = None,
 ) -> FileLinkListResult:
     """List Nextcloud file links attached to a work package (Community Edition).
 
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
-
-    select fields: id, title (see server instructions for select's general semantics).
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap.
-    """
+    For files uploaded to OpenProject itself, use list_work_package_attachments."""
     client = _client_from_context(ctx)
     safe_id = _validate_work_package_ref(work_package_id)
     safe_offset = _validate_offset(offset)
@@ -249,10 +244,10 @@ async def list_work_package_file_links(
 @register_tool
 async def delete_file_link(
     ctx: Context,
-    file_link_id: int,
-    confirm: bool = False,
+    file_link_id: Annotated[int, Field(description="File link id, from list_work_package_file_links.")],
+    confirm: Confirm = False,
 ) -> FileLinkWriteResult:
-    """Prepare or delete a Nextcloud file link."""
+    """Delete a file link; this cannot be undone, but the file itself stays in the external storage."""
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(file_link_id, field_name="file_link_id")
     return await _run_tool(client.file_link.delete(safe_id, confirm=confirm))

@@ -36,6 +36,7 @@ from __future__ import annotations
 from mcp.server.mcpserver import Context
 
 from .models import WorkPackageListResult
+from .tool_params import Limit, Offset
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import _validate_limit, _validate_offset, _validate_positive_int
 
@@ -44,8 +45,8 @@ from .tools_validation import _validate_limit, _validate_offset, _validate_posit
 async def execute_query(
     ctx: Context,
     query_id: int,
-    offset: int = 1,
-    limit: int | None = None,
+    offset: Offset = 1,
+    limit: Limit = None,
 ) -> WorkPackageListResult:
     """Execute a saved OpenProject query by id and return its resolved work packages.
 
@@ -59,9 +60,6 @@ async def execute_query(
     still filtered against this MCP's own OPENPROJECT_READ_PROJECTS allowlist
     before being returned, since the query itself executes with the API
     token's full server-side permissions.
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap.
     """
     client = _client_from_context(ctx)
     safe_query_id = _validate_positive_int(query_id, field_name="query_id")

@@ -16,7 +16,7 @@ from mcp import types
 from mcp.client import Client
 
 import openproject_ce_mcp.tools_runtime as tools_runtime
-from openproject_ce_mcp import tools_meetings
+from openproject_ce_mcp import tools, tools_meetings
 from openproject_ce_mcp.strict_mcpserver import StrictMCPServer
 
 
@@ -45,6 +45,7 @@ async def _call(recorder: _Recorder, arguments: dict, tool: str = "create_meetin
         server,
         names=[tools_meetings.create_meeting.__name__, tools_meetings.update_meeting.__name__],
         hide_active=False,
+        annotations=tools.TOOL_ANNOTATIONS,
     )
     async with Client(server, mode="legacy") as client:
         recorder.requests.clear()

@@ -47,82 +47,37 @@ def test_list_documents_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_documents"]
     assert (
         tool.description
-        == "List documents, optionally filtered to a single project or by title search.\n\nselect fields: id, title (see server instructions for select's general semantics).\n\nlimit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned\nnext_offset as the next call's offset to page past the cap. total is only\nthe count of allowed documents returned on THIS page, not a full count of\nall matches — the search stops as soon as it has enough, so an exact\ntotal would need an extra full walk. Page until next_offset is null.\n\ntext_limit caps each document's description at that many characters\n(default: the server's configured OPENPROJECT_TEXT_LIMIT, NOT unlimited --\nunlike get_document's single-item default). When text is cut,\ndescription_truncated is true and description_length reports the real\nlength.\n"
+        == "List documents, optionally filtered to a single project or by title search.\n\ntotal is only the count of allowed documents returned on THIS page, not a full count of all matches; the search\nstops as soon as it has enough, so an exact total would need an extra full walk. Page until next_offset is null.\n\ntext_limit caps each document's description at that many characters\n(default: the server's configured OPENPROJECT_TEXT_LIMIT, NOT unlimited --\nunlike get_document's single-item default). When text is cut,\ndescription_truncated is true and description_length reports the real\nlength.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "project": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Project",
             },
-            "search": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
-                "default": None,
-                "title": "Search",
-            },
+            "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
             "offset": {
                 "default": 1,
+                "description": "1-based page number; pass the previous result's next_offset.",
                 "title": "Offset",
                 "type": "integer",
             },
             "limit": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
                 "title": "Limit",
             },
             "select": {
-                "anyOf": [
-                    {
-                        "items": {
-                            "type": "string",
-                        },
-                        "type": "array",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,
+                "description": "Fields to return; a requested unset field comes back as null. Allowed: attachment_count, can_update, created_at, description, description_length, description_truncated, id, project, project_id, title.",
                 "title": "Select",
             },
-            "text_limit": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
-                "default": None,
-                "title": "Text Limit",
-            },
+            "text_limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Text Limit"},
         },
         "title": "list_documentsArguments",
         "type": "object",
@@ -261,40 +216,30 @@ def test_get_document_schema() -> None:
 
 def test_update_document_schema() -> None:
     tool = _tools(create_app(_make_settings()))["update_document"]
-    assert tool.description == "Prepare or update a document."
+    assert tool.description == "Update a document. Omitted fields stay unchanged."
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "document_id": {
+                "description": "Numeric document id, as returned by list_documents.",
                 "title": "Document Id",
                 "type": "integer",
             },
             "title": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "At most 255 characters.",
                 "title": "Title",
             },
             "description": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": 'Document text; "" clears it.',
                 "title": "Description",
             },
             "confirm": {
                 "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
                 "title": "Confirm",
                 "type": "boolean",
             },
@@ -312,82 +257,37 @@ def test_list_news_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_news"]
     assert (
         tool.description
-        == "List news entries, optionally filtered by project or title/summary search.\n\nselect fields: id, title (see server instructions for select's general semantics).\n\nlimit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned\nnext_offset as the next call's offset to page past the cap. total is only\nthe count of allowed news entries returned on THIS page, not a full\ncount of all matches — the search stops as soon as it has enough, so an\nexact total would need an extra full walk. Page until next_offset is\nnull.\n\ntext_limit caps each entry's summary/description at that many characters\n(default: the server's configured OPENPROJECT_TEXT_LIMIT, NOT unlimited --\nunlike get_news's single-item default). When text is cut,\ndescription_truncated is true and description_length reports the real\nlength.\n"
+        == "List news entries, optionally filtered by project or title/summary search.\n\ntotal is only the count of allowed news entries returned on THIS page, not a full count of all matches; the\nsearch stops as soon as it has enough, so an exact total would need an extra full walk. Page until next_offset\nis null.\n\ntext_limit caps each entry's summary/description at that many characters\n(default: the server's configured OPENPROJECT_TEXT_LIMIT, NOT unlimited --\nunlike get_news's single-item default). When text is cut,\ndescription_truncated is true and description_length reports the real\nlength.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "project": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Project",
             },
-            "search": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
-                "default": None,
-                "title": "Search",
-            },
+            "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
             "offset": {
                 "default": 1,
+                "description": "1-based page number; pass the previous result's next_offset.",
                 "title": "Offset",
                 "type": "integer",
             },
             "limit": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
                 "title": "Limit",
             },
             "select": {
-                "anyOf": [
-                    {
-                        "items": {
-                            "type": "string",
-                        },
-                        "type": "array",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,
+                "description": "Fields to return; a requested unset field comes back as null. Allowed: author, can_delete, can_update, created_at, description, description_length, description_truncated, id, project, project_id, summary, title.",
                 "title": "Select",
             },
-            "text_limit": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
-                "default": None,
-                "title": "Text Limit",
-            },
+            "text_limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "Text Limit"},
         },
         "title": "list_newsArguments",
         "type": "object",
@@ -550,51 +450,31 @@ def test_get_news_schema() -> None:
 
 def test_create_news_schema() -> None:
     tool = _tools(create_app(_make_settings()))["create_news"]
-    assert tool.description == "Prepare or create a news entry inside a project."
+    assert tool.description == "Create a news entry inside a project."
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "project": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Project",
             },
-            "title": {
-                "title": "Title",
-                "type": "string",
-            },
+            "title": {"description": "At most 255 characters.", "title": "Title", "type": "string"},
             "summary": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Short plain text, at most 500 characters.",
                 "title": "Summary",
             },
             "description": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Full text in Markdown.",
                 "title": "Description",
             },
             "confirm": {
                 "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
                 "title": "Confirm",
                 "type": "boolean",
             },
@@ -610,52 +490,36 @@ def test_create_news_schema() -> None:
 
 def test_update_news_schema() -> None:
     tool = _tools(create_app(_make_settings()))["update_news"]
-    assert tool.description == "Prepare or update a news entry."
+    assert tool.description == "Update a news entry. Omitted fields stay unchanged."
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "news_id": {
+                "description": "Numeric news id, as returned by list_news.",
                 "title": "News Id",
                 "type": "integer",
             },
             "title": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "At most 255 characters.",
                 "title": "Title",
             },
             "summary": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": 'Short plain text, at most 500 characters; "" clears it.',
                 "title": "Summary",
             },
             "description": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": 'Full text in Markdown; "" clears it.',
                 "title": "Description",
             },
             "confirm": {
                 "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
                 "title": "Confirm",
                 "type": "boolean",
             },
@@ -671,16 +535,18 @@ def test_update_news_schema() -> None:
 
 def test_delete_news_schema() -> None:
     tool = _tools(create_app(_make_settings()))["delete_news"]
-    assert tool.description == "Prepare or delete a news entry."
+    assert tool.description == "Delete a news entry with its comments and attachments; this cannot be undone."
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "news_id": {
+                "description": "Numeric news id, as returned by list_news.",
                 "title": "News Id",
                 "type": "integer",
             },
             "confirm": {
                 "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
                 "title": "Confirm",
                 "type": "boolean",
             },
@@ -816,37 +682,26 @@ def test_list_work_package_wiki_links_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_work_package_wiki_links"]
     assert (
         tool.description
-        == "List wiki pages linked to a work package.\n\nRequires OpenProject 17.5+; on an older server this returns a [not_found]\nnaming the required version.\n\nKnown OpenProject server bug (17.5 to at least 17.9.1): this call returns\na [server_error] when none of the work package's links resolves to a wiki\npage the user can see, and on 17.5/17.6 also when the work package has no\nlinks. A link to the internal wiki resolves when its identifier is the\npage's numeric id.\n\nwork_package_id: internal id (e.g., 952) or display_id (e.g., \"PROJ-51\"), not UI display number.\n\nlimit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned\nnext_offset as the next call's offset to page past the cap.\n"
+        == "List wiki pages linked to a work package.\n\nRequires OpenProject 17.5+; on an older server this returns a [not_found]\nnaming the required version.\n\nKnown OpenProject server bug (17.5 to at least 17.9.1): this call returns\na [server_error] when none of the work package's links\nresolves to a wiki page the user can see, and on 17.5/17.6 also when the\nwork package has no links. A link to the internal wiki resolves when its\nidentifier is the page's numeric id.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "work_package_id": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                 "title": "Work Package Id",
             },
             "offset": {
                 "default": 1,
+                "description": "1-based page number; pass the previous result's next_offset.",
                 "title": "Offset",
                 "type": "integer",
             },
             "limit": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
                 "title": "Limit",
             },
         },
@@ -863,32 +718,21 @@ def test_create_work_package_wiki_link_schema() -> None:
     tool = _tools(create_app(_make_settings()))["create_work_package_wiki_link"]
     assert (
         tool.description
-        == "Prepare or create a link from a work package to a wiki page; only\nwrites when called again with confirm=true.\n\nRequires OpenProject 17.7+; on an older server this returns a [not_found]\nnaming the required version.\n\nwork_package_id: internal id (e.g., 952) or display_id (e.g., \"PROJ-51\"), not UI display number.\nidentifier: the target wiki page's identifier at its provider; for the\ninternal wiki, the page's numeric id (the wiki_page_id of get_wiki_page).\nOpenProject accepts any string, but list_work_package_wiki_links fails\nwhile none of a work package's links resolves to a page.\nprovider: the wiki provider's universal identifier (e.g. \"internal\" for\nOpenProject's built-in wiki).\n"
+        == "Create a link from a work package to a wiki page.\n\nRequires OpenProject 17.7+; on an older server this returns a [not_found]\nnaming the required version.\n\nidentifier: the target wiki page's identifier at its provider; for the\ninternal wiki, the page's numeric id (the wiki_page_id of get_wiki_page).\nOpenProject accepts any string, but list_work_package_wiki_links fails\nwhile none of a work package's links resolves to a page.\nprovider: the wiki provider's universal identifier (e.g. \"internal\" for\nOpenProject's built-in wiki).\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "work_package_id": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                 "title": "Work Package Id",
             },
-            "identifier": {
-                "title": "Identifier",
-                "type": "string",
-            },
-            "provider": {
-                "title": "Provider",
-                "type": "string",
-            },
+            "identifier": {"title": "Identifier", "type": "string"},
+            "provider": {"title": "Provider", "type": "string"},
             "confirm": {
                 "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
                 "title": "Confirm",
                 "type": "boolean",
             },
@@ -906,28 +750,20 @@ def test_delete_work_package_wiki_link_schema() -> None:
     tool = _tools(create_app(_make_settings()))["delete_work_package_wiki_link"]
     assert (
         tool.description
-        == "Prepare or delete a work package's wiki page link; only deletes when\ncalled again with confirm=true.\n\nRequires OpenProject 17.6+. On 17.4 or older this returns a [not_found]\nnaming 17.6; on 17.5 the link check below usually fails first with a\n[server_error].\n\nThis tool lists the work package's links first to verify that link_id\nbelongs to work_package_id (an authorization check), so it fails with a\n[server_error] whenever list_work_package_wiki_links does (see there).\n\nOnly relation links (link_type \"relation\") can be deleted. An inline\nlink comes from a wiki link in the work package's description or from a\nwiki page that mentions the work package; this tool rejects it with a\n[validation_error], and the link goes away only when that text changes.\nDeleting needs the \"Manage wiki page links\" permission in the work\npackage's project; without it OpenProject answers 404, which the tool\nreports as a [not_found] naming 17.6, not as [permission_denied].\n\nwork_package_id: internal id (e.g., 952) or display_id (e.g., \"PROJ-51\"), not UI display number\n— used to authorize the delete against that work package's project, since\nOpenProject has no single-resource GET for a wiki page link to discover\nits parent work package from link_id alone.\nlink_id: the wiki page link's own id, from list_work_package_wiki_links.\n"
+        == "Delete a work package's wiki page link; this cannot be undone.\n\nRequires OpenProject 17.6+. On 17.4 or older this returns a [not_found]\nnaming 17.6; on 17.5 the link check below usually fails first with a\n[server_error].\n\nThis tool lists the work package's links first to verify that link_id\nbelongs to work_package_id (an authorization check), so it fails with a\n[server_error] whenever list_work_package_wiki_links does (see there).\n\nOnly relation links (link_type \"relation\") can be deleted. An inline\nlink comes from a wiki link in the work package's description or from a\nwiki page that mentions the work package; this tool rejects it with a\n[validation_error], and the link goes away only when that text changes.\nDeleting needs the \"Manage wiki page links\" permission in the work\npackage's project; without it OpenProject answers 404, which the tool\nreports as a [not_found] naming 17.6, not as [permission_denied].\n\nwork_package_id must be the work package the link belongs to; OpenProject has no single GET for a link,\nso the delete is authorized against that work package's project.\nlink_id: the wiki page link's own id, from list_work_package_wiki_links.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "work_package_id": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                 "title": "Work Package Id",
             },
-            "link_id": {
-                "title": "Link Id",
-                "type": "integer",
-            },
+            "link_id": {"title": "Link Id", "type": "integer"},
             "confirm": {
                 "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
                 "title": "Confirm",
                 "type": "boolean",
             },

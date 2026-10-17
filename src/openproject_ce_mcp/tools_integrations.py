@@ -25,6 +25,7 @@ from .models import (
     GitlabIssueListResult,
     GitlabMergeRequestListResult,
 )
+from .tool_params import WorkPackageRef
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import _validate_positive_int, _validate_work_package_ref
 
@@ -56,11 +57,9 @@ async def get_github_pull_request(
 @register_tool
 async def list_work_package_github_pull_requests(
     ctx: Context,
-    work_package_id: int | str,
+    work_package_id: WorkPackageRef,
 ) -> GithubPullRequestListResult:
     """List all GitHub pull requests linked to a work package.
-
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
 
     Returns every linked pull request in one call -- this endpoint is
     unpaginated on OpenProject's side (no offset/limit parameters exist). An
@@ -76,11 +75,9 @@ async def list_work_package_github_pull_requests(
 @register_tool
 async def list_work_package_gitlab_issues(
     ctx: Context,
-    work_package_id: int | str,
+    work_package_id: WorkPackageRef,
 ) -> GitlabIssueListResult:
     """List all GitLab issues linked to a work package.
-
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
 
     Returns every linked issue in one call -- this endpoint is unpaginated on
     OpenProject's side (no offset/limit parameters exist). An empty result can
@@ -97,11 +94,9 @@ async def list_work_package_gitlab_issues(
 @register_tool
 async def list_work_package_gitlab_merge_requests(
     ctx: Context,
-    work_package_id: int | str,
+    work_package_id: WorkPackageRef,
 ) -> GitlabMergeRequestListResult:
     """List all GitLab merge requests linked to a work package.
-
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
 
     Returns every linked merge request in one call -- this endpoint is
     unpaginated on OpenProject's side (no offset/limit parameters exist). An

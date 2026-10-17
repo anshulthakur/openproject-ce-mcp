@@ -45,37 +45,19 @@ def _tools(mcp) -> dict:
 
 def test_list_categories_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_categories"]
-    assert (
-        tool.description
-        == "List work-package categories configured for a project.\n\nselect fields: id, name (see server instructions for select's general semantics).\n"
-    )
+    assert tool.description == "List work-package categories configured for a project."
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "project": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Project",
             },
             "select": {
-                "anyOf": [
-                    {
-                        "items": {
-                            "type": "string",
-                        },
-                        "type": "array",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,
+                "description": "Fields to return; a requested unset field comes back as null. Allowed: default_assignee, default_assignee_id, id, name, project, project_id.",
                 "title": "Select",
             },
         },
@@ -157,23 +139,11 @@ def test_get_category_schema() -> None:
     }
     assert tool.parameters == {
         "properties": {
-            "category_id": {
-                "title": "Category Id",
-                "type": "integer",
-            },
+            "category_id": {"title": "Category Id", "type": "integer"},
             "project": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Project",
             },
         },

@@ -333,22 +333,16 @@ def test_list_work_package_github_pull_requests_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_work_package_github_pull_requests"]
     assert (
         tool.description
-        == "List all GitHub pull requests linked to a work package.\n\nwork_package_id: internal id (e.g., 952) or display_id (e.g., \"PROJ-51\"), not UI display number.\n\nReturns every linked pull request in one call -- this endpoint is\nunpaginated on OpenProject's side (no offset/limit parameters exist). An\nempty result can mean either no pull requests are linked, or the GitHub\nApp integration isn't configured on this instance; OpenProject's API does\nnot distinguish these cases.\n"
+        == "List all GitHub pull requests linked to a work package.\n\nReturns every linked pull request in one call -- this endpoint is\nunpaginated on OpenProject's side (no offset/limit parameters exist). An\nempty result can mean either no pull requests are linked, or the GitHub\nApp integration isn't configured on this instance; OpenProject's API does\nnot distinguish these cases.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "work_package_id": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                 "title": "Work Package Id",
-            },
+            }
         },
         "required": ["work_package_id"],
         "title": "list_work_package_github_pull_requestsArguments",
@@ -363,22 +357,16 @@ def test_list_work_package_gitlab_issues_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_work_package_gitlab_issues"]
     assert (
         tool.description
-        == "List all GitLab issues linked to a work package.\n\nwork_package_id: internal id (e.g., 952) or display_id (e.g., \"PROJ-51\"), not UI display number.\n\nReturns every linked issue in one call -- this endpoint is unpaginated on\nOpenProject's side (no offset/limit parameters exist). An empty result can\nmean either no issues are linked, or the GitLab integration isn't\nconfigured on this instance; OpenProject's API does not distinguish these\ncases. No single-item get_gitlab_issue tool exists because no such\nendpoint exists upstream -- only this work-package-scoped list.\n"
+        == "List all GitLab issues linked to a work package.\n\nReturns every linked issue in one call -- this endpoint is unpaginated on\nOpenProject's side (no offset/limit parameters exist). An empty result can\nmean either no issues are linked, or the GitLab integration isn't\nconfigured on this instance; OpenProject's API does not distinguish these\ncases. No single-item get_gitlab_issue tool exists because no such\nendpoint exists upstream -- only this work-package-scoped list.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "work_package_id": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                 "title": "Work Package Id",
-            },
+            }
         },
         "required": ["work_package_id"],
         "title": "list_work_package_gitlab_issuesArguments",
@@ -393,22 +381,16 @@ def test_list_work_package_gitlab_merge_requests_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_work_package_gitlab_merge_requests"]
     assert (
         tool.description
-        == "List all GitLab merge requests linked to a work package.\n\nwork_package_id: internal id (e.g., 952) or display_id (e.g., \"PROJ-51\"), not UI display number.\n\nReturns every linked merge request in one call -- this endpoint is\nunpaginated on OpenProject's side (no offset/limit parameters exist). An\nempty result can mean either no merge requests are linked, or the GitLab\nintegration isn't configured on this instance; OpenProject's API does not\ndistinguish these cases. No single-item get_gitlab_merge_request tool\nexists because no such endpoint exists upstream -- only this\nwork-package-scoped list.\n"
+        == "List all GitLab merge requests linked to a work package.\n\nReturns every linked merge request in one call -- this endpoint is\nunpaginated on OpenProject's side (no offset/limit parameters exist). An\nempty result can mean either no merge requests are linked, or the GitLab\nintegration isn't configured on this instance; OpenProject's API does not\ndistinguish these cases. No single-item get_gitlab_merge_request tool\nexists because no such endpoint exists upstream -- only this\nwork-package-scoped list.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "work_package_id": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                 "title": "Work Package Id",
-            },
+            }
         },
         "required": ["work_package_id"],
         "title": "list_work_package_gitlab_merge_requestsArguments",

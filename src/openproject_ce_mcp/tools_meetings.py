@@ -21,7 +21,10 @@ existing tests (`tests/test_trimming.py`) import them directly from
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from mcp.server.mcpserver import Context
+from pydantic import Field
 
 from .models import (
     MeetingAgendaItemListResult,
@@ -41,6 +44,16 @@ from .models import (
     RecurringMeetingOccurrenceWriteResult,
     RecurringMeetingSummary,
     RecurringMeetingWriteResult,
+)
+from .tool_params import (
+    Confirm,
+    Limit,
+    Offset,
+    OptionalProjectRef,
+    OptionalWorkPackageRef,
+    ProjectRef,
+    WorkPackageRef,
+    select_field,
 )
 from .tool_types import IdOrName
 from .tools_runtime import _client_from_context, _run_tool, register_tool
@@ -74,13 +87,37 @@ from .tools_validation import (
 # client-side rather than left to the server's own validation.
 _MEETING_OUTCOME_KINDS = {"information", "decision", "work_package"}
 
+_MEETING_ID = "Meeting id, from list_meetings."
+_MEETING_TITLE = "Meeting title, at most 255 characters."
+_LOCATION = "Free-text location or meeting link, at most 255 characters."
+_START_TIME = "ISO 8601 date-time with offset, e.g. 2026-12-01T09:00:00Z."
+_DURATION = 'ISO 8601 duration in hours and minutes, e.g. "PT1H30M".'
+_MEETING_STATE = 'Meeting state as get_meeting reports it, e.g. "open", "in_progress" or "closed".'
+_SHARING = 'Only for meeting templates: "none", "descendants" or "system"; leave it out for a meeting.'
+# Meeting#notify? reads the series template's flag for an occurrence, and
+# send_emails? gates every invitation, update and cancellation mail on it.
+_NOTIFY = (
+    "true lets OpenProject email the invited participants about this meeting; for an occurrence of a series the "
+    "series' setting applies."
+)
+_SECTION_ID = "Meeting section id, from list_meeting_sections."
+_AGENDA_ITEM_ID = "Agenda item id, from list_meeting_agenda_items."
+_AGENDA_TITLE = "Item title, at most 255 characters."
+_AGENDA_NOTES = "Notes in Markdown, at most 50,000 characters."
+_AGENDA_DURATION = "Planned duration in minutes, 0 to 1440."
+_AGENDA_ITEM_TYPE = (
+    '"simple" (a titled item) or "work_package" (an item for the work package given in work_package_id, which it '
+    "then requires)."
+)
+_RECURRING_MEETING_ID = "Recurring meeting series id, from list_recurring_meetings."
+
 
 @register_tool
 async def list_meetings(
     ctx: Context,
-    project: IdOrName | None = None,
-    offset: int = 1,
-    limit: int | None = None,
+    project: OptionalProjectRef = None,
+    offset: Offset = 1,
+    limit: Limit = None,
 ) -> MeetingListResult:
     """List OpenProject meetings, optionally scoped to a project.
 
@@ -88,12 +125,7 @@ async def list_meetings(
     participant shape used here does not exist on 16.6, which only exposes
     an incompatible legacy "meeting contents" representation.
 
-    project: identifier, name, or numeric id. Omit to list across all
-    readable projects.
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the
-    returned next_offset as the next call's offset to page past the cap.
-    """
+    Omit project to list across all readable projects."""
     client = _client_from_context(ctx)
     safe_project = _validate_optional_project_ref(project)
     safe_offset = _validate_offset(offset)
@@ -102,10 +134,10 @@ async def list_meetings(
 
 
 @register_tool
-async def get_meeting(ctx: Context, meeting_id: int) -> MeetingSummary:
-    """Get a single OpenProject meeting by id.
+async def get_meeting(ctx: Context, meeting_id: Annotated[int, Field(description=_MEETING_ID)]) -> MeetingSummary:
+    """Get a single OpenProject meeting by id: schedule, state, participants and its lock_version.
 
-    Requires OpenProject 17.4+.
+    Requires OpenProject 17.4+. Its agenda comes from list_meeting_sections and list_meeting_agenda_items.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(meeting_id, field_name="meeting_id")
@@ -115,7 +147,7 @@ async def get_meeting(ctx: Context, meeting_id: int) -> MeetingSummary:
 @register_tool
 async def create_meeting(
     ctx: Context,
-    project: IdOrName,
+    project: ProjectRef,
     title: str,
     location: str | None = None,
     start_time: str | None = None,
@@ -123,24 +155,26 @@ async def create_meeting(
     state: str | None = None,
     sharing: str | None = None,
     notify: bool | None = None,
-    participant_user_refs: list[IdOrName] | None = None,
-    confirm: bool = False,
+    participant_user_refs: Annotated[
+        list[IdOrName] | None,
+        Field(
+            description=(
+                "Users to invite (id, login or name). The meeting gets exactly these participants, so name yourself "
+                "to take part; it cannot be empty. No invitation is sent: a new meeting starts as a draft with "
+                "notifications off."
+            )
+        ),
+    ] = None,
+    confirm: Confirm = False,
 ) -> MeetingWriteResult:
-    """Prepare or create an OpenProject meeting; only writes when called
-    again with confirm=true.
+    """Create an OpenProject meeting.
 
     Requires OpenProject 17.4+.
 
-    project: identifier, name, or numeric id — required, every meeting
-    belongs to exactly one project.
     duration: an ISO 8601 duration like "PT1H30M" (hours/minutes only).
-    state and notify cannot be set on create: OpenProject starts every new
-    meeting as a draft with notifications off, so passing either is rejected;
-    set them afterwards with update_meeting.
-    participant_user_refs: the users to invite (numeric id, login, or name).
-    The meeting gets exactly these participants, so name yourself to take
-    part; it cannot be empty. No invitation is sent: a new meeting starts as
-    a draft with notifications off.
+    state and notify cannot be set on create: OpenProject starts a new meeting
+    as a draft with notifications off, so passing either is rejected; set them
+    afterwards with update_meeting.
     """
     client = _client_from_context(ctx)
     safe_project = _validate_project_ref(project)
@@ -168,27 +202,44 @@ async def create_meeting(
 @register_tool
 async def update_meeting(
     ctx: Context,
-    meeting_id: int,
-    title: str | None = None,
-    location: str | None = None,
-    start_time: str | None = None,
-    duration: str | None = None,
-    state: str | None = None,
-    sharing: str | None = None,
-    notify: bool | None = None,
-    participant_user_refs: list[IdOrName] | None = None,
-    lock_version: int | None = None,
-    confirm: bool = False,
+    meeting_id: Annotated[int, Field(description=_MEETING_ID)],
+    title: Annotated[str | None, Field(description=_MEETING_TITLE)] = None,
+    location: Annotated[str | None, Field(description=_LOCATION)] = None,
+    start_time: Annotated[str | None, Field(description=_START_TIME)] = None,
+    duration: Annotated[str | None, Field(description=_DURATION)] = None,
+    state: Annotated[str | None, Field(description=_MEETING_STATE)] = None,
+    sharing: Annotated[str | None, Field(description=_SHARING)] = None,
+    notify: Annotated[bool | None, Field(description=_NOTIFY)] = None,
+    participant_user_refs: Annotated[
+        list[IdOrName] | None,
+        Field(
+            description=(
+                "Rejected: OpenProject 17.4 and 17.5 would add a user a second time and cannot remove anyone, and "
+                "only administrators can read the server version that tells the releases apart. Change the "
+                "participants in OpenProject."
+            )
+        ),
+    ] = None,
+    lock_version: Annotated[
+        int | None,
+        Field(
+            description=(
+                "The lock_version from get_meeting; the update is rejected if the meeting changed since. "
+                "Omit it to skip this check."
+            )
+        ),
+    ] = None,
+    confirm: Confirm = False,
 ) -> MeetingWriteResult:
-    """Prepare or update an OpenProject meeting; only writes when called
-    again with confirm=true.
+    """Update one meeting's details; omitted fields stay unchanged.
 
-    Requires OpenProject 17.4+.
-
-    participant_user_refs is rejected: OpenProject 17.4 and 17.5 would add a
-    user a second time and cannot remove anyone, and only administrators can
-    read the server version that tells the releases apart. Change the
-    participants in OpenProject.
+    Requires OpenProject 17.4+. The meeting's agenda is changed with the agenda item and section tools, and
+    a recurring series' schedule with update_recurring_meeting; for an occurrence of a series this changes
+    only that occurrence. With notifications on, a change of title, time, duration or location emails the
+    invited participants (not for a closed or cancelled meeting). From 17.8, an update that takes a one-time
+    meeting out of draft or turns notifications on also sends the invitations; 17.4 to 17.7 send no invitations
+    on update.
+    Changing participants is not supported: participant_user_refs is rejected.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(meeting_id, field_name="meeting_id")
@@ -227,13 +278,14 @@ async def update_meeting(
 
 
 @register_tool
-async def delete_meeting(ctx: Context, meeting_id: int, confirm: bool = False) -> MeetingWriteResult:
-    """Prepare or delete an OpenProject meeting; only deletes when called
-    again with confirm=true.
+async def delete_meeting(ctx: Context, meeting_id: int, confirm: Confirm = False) -> MeetingWriteResult:
+    """Delete a meeting with its agenda, outcomes, attachments and the time entries logged on it.
 
-    Requires OpenProject 17.4+. The template meeting of a recurring series is
-    rejected, because deleting it would break the series; to delete the whole
-    series with all its occurrences, use delete_recurring_meeting.
+    Requires OpenProject 17.4+. Deleting a one-time meeting cannot be undone. An occurrence of a series is
+    only cancelled; init_recurring_meeting_occurrence restores it, reset to the series template. Invited
+    participants get a cancellation email when the meeting's notifications are on. The template meeting of a
+    recurring series is rejected, because deleting it would break the series. To delete the series with all
+    its occurrences use delete_recurring_meeting.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(meeting_id, field_name="meeting_id")
@@ -244,21 +296,18 @@ async def delete_meeting(ctx: Context, meeting_id: int, confirm: bool = False) -
 async def list_meeting_agenda_items(
     ctx: Context,
     meeting_id: int,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(MeetingAgendaItemSummary)] = None,
     text_limit: int | None = None,
 ) -> MeetingAgendaItemListResult:
-    """List agenda items of an OpenProject meeting.
+    """List the agenda items of one meeting.
 
     Requires OpenProject 17.4+.
 
     This list is unpaginated server-side (OpenProject returns every agenda
     item of the meeting in one response) — offset/limit are applied
     client-side by this MCP.
-
-    select fields: id, title, notes (see server instructions for select's
-    general semantics).
 
     text_limit caps each item's notes at that many characters (default: the
     server's configured OPENPROJECT_TEXT_LIMIT, NOT unlimited). When text is
@@ -280,23 +329,18 @@ async def list_meeting_agenda_items(
 @register_tool
 async def list_work_package_meeting_agenda_items(
     ctx: Context,
-    work_package_id: int | str,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    work_package_id: WorkPackageRef,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(MeetingAgendaItemSummary)] = None,
     text_limit: int | None = None,
 ) -> MeetingAgendaItemListResult:
-    """List meeting agenda items linked to a work package.
+    """List the agenda items, across all meetings, that link a work package.
 
     Requires OpenProject 17.7+.
 
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
-
     This list is unpaginated server-side — offset/limit are applied
     client-side by this MCP.
-
-    select fields: id, title, notes (see server instructions for select's
-    general semantics).
 
     text_limit caps each item's notes at that many characters (default: the
     server's configured OPENPROJECT_TEXT_LIMIT, NOT unlimited). When text is
@@ -316,7 +360,10 @@ async def list_work_package_meeting_agenda_items(
 
 
 @register_tool
-async def get_meeting_agenda_item(ctx: Context, agenda_item_id: int) -> MeetingAgendaItemSummary:
+async def get_meeting_agenda_item(
+    ctx: Context,
+    agenda_item_id: Annotated[int, Field(description="Agenda item id, from list_meeting_agenda_items.")],
+) -> MeetingAgendaItemSummary:
     """Get a single meeting agenda item by id.
 
     Requires OpenProject 17.6+.
@@ -329,22 +376,22 @@ async def get_meeting_agenda_item(ctx: Context, agenda_item_id: int) -> MeetingA
 @register_tool
 async def create_meeting_agenda_item(
     ctx: Context,
-    meeting_id: int,
-    title: str,
-    notes: str | None = None,
-    duration_in_minutes: int | None = None,
-    item_type: str | None = None,
-    work_package_id: int | str | None = None,
-    meeting_section_id: int | None = None,
-    confirm: bool = False,
+    meeting_id: Annotated[int, Field(description=_MEETING_ID)],
+    title: Annotated[str, Field(description="Item title, at most 255 characters; always required here.")],
+    notes: Annotated[str | None, Field(description=_AGENDA_NOTES)] = None,
+    duration_in_minutes: Annotated[int | None, Field(description=_AGENDA_DURATION)] = None,
+    item_type: Annotated[str | None, Field(description=_AGENDA_ITEM_TYPE)] = None,
+    work_package_id: OptionalWorkPackageRef = None,
+    meeting_section_id: Annotated[
+        int | None,
+        Field(description="Section of this meeting to add the item to, from list_meeting_sections; default: the last."),
+    ] = None,
+    confirm: Confirm = False,
 ) -> MeetingAgendaItemWriteResult:
-    """Prepare or create a meeting agenda item; only writes when called
-    again with confirm=true.
+    """Add an item to a meeting's agenda.
 
-    Requires OpenProject 17.6+.
-
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number; optional.
-    meeting_section_id: an existing section's id (from list_meeting_sections); optional.
+    Requires OpenProject 17.6+. Rejected while the meeting is closed. For a work package, its project must be
+    inside OPENPROJECT_WRITE_PROJECTS. To record a result of a discussed item use create_meeting_outcome.
     """
     client = _client_from_context(ctx)
     safe_meeting_id = _validate_positive_int(meeting_id, field_name="meeting_id")
@@ -373,19 +420,27 @@ async def create_meeting_agenda_item(
 @register_tool
 async def update_meeting_agenda_item(
     ctx: Context,
-    agenda_item_id: int,
-    title: str | None = None,
-    notes: str | None = None,
-    duration_in_minutes: int | None = None,
-    item_type: str | None = None,
-    work_package_id: int | str | None = None,
-    meeting_section_id: int | None = None,
-    confirm: bool = False,
+    agenda_item_id: Annotated[int, Field(description=_AGENDA_ITEM_ID)],
+    title: Annotated[str | None, Field(description=_AGENDA_TITLE)] = None,
+    notes: Annotated[str | None, Field(description=_AGENDA_NOTES + ' "" clears them.')] = None,
+    duration_in_minutes: Annotated[int | None, Field(description=_AGENDA_DURATION)] = None,
+    item_type: Annotated[str | None, Field(description=_AGENDA_ITEM_TYPE)] = None,
+    work_package_id: OptionalWorkPackageRef = None,
+    meeting_section_id: Annotated[
+        int | None,
+        Field(
+            description=(
+                "Section to move the item into, from list_meeting_sections: one of the same meeting, or of another "
+                "meeting in the same series."
+            )
+        ),
+    ] = None,
+    confirm: Confirm = False,
 ) -> MeetingAgendaItemWriteResult:
-    """Prepare or update a meeting agenda item; only writes when called
-    again with confirm=true.
+    """Update one agenda item of a meeting; omitted fields stay unchanged.
 
-    Requires OpenProject 17.6+.
+    Requires OpenProject 17.6+. Rejected while the meeting is closed. Each confirmed update also updates the
+    meeting's own timestamp. Outcomes of the item are changed with update_meeting_outcome.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(agenda_item_id, field_name="agenda_item_id")
@@ -422,12 +477,11 @@ async def update_meeting_agenda_item(
 
 @register_tool
 async def delete_meeting_agenda_item(
-    ctx: Context, agenda_item_id: int, confirm: bool = False
+    ctx: Context, agenda_item_id: int, confirm: Confirm = False
 ) -> MeetingAgendaItemWriteResult:
-    """Prepare or delete a meeting agenda item; only deletes when called
-    again with confirm=true.
+    """Delete a meeting agenda item with its outcomes.
 
-    Requires OpenProject 17.6+.
+    Requires OpenProject 17.6+. Rejected while the meeting is closed. This cannot be undone.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(agenda_item_id, field_name="agenda_item_id")
@@ -438,9 +492,9 @@ async def delete_meeting_agenda_item(
 async def list_meeting_outcomes(
     ctx: Context,
     agenda_item_id: int,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(MeetingOutcomeSummary)] = None,
     text_limit: int | None = None,
 ) -> MeetingOutcomeListResult:
     """List outcomes of a meeting agenda item.
@@ -450,9 +504,6 @@ async def list_meeting_outcomes(
 
     This list is unpaginated server-side — offset/limit are applied
     client-side by this MCP.
-
-    select fields: id, kind, notes (see server instructions for select's
-    general semantics).
 
     text_limit caps each outcome's notes at that many characters (default:
     the server's configured OPENPROJECT_TEXT_LIMIT, NOT unlimited). When text
@@ -488,11 +539,10 @@ async def create_meeting_outcome(
     agenda_item_id: int,
     kind: str,
     notes: str | None = None,
-    work_package_id: int | str | None = None,
-    confirm: bool = False,
+    work_package_id: OptionalWorkPackageRef = None,
+    confirm: Confirm = False,
 ) -> MeetingOutcomeWriteResult:
-    """Prepare or create a meeting outcome on an agenda item; only writes
-    when called again with confirm=true.
+    """Create a meeting outcome on an agenda item.
 
     Requires OpenProject 17.6+.
 
@@ -501,8 +551,6 @@ async def create_meeting_outcome(
     with an internal server error rather than a clean validation error).
     "information"-kind outcomes require notes; "work_package"-kind outcomes
     require work_package_id.
-
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number; optional.
     """
     client = _client_from_context(ctx)
     safe_agenda_item_id = _validate_positive_int(agenda_item_id, field_name="agenda_item_id")
@@ -526,11 +574,10 @@ async def update_meeting_outcome(
     outcome_id: int,
     kind: str | None = None,
     notes: str | None = None,
-    work_package_id: int | str | None = None,
-    confirm: bool = False,
+    work_package_id: OptionalWorkPackageRef = None,
+    confirm: Confirm = False,
 ) -> MeetingOutcomeWriteResult:
-    """Prepare or update a meeting outcome; only writes when called again
-    with confirm=true.
+    """Update a meeting outcome.
 
     Requires OpenProject 17.6+.
 
@@ -559,9 +606,8 @@ async def update_meeting_outcome(
 
 
 @register_tool
-async def delete_meeting_outcome(ctx: Context, outcome_id: int, confirm: bool = False) -> MeetingOutcomeWriteResult:
-    """Prepare or delete a meeting outcome; only deletes when called again
-    with confirm=true.
+async def delete_meeting_outcome(ctx: Context, outcome_id: int, confirm: Confirm = False) -> MeetingOutcomeWriteResult:
+    """Delete a meeting outcome; this cannot be undone.
 
     Requires OpenProject 17.6+.
     """
@@ -574,8 +620,8 @@ async def delete_meeting_outcome(ctx: Context, outcome_id: int, confirm: bool = 
 async def list_meeting_sections(
     ctx: Context,
     meeting_id: int,
-    offset: int = 1,
-    limit: int | None = None,
+    offset: Offset = 1,
+    limit: Limit = None,
 ) -> MeetingSectionListResult:
     """List sections of an OpenProject meeting.
 
@@ -592,10 +638,12 @@ async def list_meeting_sections(
 
 
 @register_tool
-async def get_meeting_section(ctx: Context, section_id: int) -> MeetingSectionSummary:
-    """Get a single meeting section by id.
+async def get_meeting_section(
+    ctx: Context, section_id: Annotated[int, Field(description=_SECTION_ID)]
+) -> MeetingSectionSummary:
+    """Get a single meeting section by id: title, position and whether it is the backlog.
 
-    Requires OpenProject 17.6+.
+    Requires OpenProject 17.6+. Its agenda items come from list_meeting_agenda_items.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(section_id, field_name="section_id")
@@ -609,10 +657,9 @@ async def create_meeting_section(
     title: str,
     position: int | None = None,
     backlog: bool | None = None,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> MeetingSectionWriteResult:
-    """Prepare or create a meeting section; only writes when called again
-    with confirm=true.
+    """Create a meeting section.
 
     Requires OpenProject 17.6+.
 
@@ -632,17 +679,17 @@ async def create_meeting_section(
 @register_tool
 async def update_meeting_section(
     ctx: Context,
-    section_id: int,
-    title: str | None = None,
-    position: int | None = None,
-    confirm: bool = False,
+    section_id: Annotated[int, Field(description=_SECTION_ID)],
+    title: Annotated[str | None, Field(description="New section title; it cannot be emptied.")] = None,
+    position: Annotated[
+        int | None, Field(description="New place among the meeting's sections, 1 = first; the others shift.")
+    ] = None,
+    confirm: Confirm = False,
 ) -> MeetingSectionWriteResult:
-    """Prepare or update a meeting section's title/position; only writes
-    when called again with confirm=true.
+    """Rename or move a meeting section; omitted fields stay unchanged.
 
-    Requires OpenProject 17.6+.
-
-    backlog cannot be changed after creation — this tool does not accept it.
+    Requires OpenProject 17.6+. Rejected while the meeting is closed, and for the backlog section. Its agenda
+    items stay in it. backlog cannot be changed after creation; this tool does not accept it.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(section_id, field_name="section_id")
@@ -654,11 +701,11 @@ async def update_meeting_section(
 
 
 @register_tool
-async def delete_meeting_section(ctx: Context, section_id: int, confirm: bool = False) -> MeetingSectionWriteResult:
-    """Prepare or delete a meeting section; only deletes when called again
-    with confirm=true.
+async def delete_meeting_section(ctx: Context, section_id: int, confirm: Confirm = False) -> MeetingSectionWriteResult:
+    """Delete a meeting section with its agenda items and their outcomes (they are not moved).
 
-    Requires OpenProject 17.6+.
+    Requires OpenProject 17.6+. Rejected while the meeting is closed, and for the backlog section. This cannot
+    be undone.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(section_id, field_name="section_id")
@@ -668,20 +715,15 @@ async def delete_meeting_section(ctx: Context, section_id: int, confirm: bool = 
 @register_tool
 async def list_recurring_meetings(
     ctx: Context,
-    project: IdOrName | None = None,
-    offset: int = 1,
-    limit: int | None = None,
+    project: OptionalProjectRef = None,
+    offset: Offset = 1,
+    limit: Limit = None,
 ) -> RecurringMeetingListResult:
     """List OpenProject recurring meeting series, optionally scoped to a project.
 
     Requires OpenProject 17.4+.
 
-    project: identifier, name, or numeric id. Omit to list across all
-    readable projects.
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the
-    returned next_offset as the next call's offset to page past the cap.
-    """
+    Omit project to list across all readable projects."""
     client = _client_from_context(ctx)
     safe_project = _validate_optional_project_ref(project)
     safe_offset = _validate_offset(offset)
@@ -705,37 +747,53 @@ async def get_recurring_meeting(ctx: Context, recurring_meeting_id: int) -> Recu
 @register_tool
 async def create_recurring_meeting(
     ctx: Context,
-    project: IdOrName,
-    title: str,
-    frequency: str,
-    start_time: str,
-    interval: int | None = None,
-    end_after: str | None = None,
-    end_date: str | None = None,
-    iterations: int | None = None,
-    monthly_day: int | None = None,
-    monthly_ordinal: str | None = None,
-    monthly_weekday: str | None = None,
-    confirm: bool = False,
+    project: ProjectRef,
+    title: Annotated[str, Field(description="Series title, at most 255 characters.")],
+    frequency: Annotated[
+        str,
+        Field(
+            description=(
+                '"daily", "working_days", "weekly", and from 17.5 "monthly_day_of_month" or "monthly_nth_weekday".'
+            )
+        ),
+    ],
+    start_time: Annotated[
+        str, Field(description="First occurrence, ISO 8601 date-time with offset; its time of day is the series'.")
+    ],
+    interval: Annotated[
+        int | None, Field(description='Every n-th day, week or month, 1 to 100; "working_days" always uses 1.')
+    ] = None,
+    end_after: Annotated[
+        str | None,
+        Field(
+            description='"never" (default), "specific_date" (requires end_date) or "iterations" (requires iterations).'
+        ),
+    ] = None,
+    end_date: Annotated[
+        str | None,
+        Field(description='Last date (YYYY-MM-DD); required for end_after "specific_date".'),
+    ] = None,
+    iterations: Annotated[
+        int | None, Field(description='Number of occurrences, 1 to 1000; required for end_after "iterations".')
+    ] = None,
+    monthly_day: Annotated[
+        int | None,
+        Field(description='Day of month, 1 to 31; required for "monthly_day_of_month".'),
+    ] = None,
+    monthly_ordinal: Annotated[
+        str | None,
+        Field(description='"1" to "4", or "-1" for the last; required for "monthly_nth_weekday".'),
+    ] = None,
+    monthly_weekday: Annotated[
+        str | None,
+        Field(description='Lowercase English weekday, e.g. "monday"; required for "monthly_nth_weekday".'),
+    ] = None,
+    confirm: Confirm = False,
 ) -> RecurringMeetingWriteResult:
-    """Prepare or create an OpenProject recurring meeting series; only
-    writes when called again with confirm=true.
+    """Create a recurring meeting series; its template meeting starts as a draft.
 
-    Requires OpenProject 17.4+.
-
-    project: identifier, name, or numeric id — required, every recurring
-    meeting belongs to exactly one project.
-    frequency: "daily", "working_days", "weekly", and from OpenProject 17.5
-    "monthly_day_of_month" or "monthly_nth_weekday".
-    interval: every n-th day, week or month, 1 to 100; "working_days" always
-    uses 1.
-    end_after: "never" (default), "specific_date" (requires end_date) or
-    "iterations" (requires iterations, 1 to 1000).
-    monthly_day: day of month, 1 to 31; required for "monthly_day_of_month".
-    monthly_ordinal ("1" to "4", or "-1" for the last) and monthly_weekday
-    (lowercase English weekday, e.g. "monday"): required for
-    "monthly_nth_weekday".
-    The template meeting of the series starts as a draft.
+    Requires OpenProject 17.4+. For a single meeting use create_meeting. Occurrences are virtual until
+    init_recurring_meeting_occurrence creates one; the series is changed with update_recurring_meeting.
     """
     client = _client_from_context(ctx)
     safe_project = _validate_project_ref(project)
@@ -772,17 +830,16 @@ async def update_recurring_meeting(
     end_after: str | None = None,
     end_date: str | None = None,
     iterations: int | None = None,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> RecurringMeetingWriteResult:
-    """Prepare or update an OpenProject recurring meeting series; only
-    writes when called again with confirm=true.
+    """Update an OpenProject recurring meeting series.
 
     Requires OpenProject 17.4+.
 
-    Already materialized future occurrences move and are renamed with the
-    series. A schedule change other than the time of day can delete cancelled
-    occurrences; on 17.4 to 17.8 a time-of-day change also rewrites the slot
-    times of past occurrences.
+    Already created future occurrences move and are renamed with the series. A schedule change other than
+    the time of day can delete cancelled occurrences; on 17.4 to 17.8 a time-of-day change also rewrites the
+    slot times of past occurrences. When the schedule changes, invited participants get an update email if
+    notifications are on.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(recurring_meeting_id, field_name="recurring_meeting_id")
@@ -817,12 +874,12 @@ async def update_recurring_meeting(
 
 @register_tool
 async def delete_recurring_meeting(
-    ctx: Context, recurring_meeting_id: int, confirm: bool = False
+    ctx: Context, recurring_meeting_id: int, confirm: Confirm = False
 ) -> RecurringMeetingWriteResult:
-    """Prepare or delete an OpenProject recurring meeting series; only
-    deletes when called again with confirm=true.
+    """Delete a recurring meeting series with all its occurrences, past and future.
 
-    Requires OpenProject 17.4+.
+    Requires OpenProject 17.4+. Each occurrence goes with its agenda, outcomes, attachments and time entries;
+    this cannot be undone. Invited participants get a cancellation email when notifications are on.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(recurring_meeting_id, field_name="recurring_meeting_id")
@@ -837,15 +894,21 @@ async def list_recurring_meeting_occurrences(
     ctx: Context,
     recurring_meeting_id: int,
     filter: str = "upcoming",
-    limit: int | None = None,
+    limit: Annotated[
+        int | None,
+        Field(
+            description=(
+                'Number of occurrences, only for filter="upcoming" (OpenProject default: 20); the other filters '
+                "return their full set. Not paged."
+            )
+        ),
+    ] = None,
 ) -> RecurringMeetingOccurrenceListResult:
     """List virtual occurrences of a recurring meeting.
 
     Requires OpenProject 17.4+.
 
     filter: one of "upcoming", "past", "cancelled", "open".
-    limit: only applies when filter="upcoming" (OpenProject default: 20);
-    ignored for the other three filters, which always return their full set.
     Occurrences are virtual (synthesized from the recurrence rule) except
     where a real Meeting has already been materialized via
     init_recurring_meeting_occurrence — this list has no offset/pagination,
@@ -865,10 +928,10 @@ async def init_recurring_meeting_occurrence(
     ctx: Context,
     recurring_meeting_id: int,
     start_time: str,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> RecurringMeetingOccurrenceWriteResult:
-    """Prepare or materialize a virtual recurring-meeting occurrence into a
-    real, standalone Meeting; only writes when called again with confirm=true.
+    """Materialize a virtual recurring-meeting occurrence into a
+    real, standalone Meeting.
 
     Requires OpenProject 17.4+.
 
@@ -876,10 +939,12 @@ async def init_recurring_meeting_occurrence(
     start_time value from list_recurring_meeting_occurrences) — occurrences
     have no numeric id, they are addressed by this timestamp.
     On success, result is a full Meeting (use its id with get_meeting/
-    update_meeting/delete_meeting), not an occurrence.
-    On OpenProject 17.4 and 17.5, initializing an occurrence that already
-    exists fails with a server error instead of returning it; 17.6 and later
-    return the existing occurrence.
+    update_meeting/delete_meeting), not an occurrence. A cancelled occurrence is restored and its content
+    reset to the template. If the series template is still a draft, this first sets it to open, which stays
+    even if the init fails; on 17.6 and later OpenProject creates further occurrences automatically only once
+    the template is open.
+    On OpenProject 17.4 and 17.5, initializing an occurrence that already exists fails with a server error
+    instead of returning it; 17.6 and later return the existing occurrence.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(recurring_meeting_id, field_name="recurring_meeting_id")
@@ -894,10 +959,10 @@ async def cancel_recurring_meeting_occurrence(
     ctx: Context,
     recurring_meeting_id: int,
     start_time: str,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> RecurringMeetingOccurrenceWriteResult:
-    """Prepare or cancel a virtual (not-yet-materialized) recurring-meeting
-    occurrence; only writes when called again with confirm=true.
+    """Cancel a virtual (not-yet-materialized) recurring-meeting
+    occurrence.
 
     Requires OpenProject 17.4+.
 

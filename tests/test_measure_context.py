@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
+import json
 import re
 import sys
 from dataclasses import dataclass
@@ -32,8 +33,8 @@ def test_catalog_profiles_widen_from_fresh_install_to_every_scope(capsys):
     asyncio.run(measure_context.measure_tools_list())
     counts = list(_catalog_lines(capsys.readouterr().out).values())
 
-    assert len(counts) == 5
-    assert counts[0] < counts[1] < counts[2] < counts[3] < counts[4]
+    assert len(counts) == 6
+    assert counts == sorted(set(counts))
 
 
 def test_catalog_never_duplicates_the_server_instructions_into_tool_descriptions(capsys):
@@ -42,6 +43,15 @@ def test_catalog_never_duplicates_the_server_instructions_into_tool_descriptions
 
     assert "server.instructions is CE_INSTRUCTIONS: True" in out
     assert "tools whose description duplicates it: none" in out
+
+
+def test_export_writes_the_wire_form_of_the_glama_and_full_catalogs(tmp_path):
+    asyncio.run(measure_context.export_catalogs(tmp_path))
+
+    glama = json.loads((tmp_path / "tools_glama.json").read_text())["tools"]
+    full = json.loads((tmp_path / "tools_full.json").read_text())["tools"]
+    assert {tool["name"] for tool in glama} < {tool["name"] for tool in full}
+    assert all("inputSchema" in tool and "input_schema" not in tool for tool in glama + full)
 
 
 def test_report_states_the_saving_against_the_raw_payload(capsys):

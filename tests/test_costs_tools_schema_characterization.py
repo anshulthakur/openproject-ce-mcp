@@ -190,22 +190,16 @@ def test_list_work_package_cost_entries_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_work_package_cost_entries"]
     assert (
         tool.description
-        == 'List all cost entries recorded against a work package.\n\nwork_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.\n\nReturns every cost entry for the work package in one call -- this endpoint\nis unpaginated on OpenProject\'s side (no offset/limit parameters exist).\n'
+        == "List all cost entries recorded against a work package.\n\nReturns every cost entry for the work package in one call -- this endpoint\nis unpaginated on OpenProject's side (no offset/limit parameters exist).\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "work_package_id": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                 "title": "Work Package Id",
-            },
+            }
         },
         "required": ["work_package_id"],
         "title": "list_work_package_cost_entriesArguments",
@@ -220,22 +214,16 @@ def test_get_work_package_costs_by_type_schema() -> None:
     tool = _tools(create_app(_make_settings()))["get_work_package_costs_by_type"]
     assert (
         tool.description
-        == "Get a work package's costs aggregated by cost type.\n\nwork_package_id: internal id (e.g., 952) or display_id (e.g., \"PROJ-51\"), not UI display number.\n\ncount is the number of distinct cost types with recorded spend on this\nwork package, not a monetary total. Each result's spent_units is a\nquantity in that cost type's own unit (see get_cost_type for the unit\nname) -- there is no currency conversion or grand total computed here or\nby OpenProject's own API.\n"
+        == "Get a work package's costs aggregated by cost type.\n\ncount is the number of distinct cost types with recorded spend on this\nwork package, not a monetary total. Each result's spent_units is a\nquantity in that cost type's own unit (see get_cost_type for the unit\nname) -- there is no currency conversion or grand total computed here or\nby OpenProject's own API.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "work_package_id": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
                 "title": "Work Package Id",
-            },
+            }
         },
         "required": ["work_package_id"],
         "title": "get_work_package_costs_by_typeArguments",

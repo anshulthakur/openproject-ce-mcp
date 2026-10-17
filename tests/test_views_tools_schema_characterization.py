@@ -47,80 +47,35 @@ def test_list_views_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_views"]
     assert (
         tool.description
-        == "List saved OpenProject views, optionally filtered by project, view subtype, or name search.\n\nselect fields: id, name (see server instructions for select's general semantics).\n\nlimit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned\nnext_offset as the next call's offset to page past the cap. total is only\nthe count of allowed views returned on THIS page, not a full count of all\nmatches — the search stops as soon as it has enough, so an exact total\nwould need an extra full walk. Page until next_offset is null.\n"
+        == "List saved OpenProject views, optionally filtered by project, view subtype, or name search.\n\ntotal is only the count of allowed views returned on THIS page, not a full count of all matches; the search\nstops as soon as it has enough, so an exact total would need an extra full walk. Page until next_offset is null.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "project": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Project",
             },
-            "type": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
-                "default": None,
-                "title": "Type",
-            },
-            "search": {
-                "anyOf": [
-                    {
-                        "type": "string",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
-                "default": None,
-                "title": "Search",
-            },
+            "type": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Type"},
+            "search": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Search"},
             "offset": {
                 "default": 1,
+                "description": "1-based page number; pass the previous result's next_offset.",
                 "title": "Offset",
                 "type": "integer",
             },
             "limit": {
-                "anyOf": [
-                    {
-                        "type": "integer",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
                 "title": "Limit",
             },
             "select": {
-                "anyOf": [
-                    {
-                        "items": {
-                            "type": "string",
-                        },
-                        "type": "array",
-                    },
-                    {
-                        "type": "null",
-                    },
-                ],
+                "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,
+                "description": "Fields to return; a requested unset field comes back as null. Allowed: created_at, id, name, project, project_id, public, query, query_id, starred, type, updated_at.",
                 "title": "Select",
             },
         },

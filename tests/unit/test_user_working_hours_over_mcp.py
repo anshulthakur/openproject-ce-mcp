@@ -17,7 +17,7 @@ from mcp import types
 from mcp.client import Client
 
 import openproject_ce_mcp.tools_runtime as tools_runtime
-from openproject_ce_mcp import tools_user_schedule
+from openproject_ce_mcp import tools, tools_user_schedule
 from openproject_ce_mcp.strict_mcpserver import StrictMCPServer
 
 CallTool = Callable[[str, dict], Awaitable[types.CallToolResult]]
@@ -81,6 +81,7 @@ def call_tool(recorder: _Recorder) -> CallTool:
             tools_user_schedule.update_user_working_hours.__name__,
         ],
         hide_active=False,
+        annotations=tools.TOOL_ANNOTATIONS,
     )
 
     async def call(name: str, arguments: dict) -> types.CallToolResult:

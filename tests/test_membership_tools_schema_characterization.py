@@ -41,24 +41,26 @@ def _tools(mcp) -> dict:
 
 def test_list_roles_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_roles"]
-    assert tool.description == (
-        "List OpenProject roles visible to the current user.\n\n"
-        "select fields: id, name (see server instructions for select's general semantics).\n"
-        "limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned\n"
-        "next_offset as the next call's offset to page past the cap.\n"
-    )
+    assert tool.description == ("List OpenProject roles visible to the current user.")
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
             "select": {
                 "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,
+                "description": "Fields to return; a requested unset field comes back as null. Allowed: id, name.",
                 "title": "Select",
             },
-            "offset": {"default": 1, "title": "Offset", "type": "integer"},
+            "offset": {
+                "default": 1,
+                "description": "1-based page number; pass the previous result's next_offset.",
+                "title": "Offset",
+                "type": "integer",
+            },
             "limit": {
                 "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
                 "title": "Limit",
             },
         },
@@ -73,23 +75,27 @@ def test_list_roles_schema() -> None:
 def test_list_actions_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_actions"]
     assert tool.description == (
-        "List API actions exposed by OpenProject.\n\n"
-        "select fields: id, url (see server instructions for select's general semantics).\n\n"
-        "limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned\n"
-        "next_offset as the next call's offset to page past the cap.\n"
+        'List the action ids OpenProject\'s API defines, e.g. "work_packages/create".\n\nThis is the vocabulary only; which user or group may perform an action in which project comes from\nlist_capabilities.\n'
     )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "offset": {"default": 1, "title": "Offset", "type": "integer"},
+            "offset": {
+                "default": 1,
+                "description": "1-based page number; pass the previous result's next_offset.",
+                "title": "Offset",
+                "type": "integer",
+            },
             "limit": {
                 "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
                 "title": "Limit",
             },
             "select": {
                 "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,
+                "description": "Fields to return; a requested unset field comes back as null. Allowed: id, url.",
                 "title": "Select",
             },
         },
@@ -104,14 +110,11 @@ def test_list_actions_schema() -> None:
 def test_list_capabilities_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_capabilities"]
     assert tool.description == (
-        "List API capabilities exposed by OpenProject.\n\n"
+        "List API capabilities exposed by OpenProject.\n"
+        "\n"
         "At least one of project or capability_id is required — there is no\n"
         "unfiltered global listing, since one would bypass the project read\n"
-        "allowlist.\n\n"
-        "select fields: id, action_id, context (see server instructions for\n"
-        "select's general semantics).\n\n"
-        "limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned\n"
-        "next_offset as the next call's offset to page past the cap.\n"
+        "allowlist.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
@@ -119,6 +122,7 @@ def test_list_capabilities_schema() -> None:
             "project": {
                 "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
                 "title": "Project",
             },
             "capability_id": {
@@ -126,15 +130,22 @@ def test_list_capabilities_schema() -> None:
                 "default": None,
                 "title": "Capability Id",
             },
-            "offset": {"default": 1, "title": "Offset", "type": "integer"},
+            "offset": {
+                "default": 1,
+                "description": "1-based page number; pass the previous result's next_offset.",
+                "title": "Offset",
+                "type": "integer",
+            },
             "limit": {
                 "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
                 "title": "Limit",
             },
             "select": {
                 "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,
+                "description": "Fields to return; a requested unset field comes back as null. Allowed: action_id, context, id, principal_id, principal_name, url.",
                 "title": "Select",
             },
         },
@@ -148,26 +159,31 @@ def test_list_capabilities_schema() -> None:
 
 def test_list_project_memberships_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_project_memberships"]
-    assert tool.description == (
-        "List memberships for a project, including principal and role names.\n\n"
-        "select fields: id, principal_name, role_names (see server instructions for\n"
-        "select's general semantics).\n\n"
-        "limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned\n"
-        "next_offset as the next call's offset to page past the cap.\n"
-    )
+    assert tool.description == ("List memberships for a project, including principal and role names.")
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
-            "offset": {"default": 1, "title": "Offset", "type": "integer"},
+            "project": {
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
+                "title": "Project",
+            },
+            "offset": {
+                "default": 1,
+                "description": "1-based page number; pass the previous result's next_offset.",
+                "title": "Offset",
+                "type": "integer",
+            },
             "limit": {
                 "anyOf": [{"type": "integer"}, {"type": "null"}],
                 "default": None,
+                "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
                 "title": "Limit",
             },
             "select": {
                 "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,
+                "description": "Fields to return; a requested unset field comes back as null. Allowed: can_update, can_update_immediately, created_at, id, principal_id, principal_name, project_id, project_name, role_ids, role_names, updated_at.",
                 "title": "Select",
             },
         },
@@ -182,7 +198,10 @@ def test_list_project_memberships_schema() -> None:
 
 def test_get_membership_schema() -> None:
     tool = _tools(create_app(_make_settings()))["get_membership"]
-    assert tool.description == "Get a compact membership summary by id."
+    assert (
+        tool.description
+        == "Get one project membership by id: the user or group, the project and the role names.\n\nTo list a project's members use list_project_memberships.\n"
+    )
     assert tool.output_schema == {
         "properties": {
             "id": {"title": "Id", "type": "integer"},
@@ -233,7 +252,11 @@ def test_get_membership_schema() -> None:
     }
     assert tool.parameters == {
         "properties": {
-            "membership_id": {"title": "Membership Id", "type": "integer"},
+            "membership_id": {
+                "description": "Membership id, from list_project_memberships.",
+                "title": "Membership Id",
+                "type": "integer",
+            }
         },
         "required": ["membership_id"],
         "title": "get_membershipArguments",
@@ -246,19 +269,41 @@ def test_get_membership_schema() -> None:
 
 def test_create_membership_schema() -> None:
     tool = _tools(create_app(_make_settings()))["create_membership"]
-    assert tool.description == "Prepare or create a project membership."
+    assert (
+        tool.description
+        == "Create a project membership.\n\nThe preview is validated by OpenProject; problems come back in validation_errors."
+    )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "project": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Project"},
-            "principal": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Principal"},
-            "roles": {"items": {"anyOf": [{"type": "integer"}, {"type": "string"}]}, "title": "Roles", "type": "array"},
+            "project": {
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
+                "title": "Project",
+            },
+            "principal": {
+                "anyOf": [{"type": "integer"}, {"type": "string"}],
+                "description": 'User or group: numeric id, exact name (case-insensitive), or "me".',
+                "title": "Principal",
+            },
+            "roles": {
+                "description": "At least one; role ids or exact role names (case-insensitive), from list_roles.",
+                "items": {"anyOf": [{"type": "integer"}, {"type": "string"}]},
+                "title": "Roles",
+                "type": "array",
+            },
             "notification_message": {
                 "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Markdown text for OpenProject's membership notification.",
                 "title": "Notification Message",
             },
-            "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+            "confirm": {
+                "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                "title": "Confirm",
+                "type": "boolean",
+            },
         },
         "required": ["project", "principal", "roles"],
         "title": "create_membershipArguments",
@@ -277,18 +322,36 @@ def test_create_membership_schema() -> None:
 
 def test_update_membership_schema() -> None:
     tool = _tools(create_app(_make_settings()))["update_membership"]
-    assert tool.description == "Prepare or update a project membership."
+    assert (
+        tool.description
+        == "Update a project membership's roles.\n\nThe preview is validated by OpenProject; problems come back in validation_errors."
+    )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "membership_id": {"title": "Membership Id", "type": "integer"},
-            "roles": {"items": {"anyOf": [{"type": "integer"}, {"type": "string"}]}, "title": "Roles", "type": "array"},
+            "membership_id": {
+                "description": "Membership id, from list_project_memberships.",
+                "title": "Membership Id",
+                "type": "integer",
+            },
+            "roles": {
+                "description": "Replaces all current roles; role ids or exact role names (case-insensitive), from list_roles.",
+                "items": {"anyOf": [{"type": "integer"}, {"type": "string"}]},
+                "title": "Roles",
+                "type": "array",
+            },
             "notification_message": {
                 "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": None,
+                "description": "Markdown text for OpenProject's membership notification.",
                 "title": "Notification Message",
             },
-            "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+            "confirm": {
+                "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                "title": "Confirm",
+                "type": "boolean",
+            },
         },
         "required": ["membership_id", "roles"],
         "title": "update_membershipArguments",
@@ -306,12 +369,24 @@ def test_update_membership_schema() -> None:
 
 def test_delete_membership_schema() -> None:
     tool = _tools(create_app(_make_settings()))["delete_membership"]
-    assert tool.description == "Prepare or delete a project membership."
+    assert (
+        tool.description
+        == "Delete a project membership; this cannot be undone.\n\nRoles inherited from a group stay: if some roles come from a group, only the direct ones are removed;\nif all do, the call is rejected.\n"
+    )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "membership_id": {"title": "Membership Id", "type": "integer"},
-            "confirm": {"default": False, "title": "Confirm", "type": "boolean"},
+            "membership_id": {
+                "description": "Membership id, from list_project_memberships.",
+                "title": "Membership Id",
+                "type": "integer",
+            },
+            "confirm": {
+                "default": False,
+                "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                "title": "Confirm",
+                "type": "boolean",
+            },
         },
         "required": ["membership_id"],
         "title": "delete_membershipArguments",

@@ -14,7 +14,10 @@ consistency.
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from mcp.server.mcpserver import Context
+from pydantic import Field
 
 from .models import (
     ActionListResult,
@@ -28,6 +31,7 @@ from .models import (
     RoleListResult,
     RoleSummary,
 )
+from .tool_params import Confirm, Limit, Offset, OptionalProjectRef, ProjectRef, select_field
 from .tool_types import IdOrName
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
@@ -47,16 +51,11 @@ from .tools_validation import (
 @register_tool
 async def list_roles(
     ctx: Context,
-    select: list[str] | None = None,
-    offset: int = 1,
-    limit: int | None = None,
+    select: Annotated[list[str] | None, select_field(RoleSummary)] = None,
+    offset: Offset = 1,
+    limit: Limit = None,
 ) -> RoleListResult:
-    """List OpenProject roles visible to the current user.
-
-    select fields: id, name (see server instructions for select's general semantics).
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap.
-    """
+    """List OpenProject roles visible to the current user."""
     client = _client_from_context(ctx)
     _validate_select(select, row_type=RoleSummary)
     safe_offset = _validate_offset(offset)
@@ -67,16 +66,14 @@ async def list_roles(
 @register_tool
 async def list_actions(
     ctx: Context,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(ActionSummary)] = None,
 ) -> ActionListResult:
-    """List API actions exposed by OpenProject.
+    """List the action ids OpenProject's API defines, e.g. "work_packages/create".
 
-    select fields: id, url (see server instructions for select's general semantics).
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap.
+    This is the vocabulary only; which user or group may perform an action in which project comes from
+    list_capabilities.
     """
     client = _client_from_context(ctx)
     safe_offset = _validate_offset(offset)
@@ -88,23 +85,17 @@ async def list_actions(
 @register_tool
 async def list_capabilities(
     ctx: Context,
-    project: IdOrName | None = None,
+    project: OptionalProjectRef = None,
     capability_id: str | None = None,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(CapabilitySummary)] = None,
 ) -> CapabilityListResult:
     """List API capabilities exposed by OpenProject.
 
     At least one of project or capability_id is required — there is no
     unfiltered global listing, since one would bypass the project read
     allowlist.
-
-    select fields: id, action_id, context (see server instructions for
-    select's general semantics).
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap.
     """
     client = _client_from_context(ctx)
     safe_project = _validate_optional_project_ref(project)
@@ -125,19 +116,12 @@ async def list_capabilities(
 @register_tool
 async def list_project_memberships(
     ctx: Context,
-    project: IdOrName,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    project: ProjectRef,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(MembershipSummary)] = None,
 ) -> MembershipListResult:
-    """List memberships for a project, including principal and role names.
-
-    select fields: id, principal_name, role_names (see server instructions for
-    select's general semantics).
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap.
-    """
+    """List memberships for a project, including principal and role names."""
     client = _client_from_context(ctx)
     safe_project = _validate_project_ref(project)
     safe_offset = _validate_offset(offset)
@@ -149,9 +133,12 @@ async def list_project_memberships(
 @register_tool
 async def get_membership(
     ctx: Context,
-    membership_id: int,
+    membership_id: Annotated[int, Field(description="Membership id, from list_project_memberships.")],
 ) -> MembershipSummary:
-    """Get a compact membership summary by id."""
+    """Get one project membership by id: the user or group, the project and the role names.
+
+    To list a project's members use list_project_memberships.
+    """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(membership_id, field_name="membership_id")
     return await _run_tool(client.membership.get(safe_id))
@@ -160,13 +147,22 @@ async def get_membership(
 @register_tool
 async def create_membership(
     ctx: Context,
-    project: IdOrName,
-    principal: IdOrName,
-    roles: list[IdOrName],
-    notification_message: str | None = None,
-    confirm: bool = False,
+    project: ProjectRef,
+    principal: Annotated[
+        IdOrName, Field(description='User or group: numeric id, exact name (case-insensitive), or "me".')
+    ],
+    roles: Annotated[
+        list[IdOrName],
+        Field(description="At least one; role ids or exact role names (case-insensitive), from list_roles."),
+    ],
+    notification_message: Annotated[
+        str | None, Field(description="Markdown text for OpenProject's membership notification.")
+    ] = None,
+    confirm: Confirm = False,
 ) -> MembershipWriteResult:
-    """Prepare or create a project membership."""
+    """Create a project membership.
+
+    The preview is validated by OpenProject; problems come back in validation_errors."""
     client = _client_from_context(ctx)
     safe_project = _validate_project_ref(project)
     safe_principal = _validate_ref(principal, field_name="principal", max_length=255)
@@ -188,12 +184,21 @@ async def create_membership(
 @register_tool
 async def update_membership(
     ctx: Context,
-    membership_id: int,
-    roles: list[IdOrName],
-    notification_message: str | None = None,
-    confirm: bool = False,
+    membership_id: Annotated[int, Field(description="Membership id, from list_project_memberships.")],
+    roles: Annotated[
+        list[IdOrName],
+        Field(
+            description="Replaces all current roles; role ids or exact role names (case-insensitive), from list_roles."
+        ),
+    ],
+    notification_message: Annotated[
+        str | None, Field(description="Markdown text for OpenProject's membership notification.")
+    ] = None,
+    confirm: Confirm = False,
 ) -> MembershipWriteResult:
-    """Prepare or update a project membership."""
+    """Update a project membership's roles.
+
+    The preview is validated by OpenProject; problems come back in validation_errors."""
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(membership_id, field_name="membership_id")
     safe_roles = _validate_required_ref_list(roles, field_name="roles", max_items=20, item_max_length=100)
@@ -213,10 +218,14 @@ async def update_membership(
 @register_tool
 async def delete_membership(
     ctx: Context,
-    membership_id: int,
-    confirm: bool = False,
+    membership_id: Annotated[int, Field(description="Membership id, from list_project_memberships.")],
+    confirm: Confirm = False,
 ) -> MembershipWriteResult:
-    """Prepare or delete a project membership."""
+    """Delete a project membership; this cannot be undone.
+
+    Roles inherited from a group stay: if some roles come from a group, only the direct ones are removed;
+    if all do, the call is rejected.
+    """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(membership_id, field_name="membership_id")
     return await _run_tool(client.membership.delete(membership_id=safe_id, confirm=confirm))

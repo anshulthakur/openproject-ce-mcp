@@ -44,6 +44,10 @@ Token counts use tiktoken's `o200k_base` encoding as a stable, reproducible
 BPE proxy, not an exact billed count for every model, provider, or MCP client.
 Requires the `measure` extra (`uv sync --extra measure`, or
 `pip install openproject-ce-mcp[measure]`).
+
+`python tools/measure-context.py --export DIR` instead writes the Glama and full
+catalogs as `tools/list` JSON (`DIR/tools_glama.json`, `DIR/tools_full.json`),
+the input for scoring the tool definitions with tdqs.
 """
 
 from __future__ import annotations
@@ -115,6 +119,10 @@ BASE_ENV = {
     "OPENPROJECT_BASE_URL": "https://op.example.com",
     "OPENPROJECT_API_TOKEN": "token",
 }
+# What Glama's build sets: every project readable and writable, every other
+# variable at its default. Its tool definition scores are taken from this catalog.
+GLAMA_ENV = {**BASE_ENV, "OPENPROJECT_READ_PROJECTS": "*", "OPENPROJECT_WRITE_PROJECTS": "*"}
+FULL_ENV = {**BASE_ENV, **WRITE_ENV, "OPENPROJECT_ENABLE_EXTENDED_READ": "true"}
 
 SAMPLE_WORK_PACKAGES = [
     (
@@ -145,6 +153,21 @@ SAMPLE_WORK_PACKAGES = [
 ]
 
 
+async def _wire_catalog(env: dict[str, str]) -> list[dict[str, Any]]:
+    """The tool list exactly as a client receives it (camelCase keys such as inputSchema)."""
+    tools = await create_app(Settings.from_env(env)).list_tools()
+    return [t.model_dump(by_alias=True, exclude_none=True, mode="json") for t in tools]
+
+
+async def export_catalogs(directory: Path) -> None:
+    """Write the Glama and full catalogs as tools/list JSON, the input tdqs scores."""
+    directory.mkdir(parents=True, exist_ok=True)
+    for name, env in (("glama", GLAMA_ENV), ("full", FULL_ENV)):
+        tools = await _wire_catalog(env)
+        (directory / f"tools_{name}.json").write_text(json.dumps({"tools": tools}, indent=1) + "\n")
+        print(f"{name}: {len(tools)} tools -> {directory / f'tools_{name}.json'}")
+
+
 async def measure_tools_list() -> None:
     print("=== Tool catalog (tools/list) ===\n")
     scenarios = [
@@ -154,23 +177,14 @@ async def measure_tools_list() -> None:
             {**BASE_ENV, "OPENPROJECT_READ_PROJECTS": "*"},
         ),
         ("work-package writes only", {**BASE_ENV, **WORK_PACKAGE_WRITES_ONLY_ENV}),
+        ("Glama build (every project readable and writable, other settings default)", GLAMA_ENV),
         ("every write scope enabled, extended tools off (worst case)", {**BASE_ENV, **WRITE_ENV}),
-        (
-            "every write scope enabled, extended tools on",
-            {
-                **BASE_ENV,
-                **WRITE_ENV,
-                "OPENPROJECT_ENABLE_EXTENDED_READ": "true",
-            },
-        ),
+        ("every write scope enabled, extended tools on", FULL_ENV),
     ]
     for label, env in scenarios:
-        settings = Settings.from_env(env)
-        app = create_app(settings)
-        tools = await app.list_tools()
-        payload = [t.model_dump(exclude_none=True, mode="json") for t in tools]
+        payload = await _wire_catalog(env)
         raw = json.dumps({"tools": payload})
-        print(f"{label}: {len(tools)} tools, {len(raw)} bytes, ~{_tokens(raw)} tokens")
+        print(f"{label}: {len(payload)} tools, {len(raw)} bytes, ~{_tokens(raw)} tokens")
     print()
 
     # Live Codex tool discovery reportedly saw the server-level CE
@@ -181,20 +195,18 @@ async def measure_tools_list() -> None:
     # by MCPServer's Tool.description construction (which is built from each
     # function's own docstring, never referencing `instructions`).
     print("=== server instructions vs. per-tool descriptions ===\n")
-    settings = Settings.from_env({**BASE_ENV, **WRITE_ENV, "OPENPROJECT_ENABLE_EXTENDED_READ": "true"})
-    app = create_app(settings)
-    tools = await app.list_tools()
-    payload = [t.model_dump(exclude_none=True, mode="json") for t in tools]
+    app = create_app(Settings.from_env(FULL_ENV))
+    payload = await _wire_catalog(FULL_ENV)
     server_instructions = app.instructions
     duplicated_into = [t["name"] for t in payload if _CE_INSTRUCTIONS_NEEDLE in (t.get("description") or "")]
     raw = json.dumps({"tools": payload})
     raw_tokens = _tokens(raw)
-    hypothetical_tokens = raw_tokens + len(tools) * _tokens(CE_INSTRUCTIONS)
+    hypothetical_tokens = raw_tokens + len(payload) * _tokens(CE_INSTRUCTIONS)
     print(f"server.instructions is CE_INSTRUCTIONS: {server_instructions == CE_INSTRUCTIONS}")
     print(f"tools whose description duplicates it: {duplicated_into or 'none'}")
     print(
         f"tools/list as sent by this server: {len(raw)} bytes, ~{raw_tokens} tokens "
-        f"(if a client duplicated instructions into every one of {len(tools)} tool descriptions "
+        f"(if a client duplicated instructions into every one of {len(payload)} tool descriptions "
         f"instead, that would be ~{hypothetical_tokens} tokens, {round(hypothetical_tokens / raw_tokens, 1)}x)"
     )
     print()
@@ -522,6 +534,9 @@ def _select_row(row: Any, select_fields: frozenset[str]) -> dict:
 
 
 async def main() -> None:
+    if sys.argv[1:2] == ["--export"] and len(sys.argv) == 3:
+        await export_catalogs(Path(sys.argv[2]))
+        return
     await measure_tools_list()
     rows = await measure_response_sizes()
     if rows is not None:

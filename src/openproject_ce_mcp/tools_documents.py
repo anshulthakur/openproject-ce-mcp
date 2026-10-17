@@ -27,7 +27,10 @@ alongside for a consistent public surface, matching `tools_admin.py`'s and
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from mcp.server.mcpserver import Context
+from pydantic import Field
 
 from .models import (
     DocumentDetail,
@@ -43,7 +46,7 @@ from .models import (
     WikiPageLinkListResult,
     WikiPageLinkWriteResult,
 )
-from .tool_types import IdOrName
+from .tool_params import Confirm, Limit, Offset, OptionalProjectRef, ProjectRef, WorkPackageRef, select_field
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
     _require_at_least_one,
@@ -62,26 +65,24 @@ from .tools_validation import (
     _validate_work_package_ref,
 )
 
+_NEWS_ID = "Numeric news id, as returned by list_news."
+_TITLE = "At most 255 characters."
+
 
 @register_tool
 async def list_documents(
     ctx: Context,
-    project: IdOrName | None = None,
+    project: OptionalProjectRef = None,
     search: str | None = None,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(DocumentSummary)] = None,
     text_limit: int | None = None,
 ) -> DocumentListResult:
     """List documents, optionally filtered to a single project or by title search.
 
-    select fields: id, title (see server instructions for select's general semantics).
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap. total is only
-    the count of allowed documents returned on THIS page, not a full count of
-    all matches — the search stops as soon as it has enough, so an exact
-    total would need an extra full walk. Page until next_offset is null.
+    total is only the count of allowed documents returned on THIS page, not a full count of all matches; the search
+    stops as soon as it has enough, so an exact total would need an extra full walk. Page until next_offset is null.
 
     text_limit caps each document's description at that many characters
     (default: the server's configured OPENPROJECT_TEXT_LIMIT, NOT unlimited --
@@ -123,12 +124,12 @@ async def get_document(
 @register_tool
 async def update_document(
     ctx: Context,
-    document_id: int,
-    title: str | None = None,
-    description: str | None = None,
-    confirm: bool = False,
+    document_id: Annotated[int, Field(description="Numeric document id, as returned by list_documents.")],
+    title: Annotated[str | None, Field(description=_TITLE)] = None,
+    description: Annotated[str | None, Field(description='Document text; "" clears it.')] = None,
+    confirm: Confirm = False,
 ) -> DocumentWriteResult:
-    """Prepare or update a document."""
+    """Update a document. Omitted fields stay unchanged."""
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(document_id, field_name="document_id")
     safe_title = _validate_optional_query(title, field_name="title", max_length=255)
@@ -147,23 +148,18 @@ async def update_document(
 @register_tool
 async def list_news(
     ctx: Context,
-    project: IdOrName | None = None,
+    project: OptionalProjectRef = None,
     search: str | None = None,
-    offset: int = 1,
-    limit: int | None = None,
-    select: list[str] | None = None,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(NewsSummary)] = None,
     text_limit: int | None = None,
 ) -> NewsListResult:
     """List news entries, optionally filtered by project or title/summary search.
 
-    select fields: id, title (see server instructions for select's general semantics).
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap. total is only
-    the count of allowed news entries returned on THIS page, not a full
-    count of all matches — the search stops as soon as it has enough, so an
-    exact total would need an extra full walk. Page until next_offset is
-    null.
+    total is only the count of allowed news entries returned on THIS page, not a full count of all matches; the
+    search stops as soon as it has enough, so an exact total would need an extra full walk. Page until next_offset
+    is null.
 
     text_limit caps each entry's summary/description at that many characters
     (default: the server's configured OPENPROJECT_TEXT_LIMIT, NOT unlimited --
@@ -209,13 +205,13 @@ async def get_news(
 @register_tool
 async def create_news(
     ctx: Context,
-    project: IdOrName,
-    title: str,
-    summary: str | None = None,
-    description: str | None = None,
-    confirm: bool = False,
+    project: ProjectRef,
+    title: Annotated[str, Field(description=_TITLE)],
+    summary: Annotated[str | None, Field(description="Short plain text, at most 500 characters.")] = None,
+    description: Annotated[str | None, Field(description="Full text in Markdown.")] = None,
+    confirm: Confirm = False,
 ) -> NewsWriteResult:
-    """Prepare or create a news entry inside a project."""
+    """Create a news entry inside a project."""
     client = _client_from_context(ctx)
     safe_project = _validate_project_ref(project)
     safe_title = _validate_required_query(title, field_name="title", max_length=255)
@@ -235,13 +231,13 @@ async def create_news(
 @register_tool
 async def update_news(
     ctx: Context,
-    news_id: int,
-    title: str | None = None,
-    summary: str | None = None,
-    description: str | None = None,
-    confirm: bool = False,
+    news_id: Annotated[int, Field(description=_NEWS_ID)],
+    title: Annotated[str | None, Field(description=_TITLE)] = None,
+    summary: Annotated[str | None, Field(description='Short plain text, at most 500 characters; "" clears it.')] = None,
+    description: Annotated[str | None, Field(description='Full text in Markdown; "" clears it.')] = None,
+    confirm: Confirm = False,
 ) -> NewsWriteResult:
-    """Prepare or update a news entry."""
+    """Update a news entry. Omitted fields stay unchanged."""
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(news_id, field_name="news_id")
     safe_title = _validate_optional_query(title, field_name="title", max_length=255)
@@ -264,10 +260,10 @@ async def update_news(
 @register_tool
 async def delete_news(
     ctx: Context,
-    news_id: int,
-    confirm: bool = False,
+    news_id: Annotated[int, Field(description=_NEWS_ID)],
+    confirm: Confirm = False,
 ) -> NewsWriteResult:
-    """Prepare or delete a news entry."""
+    """Delete a news entry with its comments and attachments; this cannot be undone."""
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(news_id, field_name="news_id")
     return await _run_tool(client.news.delete(news_id=safe_id, confirm=confirm))
@@ -313,9 +309,9 @@ async def get_post(
 @register_tool
 async def list_work_package_wiki_links(
     ctx: Context,
-    work_package_id: int | str,
-    offset: int = 1,
-    limit: int | None = None,
+    work_package_id: WorkPackageRef,
+    offset: Offset = 1,
+    limit: Limit = None,
 ) -> WikiPageLinkListResult:
     """List wiki pages linked to a work package.
 
@@ -323,15 +319,10 @@ async def list_work_package_wiki_links(
     naming the required version.
 
     Known OpenProject server bug (17.5 to at least 17.9.1): this call returns
-    a [server_error] when none of the work package's links resolves to a wiki
-    page the user can see, and on 17.5/17.6 also when the work package has no
-    links. A link to the internal wiki resolves when its identifier is the
-    page's numeric id.
-
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
-
-    limit is capped at OPENPROJECT_MAX_PAGE_SIZE (default 50); pass the returned
-    next_offset as the next call's offset to page past the cap.
+    a [server_error] when none of the work package's links
+    resolves to a wiki page the user can see, and on 17.5/17.6 also when the
+    work package has no links. A link to the internal wiki resolves when its
+    identifier is the page's numeric id.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_work_package_ref(work_package_id)
@@ -343,18 +334,16 @@ async def list_work_package_wiki_links(
 @register_tool
 async def create_work_package_wiki_link(
     ctx: Context,
-    work_package_id: int | str,
+    work_package_id: WorkPackageRef,
     identifier: str,
     provider: str,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> WikiPageLinkWriteResult:
-    """Prepare or create a link from a work package to a wiki page; only
-    writes when called again with confirm=true.
+    """Create a link from a work package to a wiki page.
 
     Requires OpenProject 17.7+; on an older server this returns a [not_found]
     naming the required version.
 
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number.
     identifier: the target wiki page's identifier at its provider; for the
     internal wiki, the page's numeric id (the wiki_page_id of get_wiki_page).
     OpenProject accepts any string, but list_work_package_wiki_links fails
@@ -374,12 +363,11 @@ async def create_work_package_wiki_link(
 @register_tool
 async def delete_work_package_wiki_link(
     ctx: Context,
-    work_package_id: int | str,
+    work_package_id: WorkPackageRef,
     link_id: int,
-    confirm: bool = False,
+    confirm: Confirm = False,
 ) -> WikiPageLinkWriteResult:
-    """Prepare or delete a work package's wiki page link; only deletes when
-    called again with confirm=true.
+    """Delete a work package's wiki page link; this cannot be undone.
 
     Requires OpenProject 17.6+. On 17.4 or older this returns a [not_found]
     naming 17.6; on 17.5 the link check below usually fails first with a
@@ -397,10 +385,8 @@ async def delete_work_package_wiki_link(
     package's project; without it OpenProject answers 404, which the tool
     reports as a [not_found] naming 17.6, not as [permission_denied].
 
-    work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number
-    — used to authorize the delete against that work package's project, since
-    OpenProject has no single-resource GET for a wiki page link to discover
-    its parent work package from link_id alone.
+    work_package_id must be the work package the link belongs to; OpenProject has no single GET for a link,
+    so the delete is authorized against that work package's project.
     link_id: the wiki page link's own id, from list_work_package_wiki_links.
     """
     client = _client_from_context(ctx)

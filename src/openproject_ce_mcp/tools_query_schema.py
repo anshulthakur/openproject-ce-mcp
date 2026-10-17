@@ -11,7 +11,10 @@ from `openproject_ce_mcp.tools`.
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from mcp.server.mcpserver import Context
+from pydantic import Field
 
 from .models import (
     QueryColumnSummary,
@@ -21,7 +24,7 @@ from .models import (
     QueryOperatorSummary,
     QuerySortBySummary,
 )
-from .tool_types import IdOrName
+from .tool_params import OptionalProjectRef
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import _validate_optional_project_ref, _validate_required_query
 
@@ -29,7 +32,7 @@ from .tools_validation import _validate_optional_project_ref, _validate_required
 @register_tool
 async def get_query_filter(
     ctx: Context,
-    filter_id: str,
+    filter_id: Annotated[str, Field(description='Filter id, e.g. "status", "assignee" or "subject_or_id".')],
 ) -> QueryFilterSummary:
     """Get a single query filter by id."""
     client = _client_from_context(ctx)
@@ -62,9 +65,17 @@ async def get_query_operator(
 @register_tool
 async def get_query_sort_by(
     ctx: Context,
-    sort_by_id: str,
+    sort_by_id: Annotated[
+        str,
+        Field(
+            description=(
+                'Attribute and direction, e.g. "subject:asc" or "subject-asc", or a bare attribute (ascending); '
+                "the direction is case-insensitive."
+            )
+        ),
+    ],
 ) -> QuerySortBySummary:
-    """Get a single query sort-by definition by id, "field:direction" or "field-direction" (e.g. "subject:asc")."""
+    """Get a single query sort-by definition by id."""
     client = _client_from_context(ctx)
     safe_sort_by_id = _validate_required_query(sort_by_id, field_name="sort_by_id", max_length=100)
     return await _run_tool(client.query_metadata.get_sort_by(safe_sort_by_id))
@@ -73,7 +84,7 @@ async def get_query_sort_by(
 @register_tool
 async def list_query_filter_instance_schemas(
     ctx: Context,
-    project: IdOrName | None = None,
+    project: OptionalProjectRef = None,
 ) -> QueryFilterInstanceSchemaListResult:
     """List query filter instance schemas globally or for a project."""
     client = _client_from_context(ctx)
