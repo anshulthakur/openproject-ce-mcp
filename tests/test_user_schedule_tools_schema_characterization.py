@@ -42,7 +42,7 @@ def _tools(mcp) -> dict:
 def test_list_user_non_working_times_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_user_non_working_times"]
     assert tool.description == (
-        'List a user\'s per-user non-working-time date ranges (e.g. vacation),\ndistinct from the instance-wide non-working days (list_non_working_days).\n\nRequires OpenProject 17.3+ (feature-flag-gated through 17.6, generally\navailable from 17.7). On an older server, or on 17.3 to 17.6 with the\nfeature flag off, the route answers 404 and the tool returns a [not_found]\nnaming the 17.3 floor.\n\nOpenProject enforces this at the API level: you may always view your own\nschedule (user_ref="me"); viewing another user\'s requires the\nmanage_working_times global permission, else OpenProject returns 404\n(not 403) to avoid confirming the user exists.\n\nuser_ref: "me" for the current user, a numeric user id, or a login.\nyear: filter to this calendar year; defaults to the current year.\nThe collection is unpaginated on OpenProject\'s side — this MCP fetches\nthe full requested year and paginates client-side; limit is capped at\nOPENPROJECT_MAX_PAGE_SIZE (default 50).\n'
+        'List a user\'s per-user non-working-time date ranges (e.g. vacation),\ndistinct from the instance-wide non-working days (list_non_working_days).\n\nRequires OpenProject 17.3+ (feature-flag-gated through 17.6, generally\navailable from 17.7). On an older server, or on 17.3 to 17.6 with the\nfeature flag off, the route answers 404 and the tool returns a [not_found]\nnaming the 17.3 floor.\n\nOpenProject enforces this at the API level: you may always view your own\nschedule (user_ref="me"); viewing another user\'s requires the\nmanage_working_times global permission, else OpenProject returns 404\n(not 403) to avoid confirming the user exists.\n\nuser_ref: "me" for the current user, a numeric user id, or a login.\nyear: filter to this calendar year; defaults to the current year.\nThe collection is unpaginated on OpenProject\'s side; this MCP fetches\nthe full requested year and paginates client-side; limit is capped at\nOPENPROJECT_MAX_PAGE_SIZE (default 50).\n'
     )
     assert tool.output_schema is None
     assert tool.parameters == {
@@ -107,13 +107,7 @@ def test_create_user_non_working_time_schema() -> None:
 def test_update_user_non_working_time_schema() -> None:
     tool = _tools(create_app(_make_settings()))["update_user_non_working_time"]
     assert tool.description == (
-        "Update a user's non-working-time date range.\n"
-        "\n"
-        "Requires OpenProject 17.3+. Same authorization as\n"
-        "list_user_non_working_times. No single-item GET exists on OpenProject's\n"
-        "side for this resource, but the update itself is addressed directly by\n"
-        "id (no year or other date filter involved) — a non-existent id fails\n"
-        "with a not-found error on confirm; the preview does not look it up.\n"
+        "Update a user's non-working-time date range.\n\nRequires OpenProject 17.3+. Same authorization as\nlist_user_non_working_times. No single-item GET exists on OpenProject's\nside for this resource, but the update itself is addressed directly by\nid (no year or other date filter involved); a non-existent id fails\nwith a not-found error on confirm; the preview does not look it up.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
@@ -176,17 +170,7 @@ def test_delete_user_non_working_time_schema() -> None:
 def test_list_user_working_hours_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_user_working_hours"]
     assert tool.description == (
-        "List a user's recurring weekly working-hours schedules, ordered by\n"
-        "valid_from descending (most recent first).\n\n"
-        "Requires OpenProject 17.3+ (feature-flag-gated through 17.6, generally\n"
-        "available from 17.7).\n\n"
-        "Same self-service-or-manage_working_times authorization as\n"
-        "list_user_non_working_times: OpenProject returns 404 (not 403) for an\n"
-        "unauthorized cross-user request.\n\n"
-        'user_ref: "me" for the current user, a numeric user id, or a login.\n'
-        "The collection is unpaginated on OpenProject's side — this MCP fetches\n"
-        "the full list and paginates client-side; limit is capped at\n"
-        "OPENPROJECT_MAX_PAGE_SIZE (default 50).\n"
+        "List a user's recurring weekly working-hours schedules, ordered by\nvalid_from descending (most recent first).\n\nRequires OpenProject 17.3+ (feature-flag-gated through 17.6, generally\navailable from 17.7).\n\nSame self-service-or-manage_working_times authorization as\nlist_user_non_working_times: OpenProject returns 404 (not 403) for an\nunauthorized cross-user request.\n\nuser_ref: \"me\" for the current user, a numeric user id, or a login.\nThe collection is unpaginated on OpenProject's side; this MCP fetches\nthe full list and paginates client-side; limit is capped at\nOPENPROJECT_MAX_PAGE_SIZE (default 50).\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {

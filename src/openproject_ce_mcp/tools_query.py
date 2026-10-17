@@ -50,13 +50,13 @@ async def execute_query(
 ) -> WorkPackageListResult:
     """Execute a saved OpenProject query by id and return its resolved work packages.
 
-    query_id: the query's own numeric id — obtain it from get_view/list_views's
+    query_id: the query's own numeric id; obtain it from get_view/list_views's
     query_id field, or from list_boards/get_board (a board's id IS its
     underlying query id, since OpenProject Boards are Query resources).
 
     Runs the query server-side (OpenProject resolves its stored filters/sort/
     group_by and returns real work packages, not just the query's
-    definition) — no client-side filter translation happens here. Results are
+    definition); no client-side filter translation happens here. Results are
     still filtered against this MCP's own OPENPROJECT_READ_PROJECTS allowlist
     before being returned, since the query itself executes with the API
     token's full server-side permissions.

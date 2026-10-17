@@ -88,7 +88,7 @@ async def list_time_entries(
     is null.
 
     include_total_hours=true sums `hours` (as an ISO 8601 duration) across
-    every matching entry, independent of limit/offset — this runs its own
+    every matching entry, independent of limit/offset; this runs its own
     full walk of the filtered collection (bounded; see
     total_hours_truncated), since OpenProject has no server-side sum for
     time entries (unlike list_work_packages's include_sums). Leave false

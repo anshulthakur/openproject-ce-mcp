@@ -58,14 +58,14 @@ async def create_work_package_relation(
     """Create a relation between work packages.
 
     relation_type: relates, duplicates, duplicated, blocks, blocked, precedes, follows, includes, partof, requires, required.
-    work_package_id becomes from_id and related_to_work_package_id becomes to_id — but OpenProject stores
+    work_package_id becomes from_id and related_to_work_package_id becomes to_id, but OpenProject stores
     only one canonical type per pair and silently rewrites the other: creating with relation_type='precedes'
     (or 'blocked', 'duplicated', 'partof', 'required') is stored as the paired canonical type ('follows',
     'blocks', 'duplicates', 'includes', 'requires' respectively) with from_id/to_id SWAPPED relative to
     work_package_id/related_to_work_package_id. The canonical types themselves ('follows', 'blocks',
     'duplicates', 'includes', 'requires', and non-directional 'relates') are stored exactly as given, with
     from_id/to_id unswapped. This happens once at creation and does not depend on which work package's
-    relations you later query — always read the actual type/from_id/to_id from the response rather than
+    relations you later query; always read the actual type/from_id/to_id from the response rather than
     assuming they match what you requested.
     """
     client = _client_from_context(ctx)
@@ -112,13 +112,13 @@ async def get_work_package_relations(
     """Get the relations of one work package (blocks, relates to, duplicates, etc.).
 
     type/from_id/to_id reflect how OpenProject actually stored the relation, which does not depend on
-    which work package's relations you query — but can differ from how it was originally requested, since
+    which work package's relations you query, but can differ from how it was originally requested, since
     OpenProject canonicalizes some relation types at creation time (e.g. a relation requested as 'precedes'
     is stored as 'follows' with from_id/to_id swapped; see create_work_package_relation). Use from_id/to_id
     together with type, not the request you expect to have made, to determine the actual direction.
 
     Each result additionally carries queried_perspective, a caller-relative reading of the same relation
-    from work_package_id's own side — never a replacement for type/from_id/to_id, which stay unchanged.
+    from work_package_id's own side; never a replacement for type/from_id/to_id, which stay unchanged.
     queried_perspective.direction is "from" or "to" (which raw id equals work_package_id);
     queried_perspective.effective_type is the type as read FROM work_package_id's side (e.g. a stored
     "blocks" relation reads as effective_type="blocked" when work_package_id is the to_id side, "blocks"
@@ -149,12 +149,12 @@ async def list_relations(
 
     type/from_id/to_id reflect how OpenProject actually stored the relation (it does not change depending
     on which work package's relations you're viewing), which can differ from how it was originally
-    requested — OpenProject canonicalizes some relation types at creation time (e.g. a relation requested
+    requested; OpenProject canonicalizes some relation types at creation time (e.g. a relation requested
     as 'precedes' is stored as 'follows' with from_id/to_id swapped; see create_work_package_relation).
     Filtering by relation_type matches the stored (canonical) type, not necessarily the type a caller
     originally requested when creating it.
 
-    Each result's queried_perspective field is always null here — a caller-relative reading needs one
+    Each result's queried_perspective field is always null here; a caller-relative reading needs one
     anchor work package to read the relation FROM, and this instance-wide listing has none. Use
     get_work_package_relations instead when you need queried_perspective populated.
 

@@ -61,7 +61,7 @@ def test_list_time_entries_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_time_entries"]
     assert (
         tool.description
-        == "List time entries with optional project, work package, user, and date filters.\n\ntotal is only the count of allowed time entries returned on THIS page, not a full count of all matches; the\nsearch stops as soon as it has enough, so an exact total would need an extra full walk. Page until next_offset\nis null.\n\ninclude_total_hours=true sums `hours` (as an ISO 8601 duration) across\nevery matching entry, independent of limit/offset — this runs its own\nfull walk of the filtered collection (bounded; see\ntotal_hours_truncated), since OpenProject has no server-side sum for\ntime entries (unlike list_work_packages's include_sums). Leave false\nunless the total is actually needed: it costs extra requests on top of\nthe page this call already returns.\n"
+        == "List time entries with optional project, work package, user, and date filters.\n\ntotal is only the count of allowed time entries returned on THIS page, not a full count of all matches; the\nsearch stops as soon as it has enough, so an exact total would need an extra full walk. Page until next_offset\nis null.\n\ninclude_total_hours=true sums `hours` (as an ISO 8601 duration) across\nevery matching entry, independent of limit/offset; this runs its own\nfull walk of the filtered collection (bounded; see\ntotal_hours_truncated), since OpenProject has no server-side sum for\ntime entries (unlike list_work_packages's include_sums). Leave false\nunless the total is actually needed: it costs extra requests on top of\nthe page this call already returns.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {

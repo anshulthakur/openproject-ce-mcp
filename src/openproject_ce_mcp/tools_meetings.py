@@ -121,7 +121,7 @@ async def list_meetings(
 ) -> MeetingListResult:
     """List OpenProject meetings, optionally scoped to a project.
 
-    Requires OpenProject 17.4+ — the meetings module's agenda/section/
+    Requires OpenProject 17.4+; the meetings module's agenda/section/
     participant shape used here does not exist on 16.6, which only exposes
     an incompatible legacy "meeting contents" representation.
 
@@ -306,7 +306,7 @@ async def list_meeting_agenda_items(
     Requires OpenProject 17.4+.
 
     This list is unpaginated server-side (OpenProject returns every agenda
-    item of the meeting in one response) — offset/limit are applied
+    item of the meeting in one response); offset/limit are applied
     client-side by this MCP.
 
     text_limit caps each item's notes at that many characters (default: the
@@ -339,7 +339,7 @@ async def list_work_package_meeting_agenda_items(
 
     Requires OpenProject 17.7+.
 
-    This list is unpaginated server-side — offset/limit are applied
+    This list is unpaginated server-side; offset/limit are applied
     client-side by this MCP.
 
     text_limit caps each item's notes at that many characters (default: the
@@ -499,10 +499,10 @@ async def list_meeting_outcomes(
 ) -> MeetingOutcomeListResult:
     """List outcomes of a meeting agenda item.
 
-    Requires OpenProject 17.6+ — the meeting_outcomes endpoint does not exist
+    Requires OpenProject 17.6+; the meeting_outcomes endpoint does not exist
     on 17.4/17.5.
 
-    This list is unpaginated server-side — offset/limit are applied
+    This list is unpaginated server-side; offset/limit are applied
     client-side by this MCP.
 
     text_limit caps each outcome's notes at that many characters (default:
@@ -547,7 +547,7 @@ async def create_meeting_outcome(
     Requires OpenProject 17.6+.
 
     kind must be one of "information", "decision", "work_package" (OpenProject's
-    real enum values — not e.g. "info" or "action", which OpenProject rejects
+    real enum values, not e.g. "info" or "action", which OpenProject rejects
     with an internal server error rather than a clean validation error).
     "information"-kind outcomes require notes; "work_package"-kind outcomes
     require work_package_id.
@@ -582,7 +582,7 @@ async def update_meeting_outcome(
     Requires OpenProject 17.6+.
 
     kind, if given, must be one of "information", "decision", "work_package"
-    (OpenProject's real enum values — not e.g. "info" or "action", which
+    (OpenProject's real enum values, not e.g. "info" or "action", which
     OpenProject rejects with an internal server error rather than a clean
     validation error).
     """
@@ -627,7 +627,7 @@ async def list_meeting_sections(
 
     Requires OpenProject 17.4+.
 
-    This list is unpaginated server-side — offset/limit are applied
+    This list is unpaginated server-side; offset/limit are applied
     client-side by this MCP.
     """
     client = _client_from_context(ctx)
@@ -663,7 +663,7 @@ async def create_meeting_section(
 
     Requires OpenProject 17.6+.
 
-    backlog cannot be changed after creation via update_meeting_section —
+    backlog cannot be changed after creation via update_meeting_section;
     pass it only here, on create.
     """
     client = _client_from_context(ctx)
@@ -911,7 +911,7 @@ async def list_recurring_meeting_occurrences(
     filter: one of "upcoming", "past", "cancelled", "open".
     Occurrences are virtual (synthesized from the recurrence rule) except
     where a real Meeting has already been materialized via
-    init_recurring_meeting_occurrence — this list has no offset/pagination,
+    init_recurring_meeting_occurrence; this list has no offset/pagination,
     unlike list_meetings/list_recurring_meetings.
     """
     client = _client_from_context(ctx)
@@ -936,7 +936,7 @@ async def init_recurring_meeting_occurrence(
     Requires OpenProject 17.4+.
 
     start_time: the occurrence's exact start time (ISO 8601, matching a
-    start_time value from list_recurring_meeting_occurrences) — occurrences
+    start_time value from list_recurring_meeting_occurrences); occurrences
     have no numeric id, they are addressed by this timestamp.
     On success, result is a full Meeting (use its id with get_meeting/
     update_meeting/delete_meeting), not an occurrence. A cancelled occurrence is restored and its content
@@ -974,7 +974,7 @@ async def cancel_recurring_meeting_occurrence(
     materialized meeting directly instead). If NOT yet materialized,
     OpenProject records the cancellation as a cancelled Meeting
     (init_recurring_meeting_occurrence restores it, a later schedule change of
-    the series other than the time of day can delete it) — this call's result
+    the series other than the time of day can delete it); this call's result
     does not report that new meeting's id; list_meetings/
     list_recurring_meeting_occurrences(filter="cancelled") can be used to find
     it afterward if needed.

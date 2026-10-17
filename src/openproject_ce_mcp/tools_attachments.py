@@ -100,7 +100,7 @@ async def get_attachment_content(
       byte limit if it is long (outcome "text", truncated=true)
     - an image over the byte limit is refused whole rather than returned
       partially (outcome "too_large")
-    - anything else returns metadata only (outcome "not_inline_supported") —
+    - anything else returns metadata only (outcome "not_inline_supported");
       no bytes, since no MCP client could display them; content_type there is
       the attachment's stored type, which names the file where the served
       header only says "not inlineable"
@@ -134,7 +134,7 @@ async def list_work_package_attachments(
     """List attachments on a work package.
 
     include_total_size=true sums file_size_bytes across every attachment
-    (independent of limit/offset) — OpenProject's attachments endpoint
+    (independent of limit/offset); OpenProject's attachments endpoint
     always returns the full list in one response, so this costs no extra
     request in the common case. Null if file_size_bytes is hidden by
     server configuration, rather than leaking it indirectly through a sum.

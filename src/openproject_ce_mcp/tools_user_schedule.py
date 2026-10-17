@@ -73,7 +73,7 @@ async def list_user_non_working_times(
 
     user_ref: "me" for the current user, a numeric user id, or a login.
     year: filter to this calendar year; defaults to the current year.
-    The collection is unpaginated on OpenProject's side — this MCP fetches
+    The collection is unpaginated on OpenProject's side; this MCP fetches
     the full requested year and paginates client-side; limit is capped at
     OPENPROJECT_MAX_PAGE_SIZE (default 50).
     """
@@ -126,7 +126,7 @@ async def update_user_non_working_time(
     Requires OpenProject 17.3+. Same authorization as
     list_user_non_working_times. No single-item GET exists on OpenProject's
     side for this resource, but the update itself is addressed directly by
-    id (no year or other date filter involved) — a non-existent id fails
+    id (no year or other date filter involved); a non-existent id fails
     with a not-found error on confirm; the preview does not look it up.
     """
     client = _client_from_context(ctx)
@@ -177,7 +177,7 @@ async def list_user_working_hours(
     unauthorized cross-user request.
 
     user_ref: "me" for the current user, a numeric user id, or a login.
-    The collection is unpaginated on OpenProject's side — this MCP fetches
+    The collection is unpaginated on OpenProject's side; this MCP fetches
     the full list and paginates client-side; limit is capped at
     OPENPROJECT_MAX_PAGE_SIZE (default 50).
     """

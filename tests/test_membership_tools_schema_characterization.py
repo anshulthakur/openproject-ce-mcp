@@ -110,11 +110,7 @@ def test_list_actions_schema() -> None:
 def test_list_capabilities_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_capabilities"]
     assert tool.description == (
-        "List API capabilities exposed by OpenProject.\n"
-        "\n"
-        "At least one of project or capability_id is required — there is no\n"
-        "unfiltered global listing, since one would bypass the project read\n"
-        "allowlist.\n"
+        "List API capabilities exposed by OpenProject.\n\nAt least one of project or capability_id is required; there is no\nunfiltered global listing, since one would bypass the project read\nallowlist.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
