@@ -18,6 +18,7 @@ from .config import TEXT_LIMIT_MAX
 from .models import SortCriterion
 from .sort_criteria import parse_sort_by
 from .tool_params import allowed_select_fields
+from .work_package_columns import GROUPABLE_FIELDS, SORTABLE_FIELDS
 from .work_package_reference import canonical_work_package_ref, is_numeric_ref
 
 PROJECT_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -691,66 +692,6 @@ def _validate_required_duration(value: str, *, field_name: str) -> str:
     return normalized
 
 
-# Cross-checked against OpenProject's own query property/project-phase select
-# definitions -- these are the standard (non-custom-field) attributes
-# OpenProject actually accepts via GET /work_packages?sortBy=.../groupBy=...,
-# not a guess at plausible names. assignee/assignedTo/
-# percentage_done etc. are accepted aliases alongside the canonical Rails
-# attribute name; both are included here rather than normalized, since the
-# client sends the field straight through unchanged.
-_SORTABLE_WORK_PACKAGE_FIELDS = frozenset(
-    {
-        "id",
-        "project",
-        "subject",
-        "type",
-        "status",
-        "priority",
-        "author",
-        "assigned_to",
-        "assignee",
-        "responsible",
-        "updated_at",
-        "category",
-        "version",
-        "start_date",
-        "due_date",
-        "estimated_hours",
-        "estimated_time",
-        "remaining_hours",
-        "remaining_time",
-        "done_ratio",
-        "percentage_done",
-        "created_at",
-        "duration",
-        "project_phase",
-        "story_points",
-    }
-)
-
-# Subset of _SORTABLE_WORK_PACKAGE_FIELDS that OpenProject also accepts for
-# groupBy -- confirmed by live-testing every entry above (e.g. due_date and
-# estimated_hours/estimated_time sort fine but reject with "Can't group by"
-# on group_by; parent/subject/id/created_at/updated_at/duration/start_date
-# have no groupable column at all in property_select.rb).
-_GROUPABLE_WORK_PACKAGE_FIELDS = frozenset(
-    {
-        "project",
-        "type",
-        "status",
-        "priority",
-        "author",
-        "assigned_to",
-        "assignee",
-        "responsible",
-        "category",
-        "version",
-        "done_ratio",
-        "percentage_done",
-        "project_phase",
-    }
-)
-
 # A custom field's wire identifier is cf_<id> (the numeric id assigned when the
 # field was created on this instance, per CustomField#column_name) -- inherently
 # instance-specific and impossible to enumerate statically, so this pattern is
@@ -777,12 +718,10 @@ def _validate_sort_by(values: list[str] | None) -> list[SortCriterion] | None:
 
     criteria = parse_sort_by(values, field_name="sort_by")
     for i, criterion in enumerate(criteria):
-        if criterion.field not in _SORTABLE_WORK_PACKAGE_FIELDS and not _CUSTOM_FIELD_PATTERN.fullmatch(
-            criterion.field
-        ):
+        if criterion.field not in SORTABLE_FIELDS and not _CUSTOM_FIELD_PATTERN.fullmatch(criterion.field):
             raise ValueError(
                 f"sort_by[{i}]: unknown field '{criterion.field}'. "
-                f"Valid fields are: {_describe_valid_fields(_SORTABLE_WORK_PACKAGE_FIELDS)}."
+                f"Valid fields are: {_describe_valid_fields(SORTABLE_FIELDS)}."
             )
 
     return criteria or None
@@ -793,10 +732,9 @@ def _validate_group_by(value: str | None) -> str | None:
     normalized = _validate_optional_query(value, field_name="group_by", max_length=120)
     if normalized is None:
         return None
-    if normalized not in _GROUPABLE_WORK_PACKAGE_FIELDS and not _CUSTOM_FIELD_PATTERN.fullmatch(normalized):
+    if normalized not in GROUPABLE_FIELDS and not _CUSTOM_FIELD_PATTERN.fullmatch(normalized):
         raise ValueError(
-            f"group_by: unknown field '{normalized}'. "
-            f"Valid fields are: {_describe_valid_fields(_GROUPABLE_WORK_PACKAGE_FIELDS)}."
+            f"group_by: unknown field '{normalized}'. Valid fields are: {_describe_valid_fields(GROUPABLE_FIELDS)}."
         )
     return normalized
 

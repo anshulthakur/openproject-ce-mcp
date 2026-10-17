@@ -92,6 +92,7 @@ import asyncio
 import builtins
 import dataclasses
 import datetime
+import functools
 import logging
 import re
 from collections.abc import Awaitable, Mapping
@@ -113,6 +114,7 @@ from ...models import (
     WorkPackageSummary,
     WorkPackageWriteResult,
 )
+from ...work_package_columns import floors_used
 from ..api_href import api_href as _api_href
 from ..errors import (
     InvalidInputError,
@@ -687,22 +689,30 @@ class WorkPackageService:
         # sums we'd have to discard anyway.
         requested_sums = include_sums and total_is_scope_safe
 
-        if total_is_scope_safe:
-            return await self._list_collection_fast_path(
+        def dispatch() -> Awaitable[WorkPackageListResult]:
+            if total_is_scope_safe:
+                return self._list_collection_fast_path(
+                    filters=filters,
+                    offset=offset,
+                    limit=limit,
+                    sort_by=sort_by,
+                    group_by=group_by,
+                    requested_sums=requested_sums,
+                )
+            return self._list_collection_scanned(
                 filters=filters,
                 offset=offset,
                 limit=limit,
                 sort_by=sort_by,
                 group_by=group_by,
-                requested_sums=requested_sums,
             )
-        return await self._list_collection_scanned(
-            filters=filters,
-            offset=offset,
-            limit=limit,
-            sort_by=sort_by,
-            group_by=group_by,
-        )
+
+        # One hint per newer column, oldest release innermost, so a rejection names
+        # every release that could be the cause.
+        call = dispatch
+        for column, floor in floors_used([c.field for c in sort_by or []], group_by):
+            call = functools.partial(call_query_version_gated, call, feature=f"the {column} column", floor=floor)
+        return await call()
 
     async def _list_collection_fast_path(
         self,

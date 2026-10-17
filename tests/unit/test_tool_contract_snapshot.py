@@ -6601,7 +6601,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_work_packages": {
-        "description_hash": "50ed268088b0804021d7048d304bd7f633e979cde95537e9eef5e43579358f26",
+        "description_hash": "ae1b5cc8fb4592b6fc375e26c40f8191f6acc24754e0a9ed2df0d3386f632721",
         "input_schema": {
             "properties": {
                 "project": {
@@ -6674,9 +6674,15 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "sort_by": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": 'Sort criteria as "field:direction" or "field-direction" (e.g. ["status:desc", "priority-asc"]); the direction defaults to asc. Fields: assigned_to, assignee, author, backlog_bucket, category, created_at, done_ratio, due_date, duration, estimated_hours, estimated_time, id, observed_in_versions, percentage_done, position, priority, project, project_phase, remaining_hours, remaining_time, responsible, sprint, start_date, status, story_points, subject, target_versions, type, updated_at, version, or a custom field\'s cf_<id>. Newer columns need an OpenProject release: project_phase 16.1+, sprint 17.4+, backlog_bucket 17.6+, target_versions 17.8+, observed_in_versions 17.9+; target_versions is version under its newer name. sprint and backlog_bucket also need the Backlogs module in a project where you may view sprints.',
                     "title": "Sort By",
                 },
-                "group_by": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Group By"},
+                "group_by": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "One field to group the results by: assigned_to, assignee, author, backlog_bucket, category, done_ratio, observed_in_versions, percentage_done, priority, project, project_phase, responsible, sprint, status, target_versions, type, version, or a custom field's cf_<id>. Newer columns need an OpenProject release: project_phase 16.1+, sprint 17.4+, backlog_bucket 17.6+, target_versions 17.8+, observed_in_versions 17.9+; target_versions is version under its newer name. sprint and backlog_bucket also need the Backlogs module in a project where you may view sprints.",
+                    "title": "Group By",
+                },
                 "offset": {
                     "default": 1,
                     "description": "1-based page number; pass the previous result's next_offset.",
@@ -6794,7 +6800,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_EXTENDED_READ", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "search_work_packages": {
-        "description_hash": "0a22cd6d0618a52e773fb01127af96602bffc1dcfb46b7959c68adadd00ef033",
+        "description_hash": "d2cb841070311b9b76c2c364111d3422cd706d19df72840cda7e9650755f348b",
         "input_schema": {
             "properties": {
                 "search": {"title": "Search", "type": "string"},
@@ -6848,9 +6854,15 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "sort_by": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
+                    "description": 'Sort criteria as "field:direction" or "field-direction" (e.g. ["status:desc", "priority-asc"]); the direction defaults to asc. Fields: assigned_to, assignee, author, backlog_bucket, category, created_at, done_ratio, due_date, duration, estimated_hours, estimated_time, id, observed_in_versions, percentage_done, position, priority, project, project_phase, remaining_hours, remaining_time, responsible, sprint, start_date, status, story_points, subject, target_versions, type, updated_at, version, or a custom field\'s cf_<id>. Newer columns need an OpenProject release: project_phase 16.1+, sprint 17.4+, backlog_bucket 17.6+, target_versions 17.8+, observed_in_versions 17.9+; target_versions is version under its newer name. sprint and backlog_bucket also need the Backlogs module in a project where you may view sprints.',
                     "title": "Sort By",
                 },
-                "group_by": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Group By"},
+                "group_by": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "One field to group the results by: assigned_to, assignee, author, backlog_bucket, category, done_ratio, observed_in_versions, percentage_done, priority, project, project_phase, responsible, sprint, status, target_versions, type, version, or a custom field's cf_<id>. Newer columns need an OpenProject release: project_phase 16.1+, sprint 17.4+, backlog_bucket 17.6+, target_versions 17.8+, observed_in_versions 17.9+; target_versions is version under its newer name. sprint and backlog_bucket also need the Backlogs module in a project where you may view sprints.",
+                    "title": "Group By",
+                },
                 "offset": {
                     "default": 1,
                     "description": "1-based page number; pass the previous result's next_offset.",
