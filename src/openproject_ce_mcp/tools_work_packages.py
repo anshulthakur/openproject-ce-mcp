@@ -95,6 +95,7 @@ from .tools_validation import (
     _validate_sort_by,
     _validate_work_package_ref,
 )
+from .work_package_columns import group_by_description, sort_by_description
 
 
 @register_tool
@@ -115,8 +116,8 @@ async def search_work_packages(
     due_between: list[str] | None = None,
     overdue_only: bool = False,
     due_within_days: int | None = None,
-    sort_by: list[str] | None = None,
-    group_by: str | None = None,
+    sort_by: Annotated[list[str] | None, Field(description=sort_by_description())] = None,
+    group_by: Annotated[str | None, Field(description=group_by_description())] = None,
     offset: Offset = 1,
     limit: Limit = None,
     select: Annotated[list[str] | None, select_field(WorkPackageSummary)] = None,
@@ -157,12 +158,13 @@ async def search_work_packages(
 
     priority filters by priority name or numeric ID (case-insensitive).
 
-    Date filters, overdue_only/due_within_days, sort_by/group_by, select,
+    Date filters, overdue_only/due_within_days, select,
     pagination (offset/limit/total), include_sums, and each result's
     custom_fields/custom_comments (raw-key custom-field values/comments,
     capped and hide-matched exactly as documented) all work exactly as
     documented on list_work_packages; see that tool's docstring for the
-    full field lists and semantics. One difference: total is the real
+    full field lists and semantics. sort_by and group_by take the same fields
+    and are described by their own parameters. One difference: total is the real
     matching count only when scope is unrestricted or an explicit project
     was given (list_work_packages's server-side allowed-project filter for
     the no-project+restricted-scope case does not apply here); otherwise
@@ -239,8 +241,8 @@ async def list_work_packages(
     due_between: list[str] | None = None,
     overdue_only: bool = False,
     due_within_days: int | None = None,
-    sort_by: list[str] | None = None,
-    group_by: str | None = None,
+    sort_by: Annotated[list[str] | None, Field(description=sort_by_description())] = None,
+    group_by: Annotated[str | None, Field(description=group_by_description())] = None,
     offset: Offset = 1,
     limit: Limit = None,
     select: Annotated[list[str] | None, select_field(WorkPackageSummary)] = None,
@@ -277,21 +279,14 @@ async def list_work_packages(
     due_date in [today, today+N days]. Neither can be combined with each
     other or with due_on/due_between (all four constrain the same field).
 
-    sort_by accepts a list of sort criteria in format "field:direction" or "field-direction"
-    (e.g., ["status:desc", "priority-asc"]). Direction defaults to "asc" if omitted.
-    Each field is checked against OpenProject's real sortable work-package
-    columns (id, project, subject, type, status, priority, author, assigned_to,
-    responsible, updated_at, category, version, start_date, due_date,
-    estimated_time, remaining_time, done_ratio, created_at, duration,
-    project_phase, story_points, or a custom field's cf_<id> identifier);
-    an unknown field raises a ValueError listing the valid set instead of
-    only failing once OpenProject itself rejects the request.
-
-    group_by accepts one field name to group results by (e.g., "status",
-    "assigned_to"), checked the same way against OpenProject's actual
-    groupable columns (a subset of the sortable ones above, notably
-    start_date/due_date/estimated_time/remaining_time/duration/created_at/
-    updated_at sort fine but cannot be grouped by).
+    sort_by and group_by are checked against OpenProject's real sortable and
+    groupable work-package columns (the parameters list them with the release
+    each newer column needs); an unknown field raises a ValueError listing the
+    valid set instead of only failing once OpenProject itself rejects the
+    request. A column the instance's release lacks is rejected by OpenProject
+    and the error names the release it needs. Dates, hours, subject, id and
+    the other columns without a value per group sort fine but cannot be
+    grouped by.
 
     select restricts each result row to the given fields (e.g. ["id", "subject",
     "status"]); an invalid name returns the allowed set. Common fields: id,

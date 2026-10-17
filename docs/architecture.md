@@ -456,6 +456,12 @@ input with it, the work-package tools before their service;
 `api_href.sort_by_path` builds OpenProject's
 `queries/sort_bys/<field>-<direction>` path.
 
+The columns a work-package list sorts and groups by, and the OpenProject
+release each newer column needs, live in `work_package_columns.py`. The tool
+validators check the names against it, the parameter descriptions are
+generated from it, and the work-package service adds the release to
+OpenProject's rejection when an instance lacks a requested column.
+
 An `ast`-based test (`tests/test_architecture_boundaries.py`) enforces the layer
 directions above, confines `httpx` to `HttpxTransport`, forbids importing the
 `mcp` SDK or reading environment variables directly anywhere under `app/`, and

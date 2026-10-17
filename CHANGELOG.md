@@ -269,6 +269,14 @@ development baseline.
   time and cannot remove anyone, and only administrators can read the server
   version that tells those releases from 17.6 and later. It now rejects
   `participant_user_refs` instead of ignoring it.
+- `sort_by` on the work package list tools rejected `observed_in_versions`,
+  `target_versions`, `sprint`, `backlog_bucket` and `position`, and `group_by`
+  rejected the first four, although OpenProject offers them. A column that
+  needs a newer OpenProject release than the instance runs now comes back with
+  OpenProject's own rejection plus the release it needs (`project_phase` 16.1,
+  `sprint` 17.4, `backlog_bucket` 17.6, `target_versions` 17.8,
+  `observed_in_versions` 17.9). The parameter descriptions list every field and
+  these releases.
 
 Thanks to our contributors: [@webadmin-stattreisen](https://github.com/webadmin-stattreisen) ([#45](https://github.com/jtauschl/openproject-ce-mcp/pull/45)).
 

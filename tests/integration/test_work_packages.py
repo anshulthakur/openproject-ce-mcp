@@ -11,6 +11,8 @@ import pytest
 
 from openproject_ce_mcp import tools
 from openproject_ce_mcp.client import InvalidInputError, OpenProjectClient, PermissionDeniedError
+from openproject_ce_mcp.models import SortCriterion
+from openproject_ce_mcp.work_package_columns import COLUMN_FLOORS, GROUPABLE_FIELDS, SORTABLE_FIELDS
 
 from .conftest import disposable_project_identifier, skip_if_unsupported
 
@@ -1285,3 +1287,53 @@ async def test_version_status_filters_with_multiple_versions_enabled(
     assert created.work_package_id in await _ids_with_version_status(client, test_project, "open")
     assert created.work_package_id in await _ids_with_version_status(client, test_project, "closed")
     assert created.work_package_id not in await _ids_with_version_status(client, test_project, "locked")
+
+
+def _release_reached(instance: tuple[int, int], floor: str | None) -> bool:
+    return floor is None or instance >= tuple(int(part) for part in floor.split("."))
+
+
+async def _list_sorted_or_grouped(client: OpenProjectClient, test_project: str, **kwargs: object) -> str | None:
+    """None when OpenProject accepts the request, else its rejection message."""
+    try:
+        await client.work_package.list(project=test_project, limit=1, **kwargs)
+    except InvalidInputError as error:
+        return str(error)
+    return None
+
+
+@pytest.mark.parametrize("field", sorted(SORTABLE_FIELDS))
+async def test_sort_by_accepts_exactly_the_columns_the_instance_has(
+    client: OpenProjectClient, test_project: str, openproject_version: tuple[int, int], field: str
+) -> None:
+    floor = COLUMN_FLOORS.get(field)
+
+    rejection = await _list_sorted_or_grouped(client, test_project, sort_by=[SortCriterion(field, "asc")])
+
+    if _release_reached(openproject_version, floor):
+        assert rejection is None, rejection
+    else:
+        assert rejection is not None and f"older than OpenProject {floor}" in rejection, rejection
+
+
+@pytest.mark.parametrize("field", sorted(GROUPABLE_FIELDS))
+async def test_group_by_accepts_exactly_the_columns_the_instance_has(
+    client: OpenProjectClient, test_project: str, openproject_version: tuple[int, int], field: str
+) -> None:
+    floor = COLUMN_FLOORS.get(field)
+
+    rejection = await _list_sorted_or_grouped(client, test_project, group_by=field)
+
+    if _release_reached(openproject_version, floor):
+        assert rejection is None, rejection
+    else:
+        assert rejection is not None and f"older than OpenProject {floor}" in rejection, rejection
+
+
+@pytest.mark.parametrize("field", ["spent_hours", "shared_with_users", "not_a_column"])
+async def test_columns_the_tool_does_not_offer_are_rejected_by_openproject(
+    client: OpenProjectClient, test_project: str, field: str
+) -> None:
+    rejection = await _list_sorted_or_grouped(client, test_project, sort_by=[SortCriterion(field, "asc")])
+
+    assert rejection is not None
