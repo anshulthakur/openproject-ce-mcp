@@ -725,10 +725,17 @@ async def create_recurring_meeting(
 
     project: identifier, name, or numeric id — required, every recurring
     meeting belongs to exactly one project.
-    frequency: e.g. "daily", "weekly", "monthly" — pass the value as
-    returned by list_recurring_meetings/get_recurring_meeting.
-    end_after: e.g. "date", "iterations", "never" — governs which of
-    end_date/iterations is used.
+    frequency: "daily", "working_days", "weekly", and from OpenProject 17.5
+    "monthly_day_of_month" or "monthly_nth_weekday".
+    interval: every n-th day, week or month, 1 to 100; "working_days" always
+    uses 1.
+    end_after: "never" (default), "specific_date" (requires end_date) or
+    "iterations" (requires iterations, 1 to 1000).
+    monthly_day: day of month, 1 to 31; required for "monthly_day_of_month".
+    monthly_ordinal ("1" to "4", or "-1" for the last) and monthly_weekday
+    (lowercase English weekday, e.g. "monday"): required for
+    "monthly_nth_weekday".
+    The template meeting of the series starts as a draft.
     """
     client = _client_from_context(ctx)
     safe_project = _validate_project_ref(project)
@@ -870,6 +877,9 @@ async def init_recurring_meeting_occurrence(
     have no numeric id, they are addressed by this timestamp.
     On success, result is a full Meeting (use its id with get_meeting/
     update_meeting/delete_meeting), not an occurrence.
+    On OpenProject 17.4 and 17.5, initializing an occurrence that already
+    exists fails with a server error instead of returning it; 17.6 and later
+    return the existing occurrence.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(recurring_meeting_id, field_name="recurring_meeting_id")

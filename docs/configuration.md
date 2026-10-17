@@ -249,7 +249,7 @@ defense in depth.
 | `OPENPROJECT_MAX_RETRIES` | no | `3` | Retries for 429/5xx responses, max `10` |
 | `OPENPROJECT_RETRY_BASE_DELAY` | no | `1.0` | Initial retry delay in seconds |
 | `OPENPROJECT_RETRY_MAX_DELAY` | no | `60.0` | Maximum retry delay in seconds; must be ≥ `OPENPROJECT_RETRY_BASE_DELAY` |
-| `OPENPROJECT_LOG_LEVEL` | no | `WARNING` | `CRITICAL`, `ERROR`, `WARNING`, or `INFO` |
+| `OPENPROJECT_LOG_LEVEL` | no | `WARNING` | `CRITICAL`, `ERROR`, `WARNING`, `INFO`, or `DEBUG` |
 
 Proxies come from the standard `HTTP_PROXY`, `HTTPS_PROXY` and `ALL_PROXY`
 variables (`http://`, `https://` and `socks5://` URLs); hosts listed in

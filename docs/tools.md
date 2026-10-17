@@ -55,7 +55,7 @@ Responses are trimmed for context economy: list results omit the derivable
 `count`/`truncated` fields, and a confirmed write omits the echoed request
 `payload` (its normalized `result` carries the same data). `list_work_packages`,
 `search_work_packages`, `list_projects`, `list_users` and the batch-read
-`get_work_packages` accept an optional `select` (a list of field names) to
+`get_work_packages`, among others, accept an optional `select` (a list of field names) to
 return only the fields you need per row (for `get_work_packages`, per fetched
 work package; for `search_work_packages`, also its `exact_match` when present);
 an invalid name returns the allowed set for that row type.
@@ -188,9 +188,9 @@ for that resource.
 
 Per-user schedule overrides (vacation date ranges and recurring weekly
 working-hours schedules) — requires OpenProject 17.3+ (feature-flag-gated
-through 17.6, generally available from 17.7; earlier versions return a
-`[server_error]`, since the underlying route does not exist at all before
-17.3). Gated by its own dedicated flag pair,
+through 17.6, generally available from 17.7; on an older server, or on 17.3 to 17.6
+with the feature flag off, the route answers 404 and the tool returns a
+`[not_found]` naming the 17.3 floor). Gated by its own dedicated flag pair,
 `OPENPROJECT_ENABLE_USER_SCHEDULE_READ`/`_WRITE` (both default `false`) —
 neither [Users](#users)' `OPENPROJECT_ENABLE_ADMIN_READ`/`_WRITE` nor a
 `personal`-style current-user-only scope fits: OpenProject itself always
@@ -219,7 +219,7 @@ user exists.
 
 | Tool | Description |
 | --- | --- |
-| `list_notifications` | List the current user's unread notifications |
+| `list_notifications` | List the current user's in-app notifications; pass `unread_only=true` to list only unread ones |
 | `mark_notifications_read` | Mark a single notification as read (pass `notification_id`), or every unread notification as read (omit it); under a restricted `OPENPROJECT_READ_PROJECTS`, only notifications about projects it covers |
 
 ## Actions & capabilities
@@ -311,8 +311,9 @@ has
 > OpenProject offers no API to delete it, so the tool rejects it with a
 > `[validation_error]` without sending the delete request, and the link goes
 > away only when that text changes. Deleting needs the "Manage wiki page
-> links" permission in the work package's project; without it the tool
-> returns `[permission_denied]`.
+> links" permission in the work package's project; without it OpenProject
+> answers 404, which the tool reports as `[not_found]` naming 17.6, not as
+> `[permission_denied]`.
 
 ## Forums
 
@@ -335,7 +336,8 @@ has
 > identifier, semantic (`PROJ`) or classic (`my-proj`), a hyphen, then the
 > number. Any other value is rejected as invalid input before a request is
 > made. The bulk tools (`bulk_create_work_packages`,
-> `bulk_update_work_packages`) are numeric-only.
+> `bulk_update_work_packages`) accept the same references per item
+> (`work_package_id`, `parent`/`parent_work_package_id`).
 
 | Tool | Description |
 | --- | --- |
@@ -618,7 +620,7 @@ later still). Meeting Outcomes require 17.6+ throughout.
 
 | Tool | Description |
 | --- | --- |
-| `get_my_preferences` | Return the current user's preferences (language, timezone, comment sorting, …) |
+| `get_my_preferences` | Return the current user's preferences (timezone, comment sorting, popups, …); language is a user attribute, see `update_user` |
 | `update_my_preferences` | Prepare or update the current user's preferences; only writes when called again with `confirm=true` |
 
 ## Text rendering

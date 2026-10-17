@@ -52,8 +52,9 @@ async def list_user_non_working_times(
     distinct from the instance-wide non-working days (list_non_working_days).
 
     Requires OpenProject 17.3+ (feature-flag-gated through 17.6, generally
-    available from 17.7). Earlier versions return a [server_error] for this
-    endpoint — the route does not exist before 17.3.
+    available from 17.7). On an older server, or on 17.3 to 17.6 with the
+    feature flag off, the route answers 404 and the tool returns a [not_found]
+    naming the 17.3 floor.
 
     OpenProject enforces this at the API level: you may always view your own
     schedule (user_ref="me"); viewing another user's requires the

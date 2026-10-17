@@ -232,6 +232,19 @@ development baseline.
   `40.0` or a numeric string such as `"40"` was accepted. It now takes only a
   whole number from 0 to 100; anything else is rejected before any request,
   as `bulk_update_work_packages` already did for its items.
+- Tool descriptions and documentation stated facts that do not hold:
+  `create_recurring_meeting` listed `end_after` as "date" (the value is
+  "specific_date"), named only some frequencies (monthly ones need OpenProject
+  17.5) and left out the monthly parameters;
+  `init_recurring_meeting_occurrence` did not say that OpenProject 17.4 and
+  17.5 fail with a server error for an occurrence that already exists. The
+  user-schedule tools said an older server answers with a server error (it is
+  `[not_found]` naming the 17.3 floor), `delete_work_package_wiki_link` said a
+  missing permission gives `[permission_denied]` (OpenProject answers 404, so
+  it is `[not_found]`), and `docs/tools.md` called the bulk work package tools
+  numeric-only, listed `list_notifications` as unread-only, and claimed
+  `get_my_preferences` returns the language. `OPENPROJECT_LOG_LEVEL` also
+  accepts `DEBUG`.
 - `delete_meeting` deleted the template meeting of a recurring series when
   given its id, leaving a series that could no longer create occurrences. It
   now rejects that id before the preview, as OpenProject's web interface does;

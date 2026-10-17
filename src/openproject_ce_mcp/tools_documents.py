@@ -394,7 +394,8 @@ async def delete_work_package_wiki_link(
     wiki page that mentions the work package; this tool rejects it with a
     [validation_error], and the link goes away only when that text changes.
     Deleting needs the "Manage wiki page links" permission in the work
-    package's project; without it OpenProject answers [permission_denied].
+    package's project; without it OpenProject answers 404, which the tool
+    reports as a [not_found] naming 17.6, not as [permission_denied].
 
     work_package_id: internal id (e.g., 952) or display_id (e.g., "PROJ-51"), not UI display number
     — used to authorize the delete against that work package's project, since

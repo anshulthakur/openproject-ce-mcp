@@ -2255,7 +2255,7 @@ def test_create_recurring_meeting_schema() -> None:
     tool = _tools(create_app(_make_settings()))["create_recurring_meeting"]
     assert (
         tool.description
-        == 'Prepare or create an OpenProject recurring meeting series; only\nwrites when called again with confirm=true.\n\nRequires OpenProject 17.4+.\n\nproject: identifier, name, or numeric id — required, every recurring\nmeeting belongs to exactly one project.\nfrequency: e.g. "daily", "weekly", "monthly" — pass the value as\nreturned by list_recurring_meetings/get_recurring_meeting.\nend_after: e.g. "date", "iterations", "never" — governs which of\nend_date/iterations is used.\n'
+        == 'Prepare or create an OpenProject recurring meeting series; only\nwrites when called again with confirm=true.\n\nRequires OpenProject 17.4+.\n\nproject: identifier, name, or numeric id — required, every recurring\nmeeting belongs to exactly one project.\nfrequency: "daily", "working_days", "weekly", and from OpenProject 17.5\n"monthly_day_of_month" or "monthly_nth_weekday".\ninterval: every n-th day, week or month, 1 to 100; "working_days" always\nuses 1.\nend_after: "never" (default), "specific_date" (requires end_date) or\n"iterations" (requires iterations, 1 to 1000).\nmonthly_day: day of month, 1 to 31; required for "monthly_day_of_month".\nmonthly_ordinal ("1" to "4", or "-1" for the last) and monthly_weekday\n(lowercase English weekday, e.g. "monday"): required for\n"monthly_nth_weekday".\nThe template meeting of the series starts as a draft.\n'
     )
     assert tool.output_schema is None
     assert tool.parameters == {
@@ -2600,7 +2600,7 @@ def test_init_recurring_meeting_occurrence_schema() -> None:
     tool = _tools(create_app(_make_settings()))["init_recurring_meeting_occurrence"]
     assert (
         tool.description
-        == "Prepare or materialize a virtual recurring-meeting occurrence into a\nreal, standalone Meeting; only writes when called again with confirm=true.\n\nRequires OpenProject 17.4+.\n\nstart_time: the occurrence's exact start time (ISO 8601, matching a\nstart_time value from list_recurring_meeting_occurrences) — occurrences\nhave no numeric id, they are addressed by this timestamp.\nOn success, result is a full Meeting (use its id with get_meeting/\nupdate_meeting/delete_meeting), not an occurrence.\n"
+        == "Prepare or materialize a virtual recurring-meeting occurrence into a\nreal, standalone Meeting; only writes when called again with confirm=true.\n\nRequires OpenProject 17.4+.\n\nstart_time: the occurrence's exact start time (ISO 8601, matching a\nstart_time value from list_recurring_meeting_occurrences) — occurrences\nhave no numeric id, they are addressed by this timestamp.\nOn success, result is a full Meeting (use its id with get_meeting/\nupdate_meeting/delete_meeting), not an occurrence.\nOn OpenProject 17.4 and 17.5, initializing an occurrence that already\nexists fails with a server error instead of returning it; 17.6 and later\nreturn the existing occurrence.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
