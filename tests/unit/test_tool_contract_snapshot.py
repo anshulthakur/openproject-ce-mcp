@@ -2331,7 +2331,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "delete_work_package_wiki_link": {
-        "description_hash": "9fbad131399c44d334097aa21d37ff820c873f01486d56057f6b93623168021a",
+        "description_hash": "4c7034ea947900890621d65e420199a61f272448049b8b87ddc285d7374a3a5b",
         "input_schema": {
             "properties": {
                 "work_package_id": {
@@ -6132,7 +6132,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_user_non_working_times": {
-        "description_hash": "3f129c450eb3efaba268d22759f0293720ab332396ce6ef47fc3969fe2dd4ab4",
+        "description_hash": "7b53ebaa2945e3b0cb69aba9ed409d37c33262dae33949b3e195aa1c926e9330",
         "input_schema": {
             "properties": {
                 "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
