@@ -1383,10 +1383,9 @@ async def list_my_open_work_packages(
     server's own total, so nothing here ever reveals how many matches exist in projects you can't see. Page until
     next_offset is null either way.
 
-    Each result row also carries custom_fields/custom_comments (not listed
-    under "select fields" above since they are selectable/hideable only as a
-    whole field, like every other field) with the same shape, caps, and
-    OPENPROJECT_HIDE_CUSTOM_FIELDS key-only hide-matching as
+    Each result row also carries custom_fields/custom_comments, selectable or
+    hideable only as a whole field like every other field, with the same
+    shape, caps, and OPENPROJECT_HIDE_CUSTOM_FIELDS key-only hide-matching as
     list_work_packages -- see that tool's docstring for the full details.
     """
     client = _client_from_context(ctx)

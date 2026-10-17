@@ -5472,7 +5472,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_READ",),
     },
     "list_my_open_work_packages": {
-        "description_hash": "4d2660573be77acf8d34e6e2419bbf4481238e9252fa1c562a69defbdbd3db8d",
+        "description_hash": "a076e347ea0649c0dd0420ec39c6e0c417b010afd81b5e063a8e5c9781699153",
         "input_schema": {
             "properties": {
                 "offset": {

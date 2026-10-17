@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from openproject_ce_mcp import tool_params
+from openproject_ce_mcp.app.errors import OpenProjectError
 from openproject_ce_mcp.config import TOOL_GROUPS, Settings
 from openproject_ce_mcp.models import VersionSummary, WorkPackageDetail, WorkPackageWriteResult
 from openproject_ce_mcp.server import create_app
@@ -279,6 +280,53 @@ def test_the_fully_described_tools_describe_every_parameter(catalog: dict[str, d
     )
 
     assert undescribed == []
+
+
+_TOOL_NAME_VERBS = "list|get|create|update|delete|set|cancel|init|execute|mark|toggle|copy|search|render|bulk_create|bulk_update|end|add"
+_TOOL_NAME_RE = re.compile(rf"\b(?:{_TOOL_NAME_VERBS})_[a-z][a-z_]*[a-z]\b")
+
+# Descriptions that tell an agent a tool does not exist, so it does not look for one.
+NAMED_AS_MISSING = {
+    "get_gitlab_issue",
+    "get_gitlab_merge_request",
+    "list_cost_types",
+    "list_forums",
+    "list_posts",
+}
+
+
+def _all_texts(tool: dict) -> list[str]:
+    return [tool.get("description", ""), *_schema_descriptions(tool.get("inputSchema"))]
+
+
+def test_descriptions_name_only_tools_that_exist(catalog: dict[str, dict]) -> None:
+    parameters = {param for tool in catalog.values() for param in _properties(tool)}
+    unknown = sorted(
+        f"{name}: {ref}"
+        for name, tool in catalog.items()
+        for text in _all_texts(tool)
+        for ref in set(_TOOL_NAME_RE.findall(text))
+        if ref not in catalog and ref not in parameters and ref not in NAMED_AS_MISSING
+    )
+
+    assert unknown == []
+
+
+def _error_classes(base: type[OpenProjectError]) -> list[type[OpenProjectError]]:
+    return [base, *(cls for sub in base.__subclasses__() for cls in _error_classes(sub))]
+
+
+def test_descriptions_name_only_error_codes_the_server_returns(catalog: dict[str, dict]) -> None:
+    returned = {cls.code for cls in _error_classes(OpenProjectError)} | {"INTERNAL_ERROR"}
+    cited = {
+        code
+        for tool in catalog.values()
+        for text in _all_texts(tool)
+        for code in re.findall(r"\[([A-Za-z_]{3,})\]", text)
+    }
+
+    assert cited
+    assert cited <= returned
 
 
 def _normalized(text: str) -> str:
