@@ -202,7 +202,7 @@ def live_catalog() -> dict[str, Any]:
 # change without confirming the new tool-contract shape is actually intended.
 TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
     "add_work_package_comment": {
-        "description_hash": "cfc22f2dd21b7e81c142e947e4c6abea88e519888c0b8e51edb3e27a1ecc4dfb",
+        "description_hash": "c4f09252fb5a1fb6ec4e61dc43057749dff607b37f4ed3ade7524dd2016a5205",
         "input_schema": {
             "properties": {
                 "work_package_id": {
@@ -237,7 +237,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "bulk_create_work_packages": {
-        "description_hash": "b685c6808e876ad92f384ded3c5fe3400a6ff4ad5927e9bf787feca4b8e1dc80",
+        "description_hash": "d6a810e62043b8f1a37741f3fee41a31889365fc5f757e90b4a67f2f0033fc5b",
         "input_schema": {
             "properties": {
                 "items": {"items": {"additionalProperties": True, "type": "object"}, "title": "Items", "type": "array"},
@@ -266,7 +266,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "bulk_update_work_packages": {
-        "description_hash": "ccceecf3b4368a3e18b0bc10f588753d2efe9fe90484b24b3931725aac29f6de",
+        "description_hash": "9c7dd3b5a3b00eb7a88a5e1b180885b41b3cb2c3b69ebfe2a6362df34d966b30",
         "input_schema": {
             "properties": {
                 "items": {"items": {"additionalProperties": True, "type": "object"}, "title": "Items", "type": "array"},
@@ -295,7 +295,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "cancel_recurring_meeting_occurrence": {
-        "description_hash": "5d8836e220db74a1276640d8801776f70829d264a905a4e20976bfda6464daeb",
+        "description_hash": "0ccdbfb24bb031aee2f7ce43e91ec6dca6bebb20397d4f7af094c6d88669ac27",
         "input_schema": {
             "properties": {
                 "recurring_meeting_id": {"title": "Recurring Meeting Id", "type": "integer"},
@@ -690,7 +690,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "create_meeting_outcome": {
-        "description_hash": "173ca76991fd4173807b3f920290d30fdc8b4cce3c886f57af534210b898d77e",
+        "description_hash": "01267af9b2fe10a92d85dc378d82ed1ae7c35b9f6b0cfd0f57129e986819d620",
         "input_schema": {
             "properties": {
                 "agenda_item_id": {"title": "Agenda Item Id", "type": "integer"},
@@ -726,7 +726,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "create_meeting_section": {
-        "description_hash": "79cf0a014932899335ef7d93adc84046262a583bb8993dab8ffc9979bec6d9b6",
+        "description_hash": "f4e6e950421fee6398eb927bd1b95fad9f3b2ee7d4082f162f66225715f3a77e",
         "input_schema": {
             "properties": {
                 "meeting_id": {"title": "Meeting Id", "type": "integer"},
@@ -1461,7 +1461,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_VERSION_WRITE", "OPENPROJECT_ENABLE_VERSION_READ"),
     },
     "create_work_package": {
-        "description_hash": "734f9261af0714257971a20f8c776b7a74f3dc1753fd03569b003a7959a34cb2",
+        "description_hash": "2c246d8456854bacc543b22d2b6bc6c23f0500cbaeafa4888c37914da8ffb745",
         "input_schema": {
             "properties": {
                 "project": {
@@ -1611,7 +1611,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         ),
     },
     "create_work_package_relation": {
-        "description_hash": "01525b9f7ed32a5fba14f3db27a4fd1a9757053453937f97ec93b54935e200ec",
+        "description_hash": "1464d0db111f1d1ab8dff0e7bf88db1e94ae3d678844f75158990250ad376bd3",
         "input_schema": {
             "properties": {
                 "work_package_id": {
@@ -2359,7 +2359,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "execute_query": {
-        "description_hash": "cd4612a327ae7d9f7f9c479fa83d1a0fb8d4382ef5d49e14c2a66b4d906ec505",
+        "description_hash": "1ef92a34c9fa59f1ebefe99b112e32f2a2ee0fccac67d771995c227140b17425",
         "input_schema": {
             "properties": {
                 "query_id": {"title": "Query Id", "type": "integer"},
@@ -2434,7 +2434,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "get_attachment_content": {
-        "description_hash": "65b8e1f5db3c9b6cd0ab5d219f81f796bf0a91d4294bb1acc4b5d4a2b5ca5577",
+        "description_hash": "6bd8084798b292d8f27adf5ea75cdd53e60db4621752dbdd8f897a1488addf1a",
         "input_schema": {
             "properties": {
                 "attachment_id": {"title": "Attachment Id", "type": "integer"},
@@ -4863,7 +4863,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "get_work_package_activities": {
-        "description_hash": "d6359bbba981c794f775794233186d93c626a278302ac9757aa6695ff0ae74ff",
+        "description_hash": "7103c3cdc7c080b8a084ce02026ab02ab85c32346b815cf7f51c40b679c873fe",
         "input_schema": {
             "properties": {
                 "work_package_id": {
@@ -4922,7 +4922,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "get_work_package_relations": {
-        "description_hash": "77875b721afe7064b7b57e09fafc8d97ab57b6336de07039682549d7bb20ae49",
+        "description_hash": "6b18a0eb971255be6584e442a7375b67fd696a548961b8dedf8055d82077115c",
         "input_schema": {
             "properties": {
                 "work_package_id": {
@@ -4961,7 +4961,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "get_work_packages": {
-        "description_hash": "3a62d9c0fab1af9ba293e0093c1fafb8292bb2ba25557ee72094fc6e540e9777",
+        "description_hash": "5bd30c2c95d31b28d9242560dc0b2cbbeddcd92b4a9ad68df0e38a93158cc7dc",
         "input_schema": {
             "properties": {
                 "ids": {"items": {"anyOf": [{"type": "integer"}, {"type": "string"}]}, "title": "Ids", "type": "array"},
@@ -4989,7 +4989,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "init_recurring_meeting_occurrence": {
-        "description_hash": "b28aa473c86b295e308a987b36e09cc34b88aad7a46eea50c2ffe3c13aeeacbd",
+        "description_hash": "35dbe2869fd52bcaf3610430a2057310bce8a835babf0b522479c595427a4e3e",
         "input_schema": {
             "properties": {
                 "recurring_meeting_id": {"title": "Recurring Meeting Id", "type": "integer"},
@@ -5126,7 +5126,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_BOARD_READ",),
     },
     "list_capabilities": {
-        "description_hash": "394f6e7567d7073945766dd0a767f1ea25bca339ebc439bd42501b9e068e6c6a",
+        "description_hash": "e94e630ce251e5a750da16cf923eb776b2f314e468022c6a0d615cf8777bc6b0",
         "input_schema": {
             "properties": {
                 "project": {
@@ -5324,7 +5324,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_EXTENDED_READ",),
     },
     "list_meeting_agenda_items": {
-        "description_hash": "f3cfce0f3edf5d1da159f5b1d2b64bff9727bf732f40c6bfbe685bb11ed676aa",
+        "description_hash": "b271bc6e570f286c4b32926adcb3688dbad7d9d648d27931a001def6c9a0e04f",
         "input_schema": {
             "properties": {
                 "meeting_id": {"title": "Meeting Id", "type": "integer"},
@@ -5364,7 +5364,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_READ",),
     },
     "list_meeting_outcomes": {
-        "description_hash": "2550b924af7e2c7f3766377331014214b2c40a9b5c13530b2388bdfc04048a5b",
+        "description_hash": "9df5d779a4081acc061a6b42323aec1e84eec2b7e26e392ab9ffca87fcffdf3e",
         "input_schema": {
             "properties": {
                 "agenda_item_id": {"title": "Agenda Item Id", "type": "integer"},
@@ -5404,7 +5404,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_READ",),
     },
     "list_meeting_sections": {
-        "description_hash": "739dfa85d53bbf28e1b9a44f71094327a0bb82a5801f3f70e3979db8faf2482f",
+        "description_hash": "96f88fab110cd836687e3de96b7a8ddee8b39616fbde0d9718c55381774cdf39",
         "input_schema": {
             "properties": {
                 "meeting_id": {"title": "Meeting Id", "type": "integer"},
@@ -5433,7 +5433,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_READ",),
     },
     "list_meetings": {
-        "description_hash": "da36e60871bbd4958deb35367a38de6ccbd8b9369838eecbe7377732a0d5eb38",
+        "description_hash": "5e92239a000d4c19609a0157f295bf10472282710ad0e664ca70d452af98cb90",
         "input_schema": {
             "properties": {
                 "project": {
@@ -5800,7 +5800,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_EXTENDED_READ", "OPENPROJECT_ENABLE_BOARD_READ"),
     },
     "list_recurring_meeting_occurrences": {
-        "description_hash": "b678fec61b6fbe68fda7fbf34de568e7edc50b0d789bfea4192b1494696e9226",
+        "description_hash": "bc32b29a4047525a2e5bf79bbec0583b23461076a22a1cadf23a304de98cb450",
         "input_schema": {
             "properties": {
                 "recurring_meeting_id": {"title": "Recurring Meeting Id", "type": "integer"},
@@ -5857,7 +5857,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_READ",),
     },
     "list_relations": {
-        "description_hash": "ed85b6393433e3980e80458bc893e4abd367fe793d719c17ae8f9564e833b447",
+        "description_hash": "361501df973c14754db7dee827fd8769ee5b6eb9cd2cdc49659423918c88d9c9",
         "input_schema": {
             "properties": {
                 "relation_type": {
@@ -6036,7 +6036,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_ADMIN_READ",),
     },
     "list_time_entries": {
-        "description_hash": "f15fc28df738b9d48343b41a63de5c67f910a6ce4c71c171591b954f7c6345f7",
+        "description_hash": "836fd9077d30358f29098800e09ca720724b27a509d43e2861c22473d69db85b",
         "input_schema": {
             "properties": {
                 "project": {
@@ -6132,7 +6132,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_user_non_working_times": {
-        "description_hash": "7b53ebaa2945e3b0cb69aba9ed409d37c33262dae33949b3e195aa1c926e9330",
+        "description_hash": "163984d7183362fd7c97c60ebb102ae450700c4ff1ae27f687c6d0ce06b3cafd",
         "input_schema": {
             "properties": {
                 "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
@@ -6162,7 +6162,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_USER_SCHEDULE_READ",),
     },
     "list_user_working_hours": {
-        "description_hash": "7fbacd8ba39eb1363feeeff2e1f9d01294f56641216c32e287269e52b4cc446e",
+        "description_hash": "8ab1e116bbc4a8a19282ab3311efa3d8b21a7a5b9a8e229bb60501cbc160f2a4",
         "input_schema": {
             "properties": {
                 "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
@@ -6306,7 +6306,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_PROJECT_READ",),
     },
     "list_work_package_attachments": {
-        "description_hash": "5cc2638613a3143e945e4fcf17b42eeb4c1910d091317c1afe3e9254721de7ae",
+        "description_hash": "08d68cb02bde3d57d99230d81221ba026a3ff6b76dd933c6e0895047a22b7d5b",
         "input_schema": {
             "properties": {
                 "work_package_id": {
@@ -6470,7 +6470,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_work_package_meeting_agenda_items": {
-        "description_hash": "db58da044fba7f73f853c2092fb1ad1126b43ac963f77ff5623c08d838231f98",
+        "description_hash": "e605c02c119bb6e6a500f026f4bfc1861a81e2a1f4e5156ccb48d6b72dd1960c",
         "input_schema": {
             "properties": {
                 "work_package_id": {
@@ -6601,7 +6601,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_work_packages": {
-        "description_hash": "95f4d404426129dedf93992ab2539f14afdcac5417e8c73998b33453da91e44d",
+        "description_hash": "50ed268088b0804021d7048d304bd7f633e979cde95537e9eef5e43579358f26",
         "input_schema": {
             "properties": {
                 "project": {
@@ -6794,7 +6794,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_EXTENDED_READ", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "search_work_packages": {
-        "description_hash": "e0a48c57e8ab28beb29605b6fa58ccd638d08b6e49ef5393af689023eaf20d24",
+        "description_hash": "0a22cd6d0618a52e773fb01127af96602bffc1dcfb46b7959c68adadd00ef033",
         "input_schema": {
             "properties": {
                 "search": {"title": "Search", "type": "string"},
@@ -7466,7 +7466,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_MEETING_WRITE", "OPENPROJECT_ENABLE_MEETING_READ"),
     },
     "update_meeting_outcome": {
-        "description_hash": "3c867e6f3e81ba2600cce9f365ffd7eff7def4bc5354489bdcc56f996f9cd07d",
+        "description_hash": "4a4f098771b626706bd71a78aff4406b7e5596dec744fff5670a88b9ccc551a8",
         "input_schema": {
             "properties": {
                 "outcome_id": {"title": "Outcome Id", "type": "integer"},
@@ -8019,7 +8019,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_ADMIN_WRITE", "OPENPROJECT_ENABLE_ADMIN_READ"),
     },
     "update_user_non_working_time": {
-        "description_hash": "25ff5e6e7bad9991cb4d182102e89359556a15025b55af1fa0cbc7b9e9480074",
+        "description_hash": "84eeb5ab5b7e9a007de6f56ffbb13c5f23695328f263840f059dc8778285f6c0",
         "input_schema": {
             "properties": {
                 "user_ref": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "User Ref"},
@@ -8194,7 +8194,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_VERSION_WRITE", "OPENPROJECT_ENABLE_VERSION_READ"),
     },
     "update_work_package": {
-        "description_hash": "3b296742b61470ef60aebdf5e6eb2716595df02407e8c86cd2aa53ba4a96099f",
+        "description_hash": "33c0beb6f23585fb4b3cc0425916f4e15f0fcebb4874b5a008f814ea5b4d73dd",
         "input_schema": {
             "properties": {
                 "work_package_id": {

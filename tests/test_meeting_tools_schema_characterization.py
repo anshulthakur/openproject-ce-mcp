@@ -49,7 +49,7 @@ def test_list_meetings_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_meetings"]
     assert (
         tool.description
-        == 'List OpenProject meetings, optionally scoped to a project.\n\nRequires OpenProject 17.4+ — the meetings module\'s agenda/section/\nparticipant shape used here does not exist on 16.6, which only exposes\nan incompatible legacy "meeting contents" representation.\n\nOmit project to list across all readable projects.'
+        == 'List OpenProject meetings, optionally scoped to a project.\n\nRequires OpenProject 17.4+; the meetings module\'s agenda/section/\nparticipant shape used here does not exist on 16.6, which only exposes\nan incompatible legacy "meeting contents" representation.\n\nOmit project to list across all readable projects.'
     )
     assert tool.output_schema is None
     assert tool.parameters == {
@@ -507,7 +507,7 @@ def test_list_meeting_agenda_items_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_meeting_agenda_items"]
     assert (
         tool.description
-        == "List the agenda items of one meeting.\n\nRequires OpenProject 17.4+.\n\nThis list is unpaginated server-side (OpenProject returns every agenda\nitem of the meeting in one response) — offset/limit are applied\nclient-side by this MCP.\n\ntext_limit caps each item's notes at that many characters (default: the\nserver's configured OPENPROJECT_TEXT_LIMIT, NOT unlimited). When text is\ncut, notes_truncated is true and notes_length reports the real length.\n"
+        == "List the agenda items of one meeting.\n\nRequires OpenProject 17.4+.\n\nThis list is unpaginated server-side (OpenProject returns every agenda\nitem of the meeting in one response); offset/limit are applied\nclient-side by this MCP.\n\ntext_limit caps each item's notes at that many characters (default: the\nserver's configured OPENPROJECT_TEXT_LIMIT, NOT unlimited). When text is\ncut, notes_truncated is true and notes_length reports the real length.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
@@ -546,7 +546,7 @@ def test_list_work_package_meeting_agenda_items_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_work_package_meeting_agenda_items"]
     assert (
         tool.description
-        == "List the agenda items, across all meetings, that link a work package.\n\nRequires OpenProject 17.7+.\n\nThis list is unpaginated server-side — offset/limit are applied\nclient-side by this MCP.\n\ntext_limit caps each item's notes at that many characters (default: the\nserver's configured OPENPROJECT_TEXT_LIMIT, NOT unlimited). When text is\ncut, notes_truncated is true and notes_length reports the real length.\n"
+        == "List the agenda items, across all meetings, that link a work package.\n\nRequires OpenProject 17.7+.\n\nThis list is unpaginated server-side; offset/limit are applied\nclient-side by this MCP.\n\ntext_limit caps each item's notes at that many characters (default: the\nserver's configured OPENPROJECT_TEXT_LIMIT, NOT unlimited). When text is\ncut, notes_truncated is true and notes_length reports the real length.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
@@ -967,7 +967,7 @@ def test_list_meeting_outcomes_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_meeting_outcomes"]
     assert (
         tool.description
-        == "List outcomes of a meeting agenda item.\n\nRequires OpenProject 17.6+ — the meeting_outcomes endpoint does not exist\non 17.4/17.5.\n\nThis list is unpaginated server-side — offset/limit are applied\nclient-side by this MCP.\n\ntext_limit caps each outcome's notes at that many characters (default:\nthe server's configured OPENPROJECT_TEXT_LIMIT, NOT unlimited). When text\nis cut, notes_truncated is true and notes_length reports the real length.\n"
+        == "List outcomes of a meeting agenda item.\n\nRequires OpenProject 17.6+; the meeting_outcomes endpoint does not exist\non 17.4/17.5.\n\nThis list is unpaginated server-side; offset/limit are applied\nclient-side by this MCP.\n\ntext_limit caps each outcome's notes at that many characters (default:\nthe server's configured OPENPROJECT_TEXT_LIMIT, NOT unlimited). When text\nis cut, notes_truncated is true and notes_length reports the real length.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
@@ -1141,7 +1141,7 @@ def test_create_meeting_outcome_schema() -> None:
     tool = _tools(create_app(_make_settings()))["create_meeting_outcome"]
     assert (
         tool.description
-        == 'Create a meeting outcome on an agenda item.\n\nRequires OpenProject 17.6+.\n\nkind must be one of "information", "decision", "work_package" (OpenProject\'s\nreal enum values — not e.g. "info" or "action", which OpenProject rejects\nwith an internal server error rather than a clean validation error).\n"information"-kind outcomes require notes; "work_package"-kind outcomes\nrequire work_package_id.\n'
+        == 'Create a meeting outcome on an agenda item.\n\nRequires OpenProject 17.6+.\n\nkind must be one of "information", "decision", "work_package" (OpenProject\'s\nreal enum values, not e.g. "info" or "action", which OpenProject rejects\nwith an internal server error rather than a clean validation error).\n"information"-kind outcomes require notes; "work_package"-kind outcomes\nrequire work_package_id.\n'
     )
     assert tool.output_schema is None
     assert tool.parameters == {
@@ -1175,7 +1175,7 @@ def test_update_meeting_outcome_schema() -> None:
     tool = _tools(create_app(_make_settings()))["update_meeting_outcome"]
     assert (
         tool.description
-        == 'Update a meeting outcome.\n\nRequires OpenProject 17.6+.\n\nkind, if given, must be one of "information", "decision", "work_package"\n(OpenProject\'s real enum values — not e.g. "info" or "action", which\nOpenProject rejects with an internal server error rather than a clean\nvalidation error).\n'
+        == 'Update a meeting outcome.\n\nRequires OpenProject 17.6+.\n\nkind, if given, must be one of "information", "decision", "work_package"\n(OpenProject\'s real enum values, not e.g. "info" or "action", which\nOpenProject rejects with an internal server error rather than a clean\nvalidation error).\n'
     )
     assert tool.output_schema is None
     assert tool.parameters == {
@@ -1232,7 +1232,7 @@ def test_list_meeting_sections_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_meeting_sections"]
     assert (
         tool.description
-        == "List sections of an OpenProject meeting.\n\nRequires OpenProject 17.4+.\n\nThis list is unpaginated server-side — offset/limit are applied\nclient-side by this MCP.\n"
+        == "List sections of an OpenProject meeting.\n\nRequires OpenProject 17.4+.\n\nThis list is unpaginated server-side; offset/limit are applied\nclient-side by this MCP.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
@@ -1365,7 +1365,7 @@ def test_create_meeting_section_schema() -> None:
     tool = _tools(create_app(_make_settings()))["create_meeting_section"]
     assert (
         tool.description
-        == "Create a meeting section.\n\nRequires OpenProject 17.6+.\n\nbacklog cannot be changed after creation via update_meeting_section —\npass it only here, on create.\n"
+        == "Create a meeting section.\n\nRequires OpenProject 17.6+.\n\nbacklog cannot be changed after creation via update_meeting_section;\npass it only here, on create.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
@@ -1969,7 +1969,7 @@ def test_list_recurring_meeting_occurrences_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_recurring_meeting_occurrences"]
     assert (
         tool.description
-        == 'List virtual occurrences of a recurring meeting.\n\nRequires OpenProject 17.4+.\n\nfilter: one of "upcoming", "past", "cancelled", "open".\nOccurrences are virtual (synthesized from the recurrence rule) except\nwhere a real Meeting has already been materialized via\ninit_recurring_meeting_occurrence — this list has no offset/pagination,\nunlike list_meetings/list_recurring_meetings.\n'
+        == 'List virtual occurrences of a recurring meeting.\n\nRequires OpenProject 17.4+.\n\nfilter: one of "upcoming", "past", "cancelled", "open".\nOccurrences are virtual (synthesized from the recurrence rule) except\nwhere a real Meeting has already been materialized via\ninit_recurring_meeting_occurrence; this list has no offset/pagination,\nunlike list_meetings/list_recurring_meetings.\n'
     )
     assert tool.output_schema is None
     assert tool.parameters == {
@@ -1996,7 +1996,7 @@ def test_init_recurring_meeting_occurrence_schema() -> None:
     tool = _tools(create_app(_make_settings()))["init_recurring_meeting_occurrence"]
     assert (
         tool.description
-        == "Materialize a virtual recurring-meeting occurrence into a\nreal, standalone Meeting.\n\nRequires OpenProject 17.4+.\n\nstart_time: the occurrence's exact start time (ISO 8601, matching a\nstart_time value from list_recurring_meeting_occurrences) — occurrences\nhave no numeric id, they are addressed by this timestamp.\nOn success, result is a full Meeting (use its id with get_meeting/\nupdate_meeting/delete_meeting), not an occurrence. A cancelled occurrence is restored and its content\nreset to the template. If the series template is still a draft, this first sets it to open, which stays\neven if the init fails; on 17.6 and later OpenProject creates further occurrences automatically only once\nthe template is open.\nOn OpenProject 17.4 and 17.5, initializing an occurrence that already exists fails with a server error\ninstead of returning it; 17.6 and later return the existing occurrence.\n"
+        == "Materialize a virtual recurring-meeting occurrence into a\nreal, standalone Meeting.\n\nRequires OpenProject 17.4+.\n\nstart_time: the occurrence's exact start time (ISO 8601, matching a\nstart_time value from list_recurring_meeting_occurrences); occurrences\nhave no numeric id, they are addressed by this timestamp.\nOn success, result is a full Meeting (use its id with get_meeting/\nupdate_meeting/delete_meeting), not an occurrence. A cancelled occurrence is restored and its content\nreset to the template. If the series template is still a draft, this first sets it to open, which stays\neven if the init fails; on 17.6 and later OpenProject creates further occurrences automatically only once\nthe template is open.\nOn OpenProject 17.4 and 17.5, initializing an occurrence that already exists fails with a server error\ninstead of returning it; 17.6 and later return the existing occurrence.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
@@ -2023,7 +2023,7 @@ def test_cancel_recurring_meeting_occurrence_schema() -> None:
     tool = _tools(create_app(_make_settings()))["cancel_recurring_meeting_occurrence"]
     assert (
         tool.description
-        == "Cancel a virtual (not-yet-materialized) recurring-meeting\noccurrence.\n\nRequires OpenProject 17.4+.\n\nstart_time: the occurrence's exact start time (ISO 8601), matching\ninit_recurring_meeting_occurrence's addressing scheme.\n\nIf the occurrence has already been materialized into a real Meeting and\nis not itself cancelled, this fails with an error (delete_meeting the\nmaterialized meeting directly instead). If NOT yet materialized,\nOpenProject records the cancellation as a cancelled Meeting\n(init_recurring_meeting_occurrence restores it, a later schedule change of\nthe series other than the time of day can delete it) — this call's result\ndoes not report that new meeting's id; list_meetings/\nlist_recurring_meeting_occurrences(filter=\"cancelled\") can be used to find\nit afterward if needed.\n"
+        == "Cancel a virtual (not-yet-materialized) recurring-meeting\noccurrence.\n\nRequires OpenProject 17.4+.\n\nstart_time: the occurrence's exact start time (ISO 8601), matching\ninit_recurring_meeting_occurrence's addressing scheme.\n\nIf the occurrence has already been materialized into a real Meeting and\nis not itself cancelled, this fails with an error (delete_meeting the\nmaterialized meeting directly instead). If NOT yet materialized,\nOpenProject records the cancellation as a cancelled Meeting\n(init_recurring_meeting_occurrence restores it, a later schedule change of\nthe series other than the time of day can delete it); this call's result\ndoes not report that new meeting's id; list_meetings/\nlist_recurring_meeting_occurrences(filter=\"cancelled\") can be used to find\nit afterward if needed.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {

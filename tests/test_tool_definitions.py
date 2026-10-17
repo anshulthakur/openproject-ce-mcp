@@ -299,6 +299,12 @@ def _all_texts(tool: dict) -> list[str]:
     return [tool.get("description", ""), *_schema_descriptions(tool.get("inputSchema"))]
 
 
+def test_no_em_dash_reaches_the_wire(catalog: dict[str, dict]) -> None:
+    with_dash = sorted(name for name, tool in catalog.items() if any("\u2014" in text for text in _all_texts(tool)))
+
+    assert with_dash == []
+
+
 def test_descriptions_name_only_tools_that_exist(catalog: dict[str, dict]) -> None:
     parameters = {param for tool in catalog.values() for param in _properties(tool)}
     unknown = sorted(

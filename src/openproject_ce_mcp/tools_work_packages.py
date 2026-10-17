@@ -127,7 +127,7 @@ async def search_work_packages(
     """Search work packages by free text, optionally scoped to a project.
 
     search matches only the work package subject and numeric ID (OpenProject's
-    native subject_or_id full-text filter) — it does NOT match version,
+    native subject_or_id full-text filter); it does NOT match version,
     category, description, or other linked-resource fields. To filter by
     version, use list_work_packages(version=..., project=...) instead.
 
@@ -137,7 +137,7 @@ async def search_work_packages(
     get_work_package does; other text is never looked up as an id. When that
     resolves to a work package that also
     satisfies every other filter given here (project/status/assignee/dates/
-    custom fields/etc.), it's returned separately as exact_match — never
+    custom fields/etc.), it's returned separately as exact_match; never
     folded into results, and never counted toward total/count/pagination,
     since a single extra item can't be paginated consistently. Absent (not
     present in the response at all) when nothing resolves, when the
@@ -146,11 +146,11 @@ async def search_work_packages(
     applies to each results row.
 
     Without project, the search runs globally across every project readable
-    under OPENPROJECT_READ_PROJECTS, not just one project — pass project
+    under OPENPROJECT_READ_PROJECTS, not just one project; pass project
     explicitly to scope results to it.
 
     Set status to restrict results to an exact OpenProject status name or
-    numeric ID — not a meta-value like 'open'/'closed'.
+    numeric ID, not a meta-value like 'open'/'closed'.
     Set open_only=true to return only open (not-closed) work packages.
     Set assignee_me=true to return only work packages assigned to the current user.
 
@@ -162,7 +162,7 @@ async def search_work_packages(
     pagination (offset/limit/total), include_sums, and each result's
     custom_fields/custom_comments (raw-key custom-field values/comments,
     capped and hide-matched exactly as documented) all work exactly as
-    documented on list_work_packages — see that tool's docstring for the
+    documented on list_work_packages; see that tool's docstring for the
     full field lists and semantics. One difference: total is the real
     matching count only when scope is unrestricted or an explicit project
     was given (list_work_packages's server-side allowed-project filter for
@@ -253,7 +253,7 @@ async def list_work_packages(
 
     project accepts a numeric ID, exact identifier/slug, or project name; the
     parameter is named project, not project_id. There is no generic
-    filters=[...] parameter — each filter is its own named argument (version,
+    filters=[...] parameter; each filter is its own named argument (version,
     status, assignee, the date filters, etc.), listed below.
 
     version_status filters by the status of a work package's assigned version:
@@ -267,7 +267,7 @@ async def list_work_packages(
     assignee filters by any user (username, id, or "me"). assignee_me takes precedence.
 
     status/priority filter by exact OpenProject status/priority name or numeric
-    ID (case-insensitive) — not meta-values like 'open'/'closed'; set
+    ID (case-insensitive), not meta-values like 'open'/'closed'; set
     open_only=true to restrict results to not-closed work packages instead.
 
     Date filters accept YYYY-MM-DD format:
@@ -276,7 +276,7 @@ async def list_work_packages(
     Cannot specify both _on and _between for the same field.
 
     overdue_only=true restricts results to work packages with due_date before
-    today that are not closed (OpenProject's own overdue? predicate — there
+    today that are not closed (OpenProject's own overdue? predicate; there
     is no dedicated overdue API filter, this composes a relative date filter
     with the open-status meta-filter). due_within_days=N restricts to
     due_date in [today, today+N days]. Neither can be combined with each
@@ -288,13 +288,13 @@ async def list_work_packages(
     columns (id, project, subject, type, status, priority, author, assigned_to,
     responsible, updated_at, category, version, start_date, due_date,
     estimated_time, remaining_time, done_ratio, created_at, duration,
-    project_phase, story_points, or a custom field's cf_<id> identifier) —
+    project_phase, story_points, or a custom field's cf_<id> identifier);
     an unknown field raises a ValueError listing the valid set instead of
     only failing once OpenProject itself rejects the request.
 
     group_by accepts one field name to group results by (e.g., "status",
     "assigned_to"), checked the same way against OpenProject's actual
-    groupable columns (a subset of the sortable ones above — notably
+    groupable columns (a subset of the sortable ones above, notably
     start_date/due_date/estimated_time/remaining_time/duration/created_at/
     updated_at sort fine but cannot be grouped by).
 
@@ -324,8 +324,8 @@ async def list_work_packages(
     include_sums=true adds server-computed aggregates instead of requiring
     client-side pagination and summation: groups (one entry per group_by
     value, with count and a sums dict of OpenProject's fixed summable
-    fields — estimated_time, story_points, percentage_done, remaining_time,
-    overall_costs, labor_costs, material_costs, plus any custom fields — as
+    fields: estimated_time, story_points, percentage_done, remaining_time,
+    overall_costs, labor_costs, material_costs, plus any custom fields, as
     raw server-formatted values, e.g. ISO 8601 durations and currency
     strings) and total_sums (the same shape, across all matches). groups is
     only populated when group_by is also set; total_sums is populated
@@ -512,11 +512,11 @@ async def get_work_packages(
     selectable work_package field.
 
     For batches with many full-detail items, set text_limit and/or select
-    proactively — an unbounded batch of large work packages can exceed the
+    proactively; an unbounded batch of large work packages can exceed the
     tool-result size limit and get redirected to a file.
 
     Each item's work_package carries the same custom_fields/custom_comments
-    shape and caps as get_work_package — see list_work_packages's docstring
+    shape and caps as get_work_package; see list_work_packages's docstring
     for the full details (raw-key values, per-field caps, and the
     OPENPROJECT_HIDE_CUSTOM_FIELDS key-only hide-matching asymmetry). With
     many items, an unbounded custom_fields/custom_comments per item adds to
@@ -631,13 +631,13 @@ async def create_work_package(
     observed_in_versions accepts a list of version names/ids recording where a bug was observed
     (OpenProject 17.9+, types with the attribute enabled); pass [] to clear.
     due_date falling on a non-working day (e.g. a weekend) can be silently moved forward to the
-    next working day by OpenProject — compare the request and the returned `result.due_date` if
+    next working day by OpenProject; compare the request and the returned `result.due_date` if
     the exact calendar date matters. This server does not expose a way to opt out of that shift
     (OpenProject's own `ignoreNonWorkingDays` flag is not a write parameter here).
     A rejected validation preview is not a tool error; inspect `ready` and
     `validation_errors` in the result rather than the MCP error envelope.
     If you issue multiple create_work_package/create_subtask calls concurrently, OpenProject assigns IDs in
-    server completion order, not call order — use bulk_create_work_packages instead when relative
+    server completion order, not call order; use bulk_create_work_packages instead when relative
     ID/creation order across a batch matters.
     """
     client = _client_from_context(ctx)
@@ -810,7 +810,7 @@ async def update_work_package(
     target_versions accepts a list of version names/ids to assign multiple target versions at once
     (OpenProject's multi-version feature); pass [] to clear all. target_versions and version write
     the same underlying data and cannot be used together in one call. If this work package already
-    has more than one target version, version alone is rejected — use target_versions instead.
+    has more than one target version, version alone is rejected; use target_versions instead.
     observed_in_versions accepts a list of version names/ids recording where a bug was observed
     (OpenProject 17.9+, types with the attribute enabled); pass [] to clear.
     estimated_time, remaining_time, duration accept ISO8601 duration strings (e.g., 'PT8H' for 8 hours, 'PT1H30M' for 1.5 hours, 'P1D' for 1 day); omit to leave unchanged, or pass 'none' to clear the field. percentage_done is an integer 0-100.
@@ -818,7 +818,7 @@ async def update_work_package(
     don't supply them explicitly and OpenProject's schema reports those fields as writable (on instances
     using status-based progress calculation, OpenProject already derives them itself and this is skipped).
     On such an instance, explicitly passing percentage_done together with a closing status is rejected
-    with a hard validation error (percentageDone is not writable there) rather than silently ignored —
+    with a hard validation error (percentageDone is not writable there) rather than silently ignored;
     omit percentage_done and let OpenProject derive it instead.
     due_date's non-working-day shift and the confirm/preview contract work exactly as documented
     on create_work_package.
@@ -933,7 +933,7 @@ async def bulk_create_work_packages(
     """Create multiple work packages in one call.
 
     New items have no identifier field to set (unlike `bulk_update_work_packages`'s
-    `work_package_id`) — each result item is matched back to its input purely by `index`.
+    `work_package_id`); each result item is matched back to its input purely by `index`.
 
     Each item in `items` must contain `project`, `type`, and `subject`. Optional fields per item:
     `description`, `version`, `target_versions`, `observed_in_versions` (each a list of version names/ids for OpenProject's
@@ -941,12 +941,12 @@ async def bulk_create_work_packages(
     item), `project_phase`,
     `assignee`, `responsible`, `priority`, `category`,
     `custom_fields`, `parent_work_package_id` (or `parent`, an alias for the same field, matching
-    `create_work_package`'s naming — do not specify both on the same item), `start_date`
+    `create_work_package`'s naming; do not specify both on the same item), `start_date`
     (YYYY-MM-DD), `due_date` (YYYY-MM-DD), `estimated_time`, `remaining_time`, `duration`
     (ISO8601 duration strings, e.g. 'PT8H' or 'P1D'). An item containing any other key is
     rejected with an indexed validation error rather than silently dropping the unrecognized field.
     due_date falling on a non-working day (e.g. a weekend) can be silently moved forward to the
-    next working day by OpenProject — compare the request and the returned item's
+    next working day by OpenProject; compare the request and the returned item's
     `result.result.due_date` if the exact calendar date matters. This server does not expose a
     way to opt out of that shift (OpenProject's own `ignoreNonWorkingDays` flag is not a write
     parameter here).
@@ -962,7 +962,7 @@ async def bulk_create_work_packages(
     on each item are always included regardless of select, so you can still
     tell which items succeeded; listing them in select is accepted and changes
     nothing. For batches with many
-    items or long descriptions, set select proactively — an unconfirmed preview
+    items or long descriptions, set select proactively; an unconfirmed preview
     echoes each item's full proposed payload, and an unbounded batch can exceed
     the tool-result size limit and get redirected to a file.
 
@@ -970,12 +970,12 @@ async def bulk_create_work_packages(
     the loop. If this call is cancelled outright (e.g. the host cancels the
     request), items already created beforehand remain on the server; items not
     yet attempted are not created. No result summary is returned in that case
-    (the call ends via cancellation, not a normal return) — use
+    (the call ends via cancellation, not a normal return); use
     list_work_packages/get_work_package afterward to determine what was
     actually written. This operation is not atomic; OpenProject CE has no
     batch/transaction endpoint.
 
-    Items are processed strictly sequentially in list order, and each result's index reflects that order —
+    Items are processed strictly sequentially in list order, and each result's index reflects that order;
     use this tool instead of parallel create_work_package/create_subtask calls whenever the relative order
     of a batch matters.
     """
@@ -1093,7 +1093,7 @@ async def bulk_update_work_packages(
 ) -> BulkWorkPackageWriteResult:
     """Update multiple work packages in one call.
 
-    Each item's identifier field is `work_package_id`, not `id` — e.g.
+    Each item's identifier field is `work_package_id`, not `id`, e.g.
     {"work_package_id": 952, "status": "Closed"}.
 
     Each item in `items` must contain `work_package_id`. At least one other field must be present per item.
@@ -1104,7 +1104,7 @@ async def bulk_update_work_packages(
     than one target version assigned), `sprint` (Backlogs sprint
     name/id, requires the Backlogs module and OpenProject 17.3+), `project_phase`, `status`,
     `assignee`, `responsible`, `priority`, `category`, `custom_fields`, `parent_work_package_id` (or
-    `parent`, an alias for the same field, matching `update_work_package`'s naming — do not specify
+    `parent`, an alias for the same field, matching `update_work_package`'s naming; do not specify
     both on the same item), `start_date` (YYYY-MM-DD), `due_date` (YYYY-MM-DD), `estimated_time`,
     `remaining_time`, `duration` (ISO8601 duration strings, e.g. 'PT8H' or 'P1D'; pass 'none' to clear
     one of these), `percentage_done` (integer 0-100). Pass 'none' to `version`, `sprint`,
@@ -1115,12 +1115,12 @@ async def bulk_update_work_packages(
     when that item doesn't supply them explicitly and OpenProject's schema reports those fields as
     writable. On an instance using status-based progress calculation, explicitly passing
     percentage_done together with a closing status on the same item is rejected with a hard,
-    indexed validation error (percentageDone is not writable there) rather than silently ignored —
+    indexed validation error (percentageDone is not writable there) rather than silently ignored;
     omit percentage_done on that item and let OpenProject derive it instead.
 
     due_date's non-working-day shift, the confirm/preview contract, select's item-trimming
     behavior, and cancellation/atomicity semantics all work exactly as documented on
-    bulk_create_work_packages — only the affected result field differs
+    bulk_create_work_packages; only the affected result field differs
     (`result.result.due_date` here too). As there, select names write-result
     fields (work_package_id, ready, state, ...); fields of the written work
     package are selected as result.<field> (e.g. "result.display_id").
@@ -1307,7 +1307,7 @@ async def add_work_package_comment(
     non-aggregated comment: OpenProject can aggregate a new comment into an
     existing, more recent journal entry (e.g. a prior status change) instead
     of always creating a fresh one, which would otherwise surface that
-    unrelated change's details and timestamp here — and there is no reliable
+    unrelated change's details and timestamp here, and there is no reliable
     way to tell an aggregated response from a fresh one, so both fields are
     omitted unconditionally rather than only when aggregation is suspected.
     `user` is normally populated, but on rare cases where OpenProject's own
@@ -1409,7 +1409,7 @@ async def get_work_package_activities(
     """Get the activity log for a work package, most recent first.
 
     Comments are returned in full by default (this is one work package's own
-    history, not an open-ended multi-row list — same rationale as
+    history, not an open-ended multi-row list; same rationale as
     get_work_package). Pass ``text_limit`` to cap each comment at that many
     characters; when a comment is cut, ``comment_truncated`` is true and
     ``comment_length`` reports its real length.

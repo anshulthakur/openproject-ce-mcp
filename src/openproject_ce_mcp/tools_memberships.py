@@ -93,7 +93,7 @@ async def list_capabilities(
 ) -> CapabilityListResult:
     """List API capabilities exposed by OpenProject.
 
-    At least one of project or capability_id is required — there is no
+    At least one of project or capability_id is required; there is no
     unfiltered global listing, since one would bypass the project read
     allowlist.
     """
