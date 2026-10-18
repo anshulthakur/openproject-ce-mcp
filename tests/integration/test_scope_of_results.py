@@ -100,3 +100,33 @@ async def test_time_entry_activities_name_only_projects_the_read_scope_covers(
     assert not any(other in name for name in named)
     everyone = await everywhere.time_entry.list_activities()
     assert any(other in name or f"[integration-test] {other}" == name for a in everyone.results for name in a.projects)
+
+
+async def test_activity_details_are_left_out_unless_the_read_scope_allows_all(
+    project_refs: list[str], start_scoped_client
+) -> None:
+    everywhere = await start_scoped_client(read_projects=("*",), write_projects=("*",))
+    parent_project, child_project = await _two_projects(everywhere, project_refs)
+    secret = f"SECRET {uuid.uuid4().hex[:8]}"
+    foreign = await everywhere.work_package.create(project=child_project, type="Task", subject=secret, confirm=True)
+    assert foreign.ready, foreign.validation_errors
+    below = await everywhere.work_package.create(
+        project=parent_project,
+        type="Task",
+        subject="[integration-test] activity details",
+        parent_work_package_id=foreign.work_package_id,
+        confirm=True,
+    )
+    assert below.ready, below.validation_errors
+
+    unrestricted = await everywhere.activity.list_for_work_package(below.work_package_id)
+    assert any(secret in detail["raw"] for row in unrestricted.results for detail in row.details or [])
+
+    for read_projects in ((parent_project,), (parent_project, child_project)):
+        scoped_client = await start_scoped_client(read_projects=read_projects, write_projects=(parent_project,))
+        scoped = await scoped_client.activity.list_for_work_package(below.work_package_id)
+        assert scoped.results
+        for row in scoped.results:
+            assert row.details is None
+            assert row.details_omitted is True
+        assert secret not in str(scoped)

@@ -93,6 +93,17 @@ development baseline.
   OpenProject adds the subprojects of every project a filter names. Under a
   restricted scope the filter now names the covered subprojects itself and the
   request turns the expansion off. Under `*` nothing changes.
+- `get_work_package_activities` returned the change details OpenProject renders
+  for each journal entry, such as `Parent set to <subject>` or `Project changed
+  from <name> to <name>`, and that text can name a parent, project or version
+  outside `OPENPROJECT_READ_PROJECTS`, or carry the value of a field hidden
+  with `OPENPROJECT_HIDE_WORK_PACKAGE_FIELDS` or `OPENPROJECT_HIDE_CUSTOM_FIELDS`.
+  OpenProject sends it in the API user's language with no structure to check
+  against the allowlist, so the change details are now left out for every
+  read scope other than `*`, identifier lists included, and whenever such a
+  field is hidden, and `details_omitted` is true on the entry. Comments, user
+  and time are unchanged. `add_work_package_comment` never returned details; its
+  result now carries `details_omitted: true` for that.
 
 ### Added
 

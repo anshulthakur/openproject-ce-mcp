@@ -1227,6 +1227,7 @@ class ActivitySummary:
     comment_length: int | None = None
     details: list[dict[str, Any]] | None = None
     details_truncated: bool = False
+    details_omitted: bool = False
 
 
 @dataclass

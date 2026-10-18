@@ -373,11 +373,11 @@ has
 | `bulk_create_work_packages` | Validate and then create multiple work packages in one call; returns per-item results including errors; only writes when called again with `confirm=true` |
 | `bulk_update_work_packages` | Validate and then update multiple work packages in one call; returns per-item results including errors; only writes when called again with `confirm=true` |
 | `delete_work_package` | Validate and then delete a work package; only deletes when called again with `confirm=true` |
-| `add_work_package_comment` | Validate and then add a comment to a work package; `notify=false` by default to avoid change emails; only writes when called again with `confirm=true` |
+| `add_work_package_comment` | Validate and then add a comment to a work package; `notify=false` by default to avoid change emails; the result never carries change details (`details_omitted` is true); only writes when called again with `confirm=true` |
 | `create_work_package_relation` | Validate and then create a relation between work packages; only writes when called again with `confirm=true` |
 | `delete_relation` | Validate and then delete a work package relation; only deletes when called again with `confirm=true` |
 | `get_work_package_relations` | Fetch all relations for a work package (blocks, relates to, duplicates, …); each result also carries `queried_perspective`, a caller-relative reading of the relation from `work_package_id`'s own side (`direction`, `effective_type`, and — only for the precedes/follows pair — `predecessor_id`/`successor_id`), alongside the unchanged raw `type`/`from_id`/`to_id` |
-| `get_work_package_activities` | Fetch the activity log for a work package, most recent first |
+| `get_work_package_activities` | Fetch the activity log for a work package, most recent first; the change details of an entry are returned only when `OPENPROJECT_READ_PROJECTS` is `*` and no work package or custom field is hidden, otherwise `details_omitted` is true |
 | `list_work_package_reactions` | List emoji reactions across a work package's comment activities |
 | `toggle_activity_emoji_reaction` | Toggle an emoji reaction on a work package comment activity (add if absent, remove if present) |
 | `list_reminders` | List the current user's active reminders across all work packages |

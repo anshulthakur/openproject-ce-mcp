@@ -11,7 +11,7 @@ from openproject_ce_mcp.app.services.activity_service import ActivityService
 from openproject_ce_mcp.models import ActivitySummary
 
 
-def _summary(activity_id: int) -> ActivitySummary:
+def _summary(activity_id: int, *, details: bool = True) -> ActivitySummary:
     return ActivitySummary(
         id=activity_id,
         type="Activity::Comment",
@@ -19,6 +19,8 @@ def _summary(activity_id: int) -> ActivitySummary:
         user="Alice",
         comment=f"comment {activity_id}",
         created_at="2026-01-01T00:00:00Z",
+        details=[{"raw": "Parent set to FOREIGN"}] if details else None,
+        details_omitted=not details,
     )
 
 
@@ -27,14 +29,16 @@ class _FakeActivityApi:
         self._count = count
         self.list_for_work_package_calls: list[int] = []
         self.to_summary_calls: list[int] = []
+        self.details_requested: list[bool] = []
 
     async def list_for_work_package(self, work_package_id: int) -> list[ActivityRecord]:
         self.list_for_work_package_calls.append(work_package_id)
 
         def make_record(activity_id: int) -> ActivityRecord:
-            def to_summary(text_limit: int | None) -> ActivitySummary:
+            def to_summary(text_limit: int | None, *, details: bool) -> ActivitySummary:
                 self.to_summary_calls.append(activity_id)
-                return _summary(activity_id)
+                self.details_requested.append(details)
+                return _summary(activity_id, details=details)
 
             return ActivityRecord(to_summary=to_summary)
 
@@ -124,9 +128,9 @@ async def test_list_for_work_package_passes_text_limit_through_to_summary() -> N
         records = await original_list(work_package_id)
 
         def wrap(record):
-            def to_summary(text_limit):
+            def to_summary(text_limit, *, details):
                 seen_limits.append(text_limit)
-                return record.to_summary(text_limit)
+                return record.to_summary(text_limit, details=details)
 
             return ActivityRecord(to_summary=to_summary)
 
@@ -149,6 +153,72 @@ async def test_list_for_work_package_uses_default_page_size_when_limit_none() ->
     result = await service.list_for_work_package(9, limit=None)
 
     assert result.count == 1
+
+
+# --- change details under the read scope --------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("read_projects", [("*",), (" * ",), ("demo", "*")])
+async def test_details_are_served_when_the_read_scope_allows_all(read_projects: tuple[str, ...]) -> None:
+    api = _FakeActivityApi(count=2)
+    settings = dataclasses.replace(make_settings(), read_projects=read_projects)
+
+    result = await _service(api=api, settings=settings).list_for_work_package(9)
+
+    assert api.details_requested == [True, True]
+    assert all(r.details == [{"raw": "Parent set to FOREIGN"}] and not r.details_omitted for r in result.results)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("read_projects", [(), ("demo",), ("team-*",), ("**",)])
+async def test_details_are_left_out_under_a_restricted_read_scope(read_projects: tuple[str, ...]) -> None:
+    api = _FakeActivityApi(count=2)
+    settings = dataclasses.replace(make_settings(), read_projects=read_projects)
+
+    result = await _service(api=api, settings=settings).list_for_work_package(9)
+
+    assert api.details_requested == [False, False]
+    for row in result.results:
+        assert row.details is None
+        assert row.details_omitted is True
+        assert row.comment and row.user == "Alice" and row.created_at
+
+
+@pytest.mark.asyncio
+async def test_details_are_left_out_when_a_work_package_field_is_hidden_even_under_all() -> None:
+    api = _FakeActivityApi(count=1)
+    settings = dataclasses.replace(
+        make_settings(), read_projects=("*",), hidden_fields={"work_package": ("estimated_time",)}
+    )
+
+    result = await _service(api=api, settings=settings).list_for_work_package(9)
+
+    assert api.details_requested == [False]
+    assert result.results[0].details is None and result.results[0].details_omitted is True
+
+
+@pytest.mark.asyncio
+async def test_a_hidden_details_field_and_the_omitted_flag_are_independent() -> None:
+    settings = dataclasses.replace(make_settings(), read_projects=("*",), hidden_fields={"activity": ("details",)})
+
+    result = await _service(api=_FakeActivityApi(count=1), settings=settings).list_for_work_package(9)
+
+    assert getattr(result.results[0], "_hidden_keys", frozenset()) == {"details"}
+    assert result.results[0].details_omitted is False
+
+
+@pytest.mark.asyncio
+async def test_a_details_hide_pattern_hides_the_omitted_flag_too() -> None:
+    settings = dataclasses.replace(make_settings(), hidden_fields={"activity": ("details*",)})
+
+    result = await _service(api=_FakeActivityApi(count=1), settings=settings).list_for_work_package(9)
+
+    assert getattr(result.results[0], "_hidden_keys", frozenset()) == {
+        "details",
+        "details_truncated",
+        "details_omitted",
+    }
 
 
 # --- hidden fields ------------------------------------------------------------

@@ -17,6 +17,11 @@ Both are plain comma-separated lists. Field names and patterns are normalized
 case-insensitively before glob matching; `-`, `_`, and spaces are treated
 consistently. There is no JSON or `entity:field` syntax to quote or escape.
 
+A pattern matches every field it covers: `OPENPROJECT_HIDE_ACTIVITY_FIELDS=details*`
+hides `details`, `details_truncated` and `details_omitted`. Any hide setting for
+work package fields or custom fields also makes `get_work_package_activities` leave
+out the change details, because OpenProject renders every changed value into them.
+
 ## Custom fields: a read/write asymmetry
 
 `OPENPROJECT_HIDE_CUSTOM_FIELDS` behaves differently on reads than on writes:

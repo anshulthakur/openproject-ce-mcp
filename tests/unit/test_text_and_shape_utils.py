@@ -207,7 +207,8 @@ def test_normalize_activity_returns_full_comment_by_default() -> None:
     long_comment = "c" * 3000
 
     activity = normalize_activity(
-        {"id": 7, "_type": "Activity", "comment": {"raw": long_comment}, "_links": {"user": {"title": "Bot"}}}
+        {"id": 7, "_type": "Activity", "comment": {"raw": long_comment}, "_links": {"user": {"title": "Bot"}}},
+        details=True,
     )
 
     assert activity.comment is not None
@@ -229,7 +230,8 @@ def test_normalize_activity_details_are_delimited_and_drop_duplicate_html() -> N
             "_type": "Activity",
             "_links": {"user": {"title": "Bot"}},
             "details": [{"format": "custom", "raw": "Status changed", "html": "<i>Status changed</i>"}],
-        }
+        },
+        details=True,
     )
 
     assert activity.details == [{"raw": "<user-content>Status changed</user-content>"}]
@@ -415,7 +417,8 @@ def test_activity_comment_delimited():
             "_type": "Activity::Comment",
             "comment": {"format": "markdown", "raw": "User comment text"},
             "_links": {"user": {"href": "/api/v3/users/1", "title": "John Doe"}},
-        }
+        },
+        details=True,
     )
 
     assert activity.comment == "<user-content>User comment text</user-content>"

@@ -9,11 +9,9 @@ asked once per link and not after a leak.
 from __future__ import annotations
 
 import ast
-from pathlib import Path
 
 import pytest
-
-ADAPTERS = Path(__file__).resolve().parents[1] / "src" / "openproject_ce_mcp" / "app" / "adapters"
+from _source_scan import ADAPTERS, constant_key_reads
 
 _INSTANCE_WIDE = "the resource is seen alike by every user of the instance"
 _ANCHOR = "the project the record itself belongs to, which the service checks"
@@ -156,20 +154,7 @@ OTHER_TITLE_READS: dict[str, str] = {
 
 
 def _other_title_reads() -> dict[str, int]:
-    found: dict[str, int] = {}
-    for path in sorted(ADAPTERS.glob("*.py")):
-        for function in ast.walk(ast.parse(path.read_text())):
-            if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                continue
-            for node in ast.walk(function):
-                key = None
-                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "get":
-                    key = node.args[0] if node.args else None
-                elif isinstance(node, ast.Subscript):
-                    key = node.slice
-                if isinstance(key, ast.Constant) and key.value in ("title", "displayId", "display_id"):
-                    found.setdefault(f"{path.name}:{function.name}", node.lineno)
-    return found
+    return constant_key_reads(("title", "displayId", "display_id"))
 
 
 def test_every_other_read_of_a_title_or_display_id_is_classified() -> None:

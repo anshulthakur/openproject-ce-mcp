@@ -438,7 +438,7 @@ async def test_add_work_package_comment(client: OpenProjectClient, test_project:
 
 
 async def test_get_work_package_activities_includes_creation_and_comment(
-    client: OpenProjectClient, test_project: str, wp_ids: list[int]
+    client: OpenProjectClient, test_project: str, wp_ids: list[int], start_scoped_client
 ) -> None:
     """Dedicated test for get_work_package_activities itself (previously only
     ever exercised as a side-effect assertion inside other tests, e.g.
@@ -463,7 +463,13 @@ async def test_get_work_package_activities_includes_creation_and_comment(
     # author instead shows up as an "Author set to ..." entry in `details`) --
     # not a bug, just this specific activity's real shape.
     assert created_activity.created_at is not None
-    assert created_activity.details
+    # The default integration client reads test_project only, a restricted scope.
+    assert created_activity.details is None
+    assert created_activity.details_omitted is True
+    everywhere = await start_scoped_client(read_projects=("*",), write_projects=("*",))
+    unrestricted = (await everywhere.activity.list_for_work_package(result.work_package_id)).results[0]
+    assert unrestricted.details
+    assert unrestricted.details_omitted is False
 
     comment = await client.work_package.add_comment(
         work_package_id=result.work_package_id,

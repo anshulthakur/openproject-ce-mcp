@@ -33,7 +33,7 @@ from ._text import link_title as _link_title
 ACTIVITY_DETAILS_LIMIT = 20
 
 
-def normalize_activity(payload: dict[str, Any], *, text_limit: int | None = None) -> ActivitySummary:
+def normalize_activity(payload: dict[str, Any], *, text_limit: int | None = None, details: bool) -> ActivitySummary:
     """Pure HAL->model translation (ADR: 'lives in the Domain API adapter').
 
     Excludes hidden-field masking and the hide-aware gate -- masking is a
@@ -50,13 +50,14 @@ def normalize_activity(payload: dict[str, Any], *, text_limit: int | None = None
     # Details array with limit. OpenProject sends each entry as both a
     # plain-text "raw" and a markup "html" rendering of the SAME change
     # description — keep only "raw" (dropping the duplicate "html"/"format"
-    # keys) and delimit it like every other free-text field here, since
-    # it is equally untrusted user-authored content.
-    details_raw = payload.get("details", [])
-    details = None
+    # keys) and delimit it, since it quotes user-authored values. The server
+    # assembles it from several records, so it is read only when the caller
+    # may serve it.
+    details_raw = payload.get("details", []) if details else []
+    detail_entries = None
     details_truncated = False
     if details_raw:
-        details = [
+        detail_entries = [
             {"raw": _delimit_user_content(item.get("raw"))}
             for item in details_raw[:ACTIVITY_DETAILS_LIMIT]
             if isinstance(item, dict)
@@ -72,14 +73,15 @@ def normalize_activity(payload: dict[str, Any], *, text_limit: int | None = None
         created_at=payload.get("createdAt"),
         comment_truncated=truncated,
         comment_length=length,
-        details=details,
+        details=detail_entries,
         details_truncated=details_truncated,
+        details_omitted=not details,
     )
 
 
 def _record(payload: dict[str, Any]) -> ActivityRecord:
-    def to_summary(text_limit: int | None) -> ActivitySummary:
-        return normalize_activity(payload, text_limit=text_limit)
+    def to_summary(text_limit: int | None, *, details: bool) -> ActivitySummary:
+        return normalize_activity(payload, text_limit=text_limit, details=details)
 
     return ActivityRecord(to_summary=to_summary)
 

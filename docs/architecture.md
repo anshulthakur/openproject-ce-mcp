@@ -819,6 +819,13 @@ Important properties of the current model:
   string, as for `list_work_packages`, so a very large allowlist can exceed
   the server's URL length limit; the request then fails without marking
   anything
+- `get_work_package_activities` serves the change details of an entry only
+  when `OPENPROJECT_READ_PROJECTS` is `*` and no work package or custom field
+  is hidden. OpenProject renders them as text in the API user's language with
+  no structure to check against the allowlist, and the text can name parents,
+  projects and versions of other projects or carry the value of a hidden
+  field, so otherwise the details are left out and `details_omitted` is true;
+  comments, user and time stay
 
 ## Supported scope (Community Edition)
 
