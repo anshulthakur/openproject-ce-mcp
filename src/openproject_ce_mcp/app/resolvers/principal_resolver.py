@@ -31,6 +31,9 @@ from ..pagination import effective_limit as _effective_limit
 from ..ports.current_user import CurrentUserLookup
 from ..ports.principal_api import PrincipalApi
 
+# A name that is a substring of this many pages of other names is not worth reading on.
+_MAX_NAME_SEARCH_PAGES = 20
+
 
 class PrincipalResolver:
     def __init__(self, *, api: PrincipalApi, current_user: CurrentUserLookup, settings: Settings) -> None:
@@ -49,14 +52,27 @@ class PrincipalResolver:
         # effective_limit), not max_results alone -- passing max_results
         # directly here would silently request a larger page than the
         # server-side/config page-size cap allows.
-        records, _total = await self._api.list_principals(
-            search=principal_ref,
-            offset=1,
-            page_size=_effective_limit(self._settings.max_results, settings=self._settings),
-        )
-        matches = [
-            str(record.summary.id) for record in records if record.lookup_name.casefold() == principal_ref.casefold()
-        ]
+        page_size = _effective_limit(self._settings.max_results, settings=self._settings)
+        matches: list[str] = []
+        fetched = 0
+        # Every page: the search matches a name as a substring, so the exact name can sit on a later
+        # page, and a second exact match there makes the reference ambiguous. Counting the records
+        # received, not offset * page_size, keeps this right when the server cuts the page size.
+        for offset in range(1, _MAX_NAME_SEARCH_PAGES + 1):
+            records, total = await self._api.list_principals(search=principal_ref, offset=offset, page_size=page_size)
+            matches.extend(
+                str(record.summary.id)
+                for record in records
+                if record.lookup_name.casefold() == principal_ref.casefold()
+            )
+            fetched += len(records)
+            if not records or fetched >= total:
+                break
+        else:
+            raise InvalidInputError(
+                f"OpenProject principal '{principal_ref}' matches too many names to tell them apart. "
+                "Pass a numeric user or group id."
+            )
         if not matches:
             raise InvalidInputError(f"OpenProject principal '{principal_ref}' was not found.")
         if len(matches) > 1:

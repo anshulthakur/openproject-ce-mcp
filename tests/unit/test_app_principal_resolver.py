@@ -110,3 +110,99 @@ async def test_resolve_id_reads_non_ascii_digits_as_a_name(name: str) -> None:
     resolver = PrincipalResolver(api=api, current_user=_current_user, settings=make_settings())
     assert await resolver.resolve_id(name) == "7"
     assert api.last_search == name
+
+
+class _PagedPrincipalApi:
+    """A server that honors the requested page size."""
+
+    def __init__(self, records: list[PrincipalRecord]) -> None:
+        self._records = records
+        self.offsets: list[int] = []
+
+    async def list_principals(
+        self, *, search: str | None, offset: int, page_size: int
+    ) -> tuple[list[PrincipalRecord], int]:
+        self.offsets.append(offset)
+        start = (offset - 1) * page_size
+        return self._records[start : start + page_size], len(self._records)
+
+
+def _three_per_page():
+    return dataclasses.replace(make_settings(), max_page_size=3, max_results=3)
+
+
+def _fillers(count: int) -> list[PrincipalRecord]:
+    return [_principal(100 + i, f"Jane Doe {i}") for i in range(count)]
+
+
+@pytest.mark.asyncio
+async def test_resolve_id_finds_the_exact_name_on_a_later_page() -> None:
+    api = _PagedPrincipalApi([*_fillers(5), _principal(7, "Jane Doe")])
+    resolver = PrincipalResolver(api=api, current_user=_current_user, settings=_three_per_page())
+
+    assert await resolver.resolve_id("Jane Doe") == "7"
+    assert api.offsets == [1, 2]
+
+
+@pytest.mark.asyncio
+async def test_resolve_id_reports_a_second_exact_match_on_a_later_page_as_ambiguous() -> None:
+    api = _PagedPrincipalApi([_principal(7, "Jane Doe"), *_fillers(4), _principal(8, "Jane Doe")])
+    resolver = PrincipalResolver(api=api, current_user=_current_user, settings=_three_per_page())
+
+    with pytest.raises(InvalidInputError, match="ambiguous"):
+        await resolver.resolve_id("Jane Doe")
+
+
+@pytest.mark.asyncio
+async def test_resolve_id_stops_after_the_last_page() -> None:
+    api = _PagedPrincipalApi([_principal(7, "Jane Doe"), *_fillers(2)])
+    resolver = PrincipalResolver(api=api, current_user=_current_user, settings=_three_per_page())
+
+    await resolver.resolve_id("Jane Doe")
+
+    assert api.offsets == [1]
+
+
+@pytest.mark.asyncio
+async def test_resolve_id_stops_on_an_empty_page_whatever_the_server_total_says() -> None:
+    class _Lying(_PagedPrincipalApi):
+        async def list_principals(self, *, search, offset, page_size):
+            self.offsets.append(offset)
+            return [], 999
+
+    api = _Lying([])
+    resolver = PrincipalResolver(api=api, current_user=_current_user, settings=_three_per_page())
+
+    with pytest.raises(InvalidInputError, match="was not found"):
+        await resolver.resolve_id("Nobody")
+
+    assert api.offsets == [1]
+
+
+@pytest.mark.asyncio
+async def test_resolve_id_reads_on_when_the_server_cuts_the_page_size() -> None:
+    class _Cutting(_PagedPrincipalApi):
+        async def list_principals(self, *, search, offset, page_size):
+            return await super().list_principals(search=search, offset=offset, page_size=2)
+
+    api = _Cutting([*_fillers(5), _principal(7, "Jane Doe")])
+    resolver = PrincipalResolver(api=api, current_user=_current_user, settings=_three_per_page())
+
+    assert await resolver.resolve_id("Jane Doe") == "7"
+    assert api.offsets == [1, 2, 3]
+
+
+@pytest.mark.asyncio
+async def test_resolve_id_gives_up_on_a_name_that_matches_pages_without_end() -> None:
+    class _Endless(_PagedPrincipalApi):
+        async def list_principals(self, *, search, offset, page_size):
+            self.offsets.append(offset)
+            return [_principal(offset, f"Jane Doe {offset}")], 10**9
+
+    api = _Endless([])
+    resolver = PrincipalResolver(api=api, current_user=_current_user, settings=_three_per_page())
+
+    with pytest.raises(InvalidInputError, match="too many names"):
+        await resolver.resolve_id("Jane")
+
+    assert len(api.offsets) == 20

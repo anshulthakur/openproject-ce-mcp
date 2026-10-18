@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -76,3 +78,21 @@ async def test_list_principals_accepts_a_numeric_string_id() -> None:
         records, _total = await api.list_principals(search=None, offset=1, page_size=50)
 
     assert [record.summary.id for record in records] == [7]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("search", "sent"),
+    [("plain", "plain"), ("a_b", r"a\_b"), ("100%", r"100\%"), (r"back\slash", r"back\\slash")],
+)
+async def test_list_principals_searches_the_text_literally(search: str, sent: str) -> None:
+    seen: list[str] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.params["filters"])
+        return httpx.Response(200, json={"total": 0, "_embedded": {"elements": []}}, request=request)
+
+    async with _client(handler) as http_client:
+        await HttpxPrincipalApi(HttpxTransport(http_client)).list_principals(search=search, offset=1, page_size=10)
+
+    assert json.loads(seen[0]) == [{"name": {"operator": "~", "values": [sent]}}]

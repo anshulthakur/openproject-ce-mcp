@@ -41,6 +41,7 @@ from ..ports.project_api import (
     ProjectSchemaResult,
 )
 from ..transport.protocol import Transport
+from ._filters import escape_like
 from ._text import FORMATTABLE_LIMIT, SUBJECT_LIMIT
 from ._text import delimit_user_content as _delimit_user_content
 from ._text import extract_formattable_text_with_meta as _extract_formattable_text_with_meta
@@ -243,13 +244,6 @@ def normalize_project_phase(payload: dict[str, Any]) -> ProjectPhase:
     )
 
 
-def _escape_like(text: str) -> str:
-    """OpenProject 16.0 to 17.9 build `LIKE '%value%'` from the filter value without
-    escaping, so `_` and `%` in the search text would act as wildcards (PostgreSQL's
-    escape is the backslash). Drop this once a release escapes the value itself."""
-    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-
 class HttpxProjectApi:
     def __init__(self, transport: Transport, *, base_url: str, api_prefix: str = "/api/v3/") -> None:
         self._transport = transport
@@ -322,7 +316,7 @@ class HttpxProjectApi:
     ) -> ProjectPage:
         filters: list[dict[str, Any]] = []
         if search:
-            filters.append({"name_and_identifier": {"operator": "~", "values": [_escape_like(search)]}})
+            filters.append({"name_and_identifier": {"operator": "~", "values": [escape_like(search)]}})
         if ids is not None:
             filters.append({"id": {"operator": "=", "values": [str(project_id) for project_id in ids]}})
         if ancestor_id is not None:

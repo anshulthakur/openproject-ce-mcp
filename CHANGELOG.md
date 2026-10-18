@@ -134,6 +134,13 @@ development baseline.
 
 ### Fixed
 
+- A user or group given by name (an assignee, a responsible, a reference in
+  the user and group tools) and `list_principals(search=...)` treated `_` and
+  `%` in the text as wildcards, and a name was looked up on the first page of
+  matches only, so a wildcard match could push the exact name off it and the
+  lookup reported it as not found. The text is searched literally now, and
+  every page of the matches is read, so a second exact match on a later page
+  is reported as ambiguous.
 - `create_work_package`, `update_work_package` and `create_subtask` accept a
   numeric `parent`, `assignee` and `responsible` (a JSON number such as `7`),
   not only a string; `bulk_update_work_packages` items accept a numeric
