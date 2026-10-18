@@ -34,13 +34,13 @@ def test_normalize_help_text_extracts_raw_text_from_nested_dict() -> None:
     assert summary.id == 5
     assert summary.attribute_name == "description"
     assert summary.attribute_caption == "Description"
-    assert summary.help_text == "Describe the work."
+    assert summary.help_text == "<user-content>Describe the work.</user-content>"
 
 
 def test_normalize_help_text_falls_back_to_attribute_key() -> None:
     summary = normalize_help_text({"id": 6, "attribute": "subject", "helpText": "Plain string help"})
     assert summary.attribute_name == "subject"
-    assert summary.help_text == "Plain string help"
+    assert summary.help_text == "<user-content>Plain string help</user-content>"
 
 
 def test_normalize_working_day_maps_fields() -> None:

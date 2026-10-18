@@ -60,6 +60,7 @@ from ...models import GithubPullRequestSummary, GitlabIssueSummary, GitlabMergeR
 from ..ports.github_gitlab_link_api import GithubPullRequestRecord, GitlabIssueRecord, GitlabMergeRequestRecord
 from ..transport.protocol import Transport
 from ._text import SUBJECT_LIMIT
+from ._text import delimit_user_content as _delimit_user_content
 from ._text import extract_formattable_text_with_meta as _extract_formattable_text_with_meta
 from ._text import link_title as _link_title
 from ._text import trim_text as _trim_text
@@ -77,7 +78,7 @@ def normalize_github_pull_request_raw(payload: dict[str, Any], *, text_limit: in
         repository_html_url=_trim_text(payload.get("repositoryHtmlUrl"), limit=SUBJECT_LIMIT),
         github_updated_at=payload.get("githubUpdatedAt"),
         title=_trim_text(payload.get("title"), limit=SUBJECT_LIMIT),
-        body=body,
+        body=_delimit_user_content(body),
         body_truncated=body_truncated,
         body_length=body_length,
         draft=bool(payload.get("draft")),
@@ -107,7 +108,7 @@ def normalize_gitlab_issue_raw(payload: dict[str, Any], *, text_limit: int | Non
         repository=_trim_text(payload.get("repository"), limit=SUBJECT_LIMIT),
         gitlab_updated_at=payload.get("gitlabUpdatedAt"),
         title=_trim_text(payload.get("title"), limit=SUBJECT_LIMIT),
-        body=body,
+        body=_delimit_user_content(body),
         body_truncated=body_truncated,
         body_length=body_length,
         labels=[str(label) for label in payload.get("labels") or []],
@@ -128,7 +129,7 @@ def normalize_gitlab_merge_request_raw(payload: dict[str, Any], *, text_limit: i
         repository=_trim_text(payload.get("repository"), limit=SUBJECT_LIMIT),
         gitlab_updated_at=payload.get("gitlabUpdatedAt"),
         title=_trim_text(payload.get("title"), limit=SUBJECT_LIMIT),
-        body=body,
+        body=_delimit_user_content(body),
         body_truncated=body_truncated,
         body_length=body_length,
         draft=bool(payload.get("draft")),

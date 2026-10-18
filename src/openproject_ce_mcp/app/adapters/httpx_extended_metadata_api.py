@@ -29,6 +29,7 @@ from ..ports.extended_metadata_api import (
     WorkingDayRecord,
 )
 from ..transport.protocol import Transport
+from ._text import delimit_user_content as _delimit_user_content
 from ._text import trim_text as _trim_text
 
 FORMATTABLE_LIMIT = 1_200
@@ -48,9 +49,11 @@ def normalize_help_text(payload: dict[str, Any]) -> HelpTextSummary:
         id=int(payload["id"]),
         attribute_name=payload.get("attribute") or payload.get("attributeName"),
         attribute_caption=payload.get("caption"),
-        help_text=_trim_text(
-            help_text_value.get("raw") if isinstance(help_text_value, dict) else help_text_value,
-            limit=FORMATTABLE_LIMIT,
+        help_text=_delimit_user_content(
+            _trim_text(
+                help_text_value.get("raw") if isinstance(help_text_value, dict) else help_text_value,
+                limit=FORMATTABLE_LIMIT,
+            )
         ),
     )
 

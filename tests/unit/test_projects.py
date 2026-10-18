@@ -1440,7 +1440,7 @@ async def test_help_texts_and_working_days() -> None:
     assert help_texts.results[0].attribute_name == "description"
 
     help_text = await client.extended_metadata.get_help_text(5)
-    assert help_text.help_text == "Describe the work."
+    assert help_text.help_text == "<user-content>Describe the work.</user-content>"
 
     days = await client.extended_metadata.list_working_days()
     assert days.count == 2

@@ -134,6 +134,9 @@ development baseline.
 
 ### Fixed
 
+- Help texts and the bodies of GitHub pull requests and GitLab issues and merge
+  requests reached the agent without the `<user-content>` delimiter that marks
+  text written by users, unlike every other text field. They carry it now.
 - `responsible`, `priority`, `category`, `project_phase` and the options of
   custom fields, given by title, wrote the first of several allowed values
   that share the title (display names of users are not unique, and a version
