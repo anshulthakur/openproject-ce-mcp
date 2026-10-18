@@ -800,7 +800,7 @@ requires-dist = [
     { name = "tiktoken", marker = "extra == 'measure'", specifier = ">=0.8,<1" },
     { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2" },
     { name = "trustme", marker = "extra == 'dev'", specifier = ">=1.2,<2" },
-    { name = "typing-extensions", specifier = ">=4.12" },
+    { name = "typing-extensions", specifier = ">=4.16.0" },
 ]
 provides-extras = ["dev", "measure"]
 
