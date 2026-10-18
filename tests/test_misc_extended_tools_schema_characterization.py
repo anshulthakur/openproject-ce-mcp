@@ -41,7 +41,10 @@ def _tools(mcp) -> dict:
 def test_render_text_schema() -> None:
     tool = _tools(create_app(_make_settings()))["render_text"]
     assert tool.description == (
-        "Render markdown or plain text to HTML using the OpenProject API. format: 'markdown' or 'plain'."
+        "Render markdown or plain text to HTML using the OpenProject API. format: 'markdown' or 'plain'.\n\n"
+        "Refused unless OPENPROJECT_READ_PROJECTS is `*` and no field of work packages, projects, versions,\n"
+        "documents, meetings, posts, users, groups or views is hidden: OpenProject expands macros such as\n"
+        "#123 or version#4 into the name or display id of any record, whatever its project."
     )
     assert tool.output_schema == {
         "properties": {

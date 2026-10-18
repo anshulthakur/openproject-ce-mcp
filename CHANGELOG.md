@@ -104,6 +104,13 @@ development baseline.
   field is hidden, and `details_omitted` is true on the entry. Comments, user
   and time are unchanged. `add_work_package_comment` never returned details; its
   result now carries `details_omitted: true` for that.
+- `render_text` rendered macros such as `#123`, `version#4`, `project#5` or
+  `view#6` into the display id (with the project identifier) of any work
+  package or the name of any version, project or view, whatever its project and
+  whether or not `OPENPROJECT_READ_PROJECTS` covered it, in markdown and in plain
+  text. It is now refused unless `OPENPROJECT_READ_PROJECTS` is `*` and no
+  field of work packages, projects, versions, documents, meetings, posts, users,
+  groups or views is hidden.
 
 ### Added
 

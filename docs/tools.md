@@ -645,7 +645,7 @@ later still). Meeting Outcomes require 17.6+ throughout.
 
 | Tool | Description |
 | --- | --- |
-| `render_text` | Render markdown or plain text to HTML using the OpenProject API |
+| `render_text` | Render markdown or plain text to HTML using the OpenProject API; refused unless `OPENPROJECT_READ_PROJECTS` is `*` and no field of work packages, projects, versions, documents, meetings, posts, users, groups or views is hidden, because OpenProject expands macros such as `#123` or `version#4` into the name or display id of any record |
 
 ## Help texts
 

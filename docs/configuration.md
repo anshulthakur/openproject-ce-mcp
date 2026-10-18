@@ -166,7 +166,8 @@ register only these project-independent tools:
 The project-scoped write switches register their tools only while both
 `OPENPROJECT_READ_PROJECTS` and `OPENPROJECT_WRITE_PROJECTS` are non-empty.
 The personal, admin, user-schedule and extended switches register their tools
-regardless of either allowlist.
+regardless of either allowlist. `render_text` is refused at call time unless
+`OPENPROJECT_READ_PROJECTS` is `*`.
 
 | Switch | Tools |
 | --- | --- |

@@ -33,7 +33,7 @@ from ...models import (
     RenderedText,
     WorkingDayListResult,
 )
-from ..policies import access, hidden_fields
+from ..policies import access, hidden_fields, rendered_text_policy
 from ..ports.extended_metadata_api import ExtendedMetadataApi
 
 
@@ -44,6 +44,7 @@ class ExtendedMetadataService:
 
     async def render_text(self, *, text: str, format: str = "markdown") -> RenderedText:
         access.ensure_read_enabled("work_package", settings=self._settings)
+        rendered_text_policy.ensure_render_allowed(self._settings)
         record = await self._api.render_text(text=text, format=format)
         return hidden_fields.apply_hidden_fields("rendered_text", record.summary, settings=self._settings)
 

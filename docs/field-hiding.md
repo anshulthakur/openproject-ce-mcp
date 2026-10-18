@@ -20,7 +20,9 @@ consistently. There is no JSON or `entity:field` syntax to quote or escape.
 A pattern matches every field it covers: `OPENPROJECT_HIDE_ACTIVITY_FIELDS=details*`
 hides `details`, `details_truncated` and `details_omitted`. Any hide setting for
 work package fields or custom fields also makes `get_work_package_activities` leave
-out the change details, because OpenProject renders every changed value into them.
+out the change details, because OpenProject renders every changed value into them,
+and hiding fields of work packages, projects, versions, documents, meetings, posts,
+users, groups or views makes `render_text` refuse, because its macros render their names.
 
 ## Custom fields: a read/write asymmetry
 

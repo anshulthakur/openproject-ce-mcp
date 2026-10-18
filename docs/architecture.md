@@ -826,6 +826,12 @@ Important properties of the current model:
   projects and versions of other projects or carry the value of a hidden
   field, so otherwise the details are left out and `details_omitted` is true;
   comments, user and time stay
+- `render_text` is refused unless `OPENPROJECT_READ_PROJECTS` is `*` and no
+  field of work packages, projects, versions, documents, meetings, posts,
+  users, groups or views is hidden. OpenProject expands macros such as
+  `#123`, `version#4`, `project#5` or `view#6` into the name or display id of
+  the record they name, in markdown and plain text alike and whatever its
+  project; the request carries no record to check them against
 
 ## Supported scope (Community Edition)
 

@@ -81,9 +81,10 @@ async def test_list_time_entry_activities(client: OpenProjectClient) -> None:
     assert result.results[0].name
 
 
-async def test_render_text(client: OpenProjectClient) -> None:
+async def test_render_text(start_scoped_client) -> None:
+    everywhere = await start_scoped_client(read_projects=("*",), write_projects=())
     try:
-        result = await client.extended_metadata.render_text(text="**hello**", format="markdown")
+        result = await everywhere.extended_metadata.render_text(text="**hello**", format="markdown")
     except (OpenProjectError, json.JSONDecodeError):
         pytest.skip("render_text endpoint not available on this instance")
     assert result.html

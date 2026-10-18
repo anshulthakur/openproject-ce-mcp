@@ -18,32 +18,26 @@ SAFE: dict[str, str] = {
     "httpx_activity_api.py:normalize_activity": "reads the change details only when the caller passes details=True, which the services derive from the read scope and the hide settings, or False",
     "_text.py:_extract_formattable_text": "raw is always a string and html is its rendering, so html is read only when raw is empty and then holds no text",
     "_text.py:extract_formattable_text_with_meta": "raw is always a string and html is its rendering, so html is read only when raw is empty and then holds no text",
+    "httpx_extended_metadata_api.py:render_text": "the service refuses to render unless the read scope allows all and no field of the records a macro names is hidden",
     "httpx_attachment_api.py:_extract_formattable_text": "raw is always a string and html is its rendering, so html is read only when raw is empty and then holds no text",
-}
-
-# file:function -> the gap that is known and not closed by the read scope
-OPEN: dict[str, str] = {
-    "httpx_extended_metadata_api.py:render_text": "markdown macros render the name or display id of the record they name, with no scope check",
 }
 
 
 def _unclassified(reads: dict[str, int]) -> dict[str, int]:
-    return {name: line for name, line in reads.items() if name not in SAFE and name not in OPEN}
+    return {name: line for name, line in reads.items() if name not in SAFE}
 
 
 def test_every_read_of_server_rendered_text_is_classified() -> None:
     reads = constant_key_reads(RENDERED_KEYS, directories=SCANNED)
 
     assert len(reads) >= 5, "the scan found too few reads to be reading the adapters and services"
-    assert _unclassified(reads) == {}, "classify these functions in SAFE with the reason, or in OPEN with the gap"
+    assert _unclassified(reads) == {}, (
+        "classify these functions in SAFE with the reason the read cannot name a record outside the read scope"
+    )
 
 
 def test_no_classification_outlives_the_read_it_describes() -> None:
-    assert sorted((set(SAFE) | set(OPEN)) - set(constant_key_reads(RENDERED_KEYS, directories=SCANNED))) == []
-
-
-def test_a_safe_function_is_not_also_listed_as_open() -> None:
-    assert sorted(set(SAFE) & set(OPEN)) == []
+    assert sorted(set(SAFE) - set(constant_key_reads(RENDERED_KEYS, directories=SCANNED))) == []
 
 
 def test_the_scan_sees_a_planted_read() -> None:
