@@ -134,6 +134,13 @@ development baseline.
 
 ### Fixed
 
+- `responsible`, `priority`, `category`, `project_phase` and the options of
+  custom fields, given by title, wrote the first of several allowed values
+  that share the title (display names of users are not unique, and a version
+  shared into a project can repeat a name), while `assignee` reported such a
+  title as ambiguous. They report it as ambiguous too and name the matching
+  ids, and a custom field name shared by two custom fields is ambiguous in the
+  same way. Passing the numeric id still works.
 - A user or group given by name (an assignee, a responsible, a reference in
   the user and group tools) and `list_principals(search=...)` treated `_` and
   `%` in the text as wildcards, and a name was looked up on the first page of

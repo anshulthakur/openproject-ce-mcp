@@ -1,0 +1,83 @@
+"""A name given by a caller is never resolved to the first of several matches.
+
+User and group names, versions, sprints, roles and custom field options can share a title, so a
+function that compares two case-folded names must also refuse more than one match. The few
+resources whose names OpenProject keeps unique are listed with the reason.
+"""
+
+from __future__ import annotations
+
+import ast
+from pathlib import Path
+
+APP = Path(__file__).resolve().parents[1] / "src" / "openproject_ce_mcp" / "app"
+
+# function -> why a single match is certain
+UNIQUE_BY_OPENPROJECT = {
+    "resolve_status_id": "status names are unique",
+    "resolve_priority_id": "priority names are unique per enumeration",
+    "_resolve_status_href": "the project status values are a fixed set",
+    "_title_matches": "only collects; resolve_schema_option_href and the custom field option resolver refuse several",
+}
+
+
+def _is_casefold(node: ast.expr) -> bool:
+    return isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "casefold"
+
+
+def _compares_two_names(function: ast.AST) -> bool:
+    return any(
+        isinstance(node, ast.Compare)
+        and any(isinstance(op, ast.Eq) for op in node.ops)
+        and _is_casefold(node.left)
+        and any(_is_casefold(comparator) for comparator in node.comparators)
+        for node in ast.walk(function)
+    )
+
+
+def _refuses_several_matches(function: ast.AST) -> bool:
+    for node in ast.walk(function):
+        if isinstance(node, ast.Compare) and isinstance(node.left, ast.Call):
+            call = node.left
+            if isinstance(call.func, ast.Name) and call.func.id == "len":
+                if any(isinstance(op, ast.Gt) for op in node.ops) and any(
+                    isinstance(c, ast.Constant) and c.value == 1 for c in node.comparators
+                ):
+                    return True
+    return False
+
+
+def _functions_comparing_names() -> list[tuple[str, str, bool]]:
+    found = []
+    for path in sorted(APP.rglob("*.py")):
+        tree = ast.parse(path.read_text())
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and _compares_two_names(node):
+                found.append((path.name, node.name, _refuses_several_matches(node)))
+    return found
+
+
+def test_every_function_that_compares_two_names_refuses_several_matches_or_is_listed() -> None:
+    functions = _functions_comparing_names()
+
+    assert len(functions) >= 8, "the scan found too few name comparisons to be reading the source"
+    unguarded = [
+        f"{file}:{name}" for file, name, refuses in functions if not refuses and name not in UNIQUE_BY_OPENPROJECT
+    ]
+    assert unguarded == [], "raise InvalidInputError when len(matches) > 1, or list the function with the reason"
+
+
+def test_no_listed_function_has_stopped_comparing_names() -> None:
+    comparing = {name for _file, name, _refuses in _functions_comparing_names()}
+
+    assert set(UNIQUE_BY_OPENPROJECT) <= comparing
+
+
+def test_the_scan_tells_a_guarded_comparison_from_an_unguarded_one() -> None:
+    guarded = ast.parse(
+        "def f(a, b, matches):\n    m = [x for x in a if x.casefold() == b.casefold()]\n    if len(m) > 1:\n        raise ValueError\n"
+    ).body[0]
+    unguarded = ast.parse("def f(a, b):\n    return [x for x in a if x.casefold() == b.casefold()][0]\n").body[0]
+
+    assert _compares_two_names(guarded) and _refuses_several_matches(guarded)
+    assert _compares_two_names(unguarded) and not _refuses_several_matches(unguarded)
