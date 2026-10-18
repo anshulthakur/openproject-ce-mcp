@@ -51,6 +51,7 @@ from ..ports.work_package_ref import (
     WorkPackageProjectAllowedCheck,
 )
 from ..ports.work_package_resolution import WorkPackageAllowedContext
+from ..version_gate import call_version_gated
 
 
 class ReminderService:
@@ -124,7 +125,9 @@ class ReminderService:
         # (LAZY, see ReminderRecord's own docstring) is called only AFTER
         # filtering, inside `normalize` -- "filter raw, normalize survivors".
         raw_items, total, next_offset, truncated = await fetch_bounded_and_paginate(
-            fetch_page=lambda o, ps: self._api.fetch_page(offset=o, page_size=ps),
+            fetch_page=lambda o, ps: call_version_gated(
+                lambda: self._api.fetch_page(offset=o, page_size=ps), feature="Reminders", floor="16.1"
+            ),
             normalize=lambda raw: self._stamp(self._api.to_record(raw).summary()),
             item_allowed=None,
             item_allowed_bulk=item_allowed_bulk if allowlisted else None,
@@ -172,7 +175,9 @@ class ReminderService:
         # One active reminder per work package/user: a second create returns
         # 409, surfaced as InvalidInputError with the API's "update or
         # delete" message.
-        record = await self._api.create(resolved_id, payload)
+        record = await call_version_gated(
+            lambda: self._api.create(resolved_id, payload), feature="Reminders", floor="16.1"
+        )
         result = self._stamp(record.summary())
         return ReminderWriteResult(
             action="create",
@@ -194,7 +199,9 @@ class ReminderService:
         Fail closed: an unresolvable remindable link must not be bypassed,
         even under a fully open READ_PROJECTS=*/WRITE_PROJECTS=* scope.
         """
-        remindable = await self._api.get_remindable_link(reminder_id)
+        remindable = await call_version_gated(
+            lambda: self._api.get_remindable_link(reminder_id), feature="Reminders", floor="16.1"
+        )
         href = remindable.get("href") if isinstance(remindable, dict) else None
         if not isinstance(href, str) or not href:
             raise PermissionDeniedError(

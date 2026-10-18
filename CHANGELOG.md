@@ -138,6 +138,11 @@ development baseline.
 
 ### Fixed
 
+- `list_reminders`, `create_work_package_reminder`, `update_reminder` and
+  `delete_reminder` answered a bare not-found on OpenProject 16.0, which has no
+  collection of reminders and no route to create, change or delete one. They
+  now say that the call requires OpenProject 16.1 or newer, and the
+  descriptions of the three writes state it.
 - Help texts and the bodies of GitHub pull requests and GitLab issues and merge
   requests reached the agent without the `<user-content>` delimiter that marks
   text written by users, unlike every other text field. They carry it now.

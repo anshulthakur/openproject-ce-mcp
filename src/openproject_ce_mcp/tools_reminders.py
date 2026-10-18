@@ -33,7 +33,7 @@ from .tools_validation import (
 async def list_reminders(
     ctx: Context, select: Annotated[list[str] | None, select_field(ReminderSummary)] = None
 ) -> ReminderListResult:
-    """List the current user's active reminders across all work packages."""
+    """List the current user's active reminders across all work packages. Requires OpenProject 16.1+."""
     client = _client_from_context(ctx)
     _validate_select(select, row_type=ReminderSummary)
     return await _run_tool(client.reminder.list_all())
@@ -51,6 +51,7 @@ async def create_work_package_reminder(
 
     `remind_at` is an ISO 8601 date-time (e.g. 2026-12-01T09:00:00Z). Only one
     active reminder per work package is allowed; creating a second one fails.
+    Requires OpenProject 16.1+.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_work_package_ref(work_package_id)
@@ -76,7 +77,10 @@ async def update_reminder(
     note: Annotated[str | None, Field(description='New note, at most 2000 characters; "" clears it.')] = None,
     confirm: Confirm = False,
 ) -> ReminderWriteResult:
-    """Update a reminder's time or note; at least one is required, an omitted one stays unchanged."""
+    """Update a reminder's time or note; at least one is required, an omitted one stays unchanged.
+
+    Requires OpenProject 16.1+.
+    """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(reminder_id, field_name="reminder_id")
     safe_remind_at = _validate_optional_datetime(remind_at, field_name="remind_at")

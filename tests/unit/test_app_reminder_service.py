@@ -5,7 +5,7 @@ import dataclasses
 import pytest
 from _client_test_helpers import make_settings
 
-from openproject_ce_mcp.app.errors import InvalidInputError, PermissionDeniedError
+from openproject_ce_mcp.app.errors import InvalidInputError, NotFoundError, PermissionDeniedError
 from openproject_ce_mcp.app.ports.reminder_api import ReminderRecord
 from openproject_ce_mcp.app.services.reminder_service import ReminderService
 from openproject_ce_mcp.models import ReminderSummary
@@ -527,3 +527,46 @@ async def test_note_hidden_by_reminder_scope_not_watcher_scope() -> None:
     service_reminder_hidden = _service(settings=settings_reminder_hidden)
     result_reminder_hidden = await service_reminder_hidden.list_all()
     assert getattr(result_reminder_hidden.results[0], "_hidden_keys", frozenset()) == {"note"}
+
+
+class _ReminderApiOfOpenProject160(_FakeReminderApi):
+    """OpenProject 16.0 has no collection of reminders and no route to create, change or delete one:
+    the reminders route hangs below a work package there and only lists."""
+
+    async def fetch_page(self, *, offset: int, page_size: int) -> dict:
+        raise NotFoundError("no such route")
+
+    async def get_remindable_link(self, reminder_id: int) -> dict | None:
+        raise NotFoundError("no such route")
+
+    async def create(self, work_package_id: int, payload: dict) -> ReminderRecord:
+        raise NotFoundError("no such route")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda s: s.list_all(),
+        lambda s: s.create(work_package_id=42, remind_at="2026-12-01T09:00:00Z", confirm=True),
+        lambda s: s.update(reminder_id=7, note="n", confirm=True),
+        lambda s: s.delete(reminder_id=7, confirm=True),
+        lambda s: s.delete(reminder_id=7, confirm=False),
+    ],
+    ids=["list", "create", "update", "delete", "delete preview"],
+)
+async def test_a_reminder_call_on_a_server_without_the_routes_names_the_version_floor(call) -> None:
+    service = _service(api=_ReminderApiOfOpenProject160())
+
+    with pytest.raises(NotFoundError, match=r"Reminders requires OpenProject 16\.1 or newer"):
+        await call(service)
+
+
+@pytest.mark.asyncio
+async def test_a_missing_reminder_on_a_server_with_the_routes_is_not_reported_as_an_old_server() -> None:
+    class _NoSuchReminder(_FakeReminderApi):
+        async def get_remindable_link(self, reminder_id: int) -> dict | None:
+            return None
+
+    with pytest.raises(PermissionDeniedError):
+        await _service(api=_NoSuchReminder()).delete(reminder_id=999, confirm=False)
