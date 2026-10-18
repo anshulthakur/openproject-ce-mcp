@@ -1275,6 +1275,20 @@ def test_app_tree_never_reads_environment_variables_directly() -> None:
 # each one has a HIDE_FIELD_ENV_BY_ENTITY entry -- so a future domain that
 # repeats this exact mistake fails a test immediately instead of shipping a
 # silently-broken OPENPROJECT_HIDE_<X>_FIELDS env var.
+# Every function whose first argument is the entity: the masking calls and the write guards. A typo in
+# the entity of a write guard disables that guard silently, so those are held to the same registry.
+_HIDDEN_FIELD_ENTITY_CALLS = frozenset(
+    {
+        "apply_hidden_fields",
+        "_apply_hidden_fields",
+        "apply_hidden_fields_with_aliases",
+        "field_hidden",
+        "ensure_field_writable",
+        "hidden_patterns",
+    }
+)
+
+
 def _hidden_field_entity_literals(path: Path) -> set[str]:
     tree = ast.parse(path.read_text(), filename=str(path))
     entities: set[str] = set()
@@ -1289,9 +1303,9 @@ def _hidden_field_entity_literals(path: Path) -> set[str]:
         # migration's own self-audit: the underscore-less version alone returns an
         # EMPTY set for client.py, despite the module docstring above claiming
         # client.py's still-flat normalize_* methods are covered).
-        is_apply_hidden_fields_call = (
-            isinstance(func, ast.Attribute) and func.attr in ("apply_hidden_fields", "_apply_hidden_fields")
-        ) or (isinstance(func, ast.Name) and func.id in ("apply_hidden_fields", "_apply_hidden_fields"))
+        is_apply_hidden_fields_call = (isinstance(func, ast.Attribute) and func.attr in _HIDDEN_FIELD_ENTITY_CALLS) or (
+            isinstance(func, ast.Name) and func.id in _HIDDEN_FIELD_ENTITY_CALLS
+        )
         if not is_apply_hidden_fields_call or not node.args:
             continue
         first_arg = node.args[0]
@@ -1308,6 +1322,7 @@ def test_every_apply_hidden_fields_entity_is_registered_in_config() -> None:
     for path in APP.rglob("*.py"):
         entities |= _hidden_field_entity_literals(path)
 
+    assert len(entities) >= 25, "the scan found too few entities to be reading the source"
     unregistered = sorted(entities - HIDE_FIELD_ENV_BY_ENTITY.keys())
     assert unregistered == [], (
         f"Entities passed to apply_hidden_fields/_apply_hidden_fields with no "
