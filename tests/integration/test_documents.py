@@ -51,7 +51,9 @@ async def test_list_documents(client: OpenProjectClient, test_project: str) -> N
     assert result.results[0].title
 
 
-async def test_get_and_update_document(client: OpenProjectClient, test_project: str) -> None:
+async def test_get_and_update_document(
+    client: OpenProjectClient, test_project: str, openproject_version: tuple[int, int]
+) -> None:
     existing = await client.document.list(project=test_project)
     if existing.count == 0:
         pytest.skip("no existing document in the test project to read/update (no create_document API to seed one)")
@@ -77,6 +79,8 @@ async def test_get_and_update_document(client: OpenProjectClient, test_project: 
             confirm=True,
         )
     except PermissionDeniedError:
+        if openproject_version != (16, 6):
+            raise
         # OpenProject 16.6 gates PATCH /documents/{id} entirely behind the
         # "Block note editor" experimental feature flag, off by default
         # (on by default from 17.x onward, where the gate was removed) --
@@ -87,6 +91,8 @@ async def test_get_and_update_document(client: OpenProjectClient, test_project: 
             "OpenProject version, and it's off by default -- not a client-side permission gap"
         )
     except NotFoundError:
+        if openproject_version >= (16, 6):
+            raise
         # No PATCH route at all before 16.6 (verified against source: no
         # `patch do` block in documents_api.rb until then).
         pytest.skip("update_document has no PATCH route on this OpenProject version (added in 16.6)")
@@ -107,7 +113,9 @@ async def test_update_document_denied_outside_write_allowlist(
         await denied_client.document.update(document_id=document_id, title="denied update", confirm=True)
 
 
-async def test_update_document_description_round_trips(client: OpenProjectClient, test_project: str) -> None:
+async def test_update_document_description_round_trips(
+    client: OpenProjectClient, test_project: str, openproject_version: tuple[int, int]
+) -> None:
     """Documents this MCP server's own workaround for the known upstream
     description-corruption bug: it sends description as a plain string
     (not the HAL {format, raw, html} shape) specifically to route around
@@ -130,6 +138,8 @@ async def test_update_document_description_round_trips(client: OpenProjectClient
             confirm=True,
         )
     except PermissionDeniedError:
+        if openproject_version != (16, 6):
+            raise
         # See test_get_and_update_document's identical guard: OpenProject
         # 16.6 gates PATCH /documents/{id} behind the "Block note editor"
         # feature flag, off by default.
@@ -138,6 +148,8 @@ async def test_update_document_description_round_trips(client: OpenProjectClient
             "OpenProject version, and it's off by default -- not a client-side permission gap"
         )
     except NotFoundError:
+        if openproject_version >= (16, 6):
+            raise
         # No PATCH route at all before 16.6 -- see test_get_and_update_document.
         pytest.skip("update_document has no PATCH route on this OpenProject version (added in 16.6)")
     assert update_result.ready, update_result.validation_errors

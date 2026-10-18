@@ -101,61 +101,71 @@ async def test_request_raw_wraps_timeout_as_transport_error() -> None:
             await transport.request_raw("POST", "workspaces/6/favorite", json_body={})
 
 
-# --- post_raw_json (added for the Extended Metadata migration's render_text) ---
-# Regression coverage added during that migration's step-6 self-audit: post_raw_json
-# was initially written as a near-duplicate of _request's error-handling instead of
-# sharing it, which had left these exact error paths untested.
+# --- post_text (render_text: raw text in, text/html out) ---------------------
 
 
 @pytest.mark.asyncio
-async def test_post_raw_json_sends_content_and_headers_and_parses_json() -> None:
+async def test_post_text_sends_content_and_headers_and_returns_the_body_as_text() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "POST"
         assert request.url.path == "/api/v3/render/markdown"
         assert request.headers["content-type"] == "text/plain"
         assert request.content == b"**Hello**"
-        return httpx.Response(200, json={"html": "<p><b>Hello</b></p>"}, request=request)
+        return httpx.Response(
+            200,
+            content='<p class="op-uc-p"><strong>Hello</strong> \u00e4</p>'.encode(),
+            headers={"content-type": "text/html"},
+            request=request,
+        )
 
     async with _client(handler) as http_client:
         transport = HttpxTransport(http_client)
-        result = await transport.post_raw_json(
+        result = await transport.post_text(
             "render/markdown", content=b"**Hello**", headers={"Content-Type": "text/plain"}
         )
 
-    assert result["html"] == "<p><b>Hello</b></p>"
+    assert result == '<p class="op-uc-p"><strong>Hello</strong> \u00e4</p>'
 
 
 @pytest.mark.asyncio
-async def test_post_raw_json_raises_on_error_status() -> None:
+async def test_post_text_raises_on_error_status() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(500, json={}, request=request)
 
     async with _client(handler) as http_client:
         transport = HttpxTransport(http_client)
         with pytest.raises(OpenProjectServerError):
-            await transport.post_raw_json("render/markdown", content=b"x", headers={"Content-Type": "text/plain"})
+            await transport.post_text("render/markdown", content=b"x", headers={"Content-Type": "text/plain"})
 
 
 @pytest.mark.asyncio
-async def test_post_raw_json_wraps_timeout_as_transport_error() -> None:
+async def test_post_text_maps_the_unsupported_media_type_answer_through_the_shared_status_mapping() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            415,
+            json={
+                "_type": "Error",
+                "errorIdentifier": "urn:openproject-org:api:v3:errors:TypeNotSupported",
+                "message": "Expected content type text/plain",
+            },
+            request=request,
+        )
+
+    async with _client(handler) as http_client:
+        transport = HttpxTransport(http_client)
+        with pytest.raises(OpenProjectServerError, match="415"):
+            await transport.post_text("render/markdown", content=b"x", headers={"Content-Type": "application/json"})
+
+
+@pytest.mark.asyncio
+async def test_post_text_wraps_timeout_as_transport_error() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.TimeoutException("timed out", request=request)
 
     async with _client(handler) as http_client:
         transport = HttpxTransport(http_client)
         with pytest.raises(TransportError):
-            await transport.post_raw_json("render/markdown", content=b"x", headers={"Content-Type": "text/plain"})
-
-
-@pytest.mark.asyncio
-async def test_post_raw_json_raises_on_invalid_json_response() -> None:
-    async def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, content=b"not json", request=request)
-
-    async with _client(handler) as http_client:
-        transport = HttpxTransport(http_client)
-        with pytest.raises(OpenProjectServerError):
-            await transport.post_raw_json("render/markdown", content=b"x", headers={"Content-Type": "text/plain"})
+            await transport.post_text("render/markdown", content=b"x", headers={"Content-Type": "text/plain"})
 
 
 # --- get_binary --------------------------------------------------------------

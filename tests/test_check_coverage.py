@@ -90,13 +90,13 @@ def test_client_resources_detects_request_raw_verb_calls(tmp_path, monkeypatch):
     assert "workspaces" in check_coverage._client_resources()
 
 
-def test_client_resources_detects_post_raw_json_calls(tmp_path, monkeypatch):
-    # self._transport.post_raw_json(...) is a fourth Transport method
+def test_client_resources_detects_post_text_calls(tmp_path, monkeypatch):
+    # self._transport.post_text(...) is a fourth Transport method
     # distinct from the *_json verbs, post_multipart, and request_raw.
     # The one real caller (HttpxExtendedMetadataApi.render_text) builds its
     # path in a local variable first, which this scan can't resolve (see
     # _client_resources's docstring) -- this test instead isolates the
-    # regex itself against a literal path, so the post_raw_json match arm
+    # regex itself against a literal path, so the post_text match arm
     # has a direct regression test independent of
     # whether any real call site happens to use a literal.
     synthetic_client = tmp_path / "client.py"
@@ -108,7 +108,7 @@ def test_client_resources_detects_post_raw_json_calls(tmp_path, monkeypatch):
     (adapters_dir / "httpx_extended_metadata_api.py").write_text(
         "class HttpxExtendedMetadataApi:\n"
         "    async def render_plain(self, text):\n"
-        '        return await self._transport.post_raw_json(\n            "render/plain", content=text.encode(), headers={}\n        )\n'
+        '        return await self._transport.post_text(\n            "render/plain", content=text.encode(), headers={}\n        )\n'
     )
     monkeypatch.setattr(check_coverage, "ADAPTERS_DIR", adapters_dir)
 

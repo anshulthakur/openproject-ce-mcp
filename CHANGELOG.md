@@ -156,6 +156,10 @@ development baseline.
 
 ### Fixed
 
+- `render_text` failed with `OpenProject returned invalid JSON` on every
+  supported version, because OpenProject answers the render endpoints with
+  `text/html` and the server parsed the answer as JSON. It now returns the
+  rendered markup as `html`.
 - The SBOM built with the package named an `unknown` component without a
   version where the project itself belongs, and listed no dependency edges. It
   is exported from the lock file now, names `openproject-ce-mcp` and its version

@@ -1355,7 +1355,8 @@ async def test_render_text() -> None:
             assert request.content.decode("utf-8") == "**Hello**"
             return httpx.Response(
                 200,
-                json={"html": "<p><strong>Hello</strong></p>"},
+                content=b"<p><strong>Hello</strong></p>",
+                headers={"content-type": "text/html"},
                 request=request,
             )
         raise AssertionError(f"Unexpected request: {request.method} {request.url}")

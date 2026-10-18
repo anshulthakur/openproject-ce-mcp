@@ -35,8 +35,8 @@ class _Inner:
     async def post_json(self, path: str, **_: Any) -> dict[str, Any]:
         return self._body()
 
-    async def post_raw_json(self, path: str, **_: Any) -> dict[str, Any]:
-        return self._body()
+    async def post_text(self, path: str, **_: Any) -> str:
+        return "<p>x</p>"
 
     async def post_multipart(self, path: str, **_: Any) -> dict[str, Any]:
         return self._body()
@@ -60,7 +60,6 @@ class _Inner:
 JSON_CALLS = {
     "get_json": lambda t: t.get_json("x"),
     "post_json": lambda t: t.post_json("x", json_body={}),
-    "post_raw_json": lambda t: t.post_raw_json("x", content=b"{}", headers={}),
     "post_multipart": lambda t: t.post_multipart(
         "x", metadata={}, file_name="a.txt", file_bytes=b"a", content_type="text/plain"
     ),
@@ -69,6 +68,7 @@ JSON_CALLS = {
 }
 
 OTHER_CALLS = {
+    "post_text": lambda t: t.post_text("x", content=b"x", headers={}),
     "get_binary": lambda t: t.get_binary("x", max_bytes=1),
     "delete": lambda t: t.delete("x"),
     "request_raw": lambda t: t.request_raw("GET", "x"),

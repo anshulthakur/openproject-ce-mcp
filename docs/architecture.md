@@ -366,11 +366,11 @@ tools_<domain>.py (MCP presentation)
   two cross-service-orchestration methods described above) and
   `retry_transport.py` are unaffected and keep importing it directly. The
   `Transport` Protocol (`app/transport/protocol.py`) is extended with a new
-  method when a domain needs a request shape none of the existing methods cover
-  — e.g. `post_raw_json` for a raw, non-JSON request body (`Content-Type:
-  text/plain`), added when a domain's endpoint posts plain text rather than a
-  JSON payload; `post_multipart` for a `multipart/form-data` body (a JSON
-  metadata part plus a file part), added for Attachments' file upload — the
+  method when a domain needs a request shape none of the existing methods cover,
+  such as `post_text` for a raw request body (`Content-Type: text/plain`)
+  answered with `text/html` rather than a JSON payload, or `post_multipart` for
+  a `multipart/form-data` body (a JSON metadata part plus a file part) for
+  Attachments' file upload; the
   metadata part is sent as a plain form field with no filename in its
   Content-Disposition, since a filename would make the server's multipart parser
   treat it as an uploaded file rather than a JSON string.

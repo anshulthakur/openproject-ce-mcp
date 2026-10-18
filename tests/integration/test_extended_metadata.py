@@ -17,28 +17,37 @@ omitted.
 
 from __future__ import annotations
 
-import json
-
 import pytest
 
-from openproject_ce_mcp.client import OpenProjectClient, OpenProjectError, PermissionDeniedError
+from openproject_ce_mcp.client import OpenProjectClient, PermissionDeniedError
 
 pytestmark = pytest.mark.integration
 
 
 async def test_render_text(start_scoped_client) -> None:
     everywhere = await start_scoped_client(read_projects=("*",), write_projects=())
-    try:
-        result = await everywhere.extended_metadata.render_text(text="**hello**", format="markdown")
-    except (OpenProjectError, json.JSONDecodeError):
-        pytest.skip("render_text endpoint not available on this instance")
-    assert result.html
-    assert "hello" in result.html
+    markdown = await everywhere.extended_metadata.render_text(text="**hello**", format="markdown")
+    assert "<strong>hello</strong>" in markdown.html
+    plain = await everywhere.extended_metadata.render_text(text="hello", format="plain")
+    assert plain.html.startswith("<p") and "hello" in plain.html
 
 
-async def test_render_text_is_refused_for_a_restricted_read_scope(client: OpenProjectClient) -> None:
+async def test_render_text_names_a_work_package_by_macro_only_where_it_is_allowed(
+    client: OpenProjectClient, test_project: str, wp_ids: list[int], start_scoped_client
+) -> None:
+    created = await client.work_package.create(
+        project=test_project, type="Task", subject="[integration-test] render macro", confirm=True
+    )
+    assert created.ready, created.validation_errors
+    wp_ids.append(created.work_package_id)
+    macro = f"see #{created.work_package_id}"
+
     with pytest.raises(PermissionDeniedError, match="OPENPROJECT_READ_PROJECTS"):
-        await client.extended_metadata.render_text(text="see #1", format="plain")
+        await client.extended_metadata.render_text(text=macro, format="plain")
+
+    everywhere = await start_scoped_client(read_projects=("*",), write_projects=())
+    rendered = await everywhere.extended_metadata.render_text(text=macro, format="plain")
+    assert "/work_packages/" in rendered.html
 
 
 async def test_list_help_texts(client: OpenProjectClient) -> None:
