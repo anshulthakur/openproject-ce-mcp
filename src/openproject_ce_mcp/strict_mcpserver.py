@@ -1,16 +1,66 @@
 from __future__ import annotations
 
+import json
 import logging
+import math
 from collections.abc import Callable
 from typing import Any
 
 from mcp import types
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
+from mcp.server.mcpserver.utilities.func_metadata import FuncMetadata
 from mcp.types import Icon, ToolAnnotations
+from pydantic import ConfigDict, ValidationError
 
 from .tool_errors import ToolInputError
 
 logger = logging.getLogger(__name__)
+
+
+def _non_finite(value: Any) -> bool:
+    """True when a number anywhere inside the value is NaN or Infinity (the JSON parser of the
+    transport accepts both), which would reach OpenProject as invalid JSON or fail to serialize."""
+    if isinstance(value, float):
+        return not math.isfinite(value)
+    if isinstance(value, dict):
+        return any(_non_finite(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_non_finite(item) for item in value)
+    return False
+
+
+def _reject_constant(constant: str) -> Any:
+    raise ValueError(f"{constant} is not a JSON number")
+
+
+def _admits_container(schema: dict[str, Any]) -> bool:
+    if schema.get("type") in ("array", "object") or "$ref" in schema or "allOf" in schema:
+        return True
+    return any(_admits_container(option) for option in (*schema.get("anyOf", []), *schema.get("oneOf", [])))
+
+
+class _StrictFuncMetadata(FuncMetadata):
+    """FuncMetadata whose JSON-text pre-parse is limited to arguments that may be a list or an object.
+
+    The SDK decodes JSON text for every argument that is not annotated `str`, so a client that
+    sends a list as text still works. For a scalar argument that decoding is not wanted: the
+    value must arrive with its own type.
+    """
+
+    container_fields: frozenset[str] = frozenset()
+
+    def pre_parse_json(self, data: dict[str, Any]) -> dict[str, Any]:
+        parsed = dict(data)
+        for key, value in data.items():
+            if key in self.container_fields and isinstance(value, str):
+                try:
+                    decoded = json.loads(value, parse_constant=_reject_constant)
+                except (ValueError, RecursionError):
+                    continue
+                if isinstance(decoded, list | dict):
+                    parsed[key] = decoded
+        return parsed
 
 
 class StrictMCPServer(MCPServer):
@@ -48,7 +98,25 @@ class StrictMCPServer(MCPServer):
                     f"'{name}': {', '.join(unknown)}. "
                     f"Allowed arguments: {', '.join(sorted(allowed))}"
                 )
-        return await super().call_tool(name, arguments, context)
+            not_finite = sorted(key for key, value in arguments.items() if _non_finite(value))
+            if not_finite:
+                raise ToolInputError(
+                    f"[validation_error] Argument(s) for tool '{name}' contain NaN or Infinity, "
+                    f"which are not numbers: {', '.join(not_finite)}."
+                )
+        try:
+            return await super().call_tool(name, arguments, context)
+        except ToolError as exc:
+            if isinstance(exc.__cause__, ValidationError):
+                # Field path and message only: the offending value itself can be caller data.
+                field_errors = "; ".join(
+                    f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"
+                    for error in exc.__cause__.errors()
+                )
+                raise ToolInputError(
+                    f"[validation_error] Invalid argument(s) for tool '{name}': {field_errors}"
+                ) from exc
+            raise
 
     def add_tool(
         self,
@@ -86,6 +154,30 @@ class StrictMCPServer(MCPServer):
         tool = self._tool_manager.get_tool(tool_name)
         if tool is not None:
             tool.parameters["additionalProperties"] = False
+            self._make_arguments_strict(tool)
+
+    @staticmethod
+    def _make_arguments_strict(tool: Any) -> None:
+        """Validate arguments in pydantic's strict mode: a boolean is not an integer, `"yes"` or `1`
+        is not `true`, `5.0` and `"5"` are not integers, and NaN or Infinity are not numbers.
+        Lax coercion turned `confirm="yes"` into a confirmed write and `group_id=true` into group 1.
+        Only tools are covered: the server registers no resource templates or prompts.
+        """
+        meta = tool.fn_metadata
+        base = meta.arg_model
+        strict_model = type(
+            base.__name__,
+            (base,),
+            {
+                "model_config": ConfigDict(strict=True, allow_inf_nan=False, validate_default=True),
+                "__module__": base.__module__,
+            },
+        )
+        containers = frozenset(
+            key for key, schema in tool.parameters.get("properties", {}).items() if _admits_container(schema)
+        )
+        carried = {name: getattr(meta, name) for name in FuncMetadata.model_fields if name != "arg_model"}
+        tool.fn_metadata = _StrictFuncMetadata(arg_model=strict_model, container_fields=containers, **carried)
 
 
 async def verify_strict_dispatch(mcp: StrictMCPServer) -> None:
@@ -105,7 +197,7 @@ async def verify_strict_dispatch(mcp: StrictMCPServer) -> None:
     probe_name = "__strict_mcpserver_probe__"
 
     @mcp.tool(name=probe_name)
-    async def _probe(known: str = "x") -> str:  # pragma: no cover - never runs
+    async def _probe(known: str = "x", flag: bool = False) -> str:  # pragma: no cover - never runs
         return known
 
     try:
@@ -132,6 +224,16 @@ async def verify_strict_dispatch(mcp: StrictMCPServer) -> None:
                 "rejected by the live dispatch path. The installed mcp SDK version "
                 "likely changed how MCPServer.call_tool is wired into request "
                 "handling; strict argument validation is currently NOT enforced. "
+                "Refusing to start."
+            )
+        typed = types.CallToolRequestParams(name=probe_name, arguments={"flag": "true"})
+        typed_result = await entry.handler(None, typed)  # type: ignore[arg-type]
+        typed_text = "".join(getattr(block, "text", "") for block in getattr(typed_result, "content", []))
+        if not getattr(typed_result, "is_error", False) or "flag" not in typed_text:
+            raise RuntimeError(
+                'StrictMCPServer self-test failed: the string "true" was accepted for a boolean '
+                "tool argument. The installed mcp SDK version likely changed how tool arguments "
+                "are validated; strict argument types are currently NOT enforced. "
                 "Refusing to start."
             )
     finally:

@@ -17,8 +17,13 @@ preview step.
 Each tool declares MCP annotations (read-only, destructive, idempotent,
 open-world); they are hints for clients, not a permission gate.
 
-Parameters documented as accepting a numeric resource id accept it as either a
-JSON number or a decimal string.
+Parameters that take a reference to a resource (a project, work package, version
+or user by name, key or id) accept a numeric id as either a JSON number or a
+decimal string. Every other argument keeps its own JSON type: a plain id, offset
+or limit is sent as a number (not `"5"`, not `5.0` for a whole number), `confirm`
+and other flags as `true` or `false` (not `"yes"`, `"true"` or `1`), and a
+mistyped argument is rejected with a validation error before anything is sent
+to OpenProject.
 
 Clearing a field: on `update_work_package` and `update_project`, pass the string
 `"none"` to unassign a nullable association instead of changing it —
