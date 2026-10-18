@@ -122,6 +122,7 @@ class WorkPackageApi(Protocol):
         sort_by: list[SortCriterion] | None,
         group_by: str | None,
         include_sums: bool = False,
+        include_subprojects: bool | None = None,
     ) -> WorkPackagePage: ...
 
     def to_record(self, payload: dict[str, Any], *, text_limit: int | None) -> WorkPackageRecord:

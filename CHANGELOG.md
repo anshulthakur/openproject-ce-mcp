@@ -79,6 +79,16 @@ development baseline.
   project) and the href for any other link. `get_board` likewise shows the
   title of a filter value only for filters on such resources (status, type,
   priority, assignee, author, responsible) and the id for all others.
+- `get_project`, `list_projects` and the project results of writes named
+  parents and ancestors outside `OPENPROJECT_READ_PROJECTS`, and
+  `get_work_package`, the work package lists and the results of writes showed
+  the id and display id of a parent in such a project. They now leave out a
+  parent or ancestor the read allowlist does not cover.
+- `list_work_packages` and `search_work_packages` could count, group and sum
+  work packages of subprojects outside `OPENPROJECT_READ_PROJECTS`, because
+  OpenProject adds the subprojects of every project a filter names. Under a
+  restricted scope the filter now names the covered subprojects itself and the
+  request turns the expansion off. Under `*` nothing changes.
 
 ### Added
 

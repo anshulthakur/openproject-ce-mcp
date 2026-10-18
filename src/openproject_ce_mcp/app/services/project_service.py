@@ -42,6 +42,7 @@ from ..errors import InvalidInputError
 from ..pagination import clamp_limit
 from ..policies import access, hidden_fields
 from ..policies import project_policy as project_policy_module
+from ..policies import scope as scope_policy
 from ..policies.scope import ensure_project_link_allowed, payload_allowed
 from ..ports.project_api import ProjectApi
 from ..resolvers.project_query import fetch_project_page
@@ -91,7 +92,29 @@ def _slug_from_href(href: str | None) -> str | None:
 CLEAR_PARENT = object()
 
 
-def _stamp_project(value: Any, *, settings: Settings) -> Any:
+def _without_uncovered_parents(
+    value: ProjectSummary, *, settings: Settings, project_id_to_identifier: Mapping[int, str]
+) -> ProjectSummary:
+    # A readable project can sit below parents the read allowlist does not cover; their names
+    # and display ids must not reach the result through the parent link or the ancestor chain.
+    def covered(project_id: int | None, name: str | None) -> bool:
+        return project_id is not None and scope_policy.project_known_by_id_allowed(
+            project_id, name, settings=settings, project_id_to_identifier=project_id_to_identifier
+        )
+
+    if value.parent_id is not None and not covered(value.parent_id, value.parent_name):
+        value = replace(value, parent_id=None, parent_name=None)
+    if isinstance(value, ProjectDetail) and value.ancestors:
+        kept = [
+            entry
+            for entry in value.ancestors
+            if covered(scope_policy.id_from_href(entry.get("href")), entry.get("title"))
+        ]
+        value = replace(value, ancestors=kept or None)
+    return value
+
+
+def _stamp_project(value: Any, *, settings: Settings, project_id_to_identifier: Mapping[int, str]) -> Any:
     # The adapter computes description_truncated/description_length AND
     # status_explanation_truncated/status_explanation_length before hidden-field
     # masking exists (masking is a Service concern) --
@@ -102,6 +125,7 @@ def _stamp_project(value: Any, *, settings: Settings) -> Any:
     # (the embedded ProjectSummary in ProjectAdminContext.project needs the
     # identical treatment, not just a bare apply_hidden_fields call).
     if isinstance(value, ProjectSummary):
+        value = _without_uncovered_parents(value, settings=settings, project_id_to_identifier=project_id_to_identifier)
         if hidden_fields.field_hidden("project", "description", settings=settings):
             value = replace(value, description_truncated=False, description_length=None)
         if hidden_fields.field_hidden("project", "status_explanation", settings=settings):
@@ -128,7 +152,7 @@ class ProjectService:
         self._api_prefix = api_prefix
 
     def _stamp(self, value: Any) -> Any:
-        return _stamp_project(value, settings=self._settings)
+        return _stamp_project(value, settings=self._settings, project_id_to_identifier=self._project_id_to_identifier)
 
     async def list(self, *, search: str | None = None, offset: int = 1, limit: int | None = None) -> ProjectListResult:
         effective_limit = clamp_limit(
@@ -546,18 +570,22 @@ class ProjectAdminService:
         *,
         api: ProjectApi,
         settings: Settings,
+        project_id_to_identifier: Mapping[int, str],
         resolver: ProjectResolver,
         base_url: str,
     ) -> None:
         self._api = api
         self._settings = settings
+        self._project_id_to_identifier = project_id_to_identifier
         self._resolver = resolver
         self._base_url = base_url
 
     async def get_admin_context(self, project_ref: str) -> ProjectAdminContext:
         access.ensure_read_enabled("project", settings=self._settings)
         record = await self._resolver.resolve_record(project_ref, write=False)
-        project = _stamp_project(record.summary, settings=self._settings)
+        project = _stamp_project(
+            record.summary, settings=self._settings, project_id_to_identifier=self._project_id_to_identifier
+        )
         schema_result = await self._api.get_schema(project_id=project.id, draft_payload={"name": project.name})
         schema = schema_result.schema
         fields = schema_result.fields
@@ -582,7 +610,9 @@ class ProjectAdminService:
         # keeps OPENPROJECT_HIDE_PROJECT_FIELDS=name/identifier honored here,
         # not just on get_project/list_projects.
         available_parent_projects = [
-            _stamp_project(ref, settings=self._settings) for ref in parent_candidates if _parent_ref_allowed(ref)
+            _stamp_project(ref, settings=self._settings, project_id_to_identifier=self._project_id_to_identifier)
+            for ref in parent_candidates
+            if _parent_ref_allowed(ref)
         ]
         # Non-writable/internal schema entries (id, timestamps, lockVersion, ...)
         # aren't useful to an agent discovering what it can set here.

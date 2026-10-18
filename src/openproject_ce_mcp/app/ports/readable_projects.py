@@ -11,3 +11,7 @@ class ReadableProjects(Protocol):
         """Rescanned when the last scan is old enough that a new project could
         be missing; every project its id alone does not match is re-read."""
         ...
+
+    async def readable_descendant_ids(self, project_id: int) -> frozenset[int]:
+        """The readable projects below `project_id`, at any depth."""
+        ...

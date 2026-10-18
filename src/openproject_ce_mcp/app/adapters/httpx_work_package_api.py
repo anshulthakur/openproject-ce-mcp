@@ -621,6 +621,7 @@ class HttpxWorkPackageApi:
         sort_by: list[SortCriterion] | None,
         group_by: str | None,
         include_sums: bool = False,
+        include_subprojects: bool | None = None,
     ) -> WorkPackagePage:
         params: dict[str, str] = {
             "offset": str(offset),
@@ -634,6 +635,8 @@ class HttpxWorkPackageApi:
             params["groupBy"] = group_by
         if include_sums:
             params["showSums"] = "true"
+        if include_subprojects is not None:
+            params["includeSubprojects"] = "true" if include_subprojects else "false"
         payload = await self._transport.get_json("work_packages", params=params)
         raw_elements = [item for item in payload.get("_embedded", {}).get("elements", []) if isinstance(item, dict)]
         server_total = int(payload.get("total", len(raw_elements)))

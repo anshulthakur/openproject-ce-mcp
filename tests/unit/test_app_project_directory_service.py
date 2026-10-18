@@ -50,6 +50,9 @@ class _FakeProjectApi:
         self.get_errors: dict[str, Exception] = {}
         self.gate: asyncio.Event | None = None
         self.held_pages: set[int] = set()
+        self.ancestor_calls: list[int | None] = []
+        # project id -> ids of the projects below it, as OpenProject's ancestor filter would answer
+        self.below: dict[int, set[int]] = {}
         self.in_flight = 0
         self.max_in_flight = 0
 
@@ -58,15 +61,27 @@ class _FakeProjectApi:
             await self.gate.wait()
 
     async def list(
-        self, *, server_offset: int, server_page_size: int, search: str | None, ids: Sequence[int] | None = None
+        self,
+        *,
+        server_offset: int,
+        server_page_size: int,
+        search: str | None,
+        ids: Sequence[int] | None = None,
+        ancestor_id: int | None = None,
     ) -> ProjectPage:
         self.list_calls.append(server_offset)
         if ids is not None:
             self.listed_ids.append(list(ids))
+        self.ancestor_calls.append(ancestor_id)
         await self._hold(server_offset)
         if self.list_error is not None:
             raise self.list_error
-        matching = [project for project in self.projects if ids is None or project[0] in ids]
+        matching = [
+            project
+            for project in self.projects
+            if (ids is None or project[0] in ids)
+            and (ancestor_id is None or project[0] in self.below.get(ancestor_id, ()))
+        ]
         start = (server_offset - 1) * server_page_size
         chunk = matching[start : start + server_page_size]
         return ProjectPage(
@@ -571,10 +586,20 @@ class _HeldConfirmation(_FakeProjectApi):
         self.release_confirmation = asyncio.Event()
 
     async def list(
-        self, *, server_offset: int, server_page_size: int, search: str | None, ids: Sequence[int] | None = None
+        self,
+        *,
+        server_offset: int,
+        server_page_size: int,
+        search: str | None,
+        ids: Sequence[int] | None = None,
+        ancestor_id: int | None = None,
     ) -> ProjectPage:
         page = await super().list(
-            server_offset=server_offset, server_page_size=server_page_size, search=search, ids=ids
+            server_offset=server_offset,
+            server_page_size=server_page_size,
+            search=search,
+            ids=ids,
+            ancestor_id=ancestor_id,
         )
         if ids is not None:
             self.confirmation_arrived.put_nowait(list(ids))
@@ -622,10 +647,20 @@ class _HeldScan(_FakeProjectApi):
         self.scan_arrived: asyncio.Queue[int] = asyncio.Queue()
 
     async def list(
-        self, *, server_offset: int, server_page_size: int, search: str | None, ids: Sequence[int] | None = None
+        self,
+        *,
+        server_offset: int,
+        server_page_size: int,
+        search: str | None,
+        ids: Sequence[int] | None = None,
+        ancestor_id: int | None = None,
     ) -> ProjectPage:
         page = await super().list(
-            server_offset=server_offset, server_page_size=server_page_size, search=search, ids=ids
+            server_offset=server_offset,
+            server_page_size=server_page_size,
+            search=search,
+            ids=ids,
+            ancestor_id=ancestor_id,
         )
         self.scan_arrived.put_nowait(server_offset)
         if self.scan_gate is not None:
@@ -914,3 +949,36 @@ async def test_unrestricted_scopes_need_no_directory(read_projects: tuple, write
     assert api.list_calls == []
     assert api.get_calls == []
     assert directory.positives == {}
+
+
+@pytest.mark.asyncio
+async def test_readable_descendants_are_the_ones_below_a_project_that_the_scope_covers() -> None:
+    api = _FakeProjectApi([(1, "demo", "Demo"), (2, "demo-b", "Demo b"), (3, "secret", "Secret"), (4, "demo-c", "C")])
+    api.below = {1: {2, 3, 4}}
+    directory = _directory(api, settings=_base_settings(read_projects=("demo*",)))
+
+    descendants = await directory.readable_descendant_ids(1)
+
+    assert descendants == {2, 4}
+    assert api.ancestor_calls == [1]
+    assert directory.positives == {2: "demo-b", 4: "demo-c"}
+
+
+@pytest.mark.asyncio
+async def test_readable_descendants_leave_out_an_archived_project() -> None:
+    api = _FakeProjectApi([(1, "demo", "Demo"), (2, "demo-b", "Demo b", False)])
+    api.below = {1: {2}}
+    directory = _directory(api, settings=_base_settings(read_projects=("demo*",)))
+
+    assert await directory.readable_descendant_ids(1) == frozenset()
+
+
+@pytest.mark.asyncio
+async def test_readable_descendants_are_judged_on_the_answer_not_on_an_earlier_name() -> None:
+    api = _FakeProjectApi([(1, "demo", "Demo"), (2, "demo-b", "Demo b")])
+    api.below = {1: {2}}
+    directory = _directory(api, settings=_base_settings(read_projects=("demo*",)))
+    await directory.refresh()
+    api.projects[1] = (2, "renamed", "Renamed")
+
+    assert await directory.readable_descendant_ids(1) == frozenset()

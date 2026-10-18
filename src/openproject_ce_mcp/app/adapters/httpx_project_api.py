@@ -318,12 +318,15 @@ class HttpxProjectApi:
         search: str | None,
         text_limit: int | None = FORMATTABLE_LIMIT,
         ids: Sequence[int] | None = None,
+        ancestor_id: int | None = None,
     ) -> ProjectPage:
         filters: list[dict[str, Any]] = []
         if search:
             filters.append({"name_and_identifier": {"operator": "~", "values": [_escape_like(search)]}})
         if ids is not None:
             filters.append({"id": {"operator": "=", "values": [str(project_id) for project_id in ids]}})
+        if ancestor_id is not None:
+            filters.append({"ancestor": {"operator": "=", "values": [str(ancestor_id)]}})
         payload = await self._transport.get_json(
             "projects",
             params={

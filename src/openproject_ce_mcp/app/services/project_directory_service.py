@@ -108,6 +108,16 @@ class ProjectDirectoryService:
         # What was recorded while the request ran may be newer than its answer.
         return frozenset(self._readable & (by_id | set(recorded)))
 
+    async def readable_descendant_ids(self, project_id: int) -> frozenset[int]:
+        """The readable projects below `project_id`, at any depth, judged on what OpenProject
+        answers now: it adds every descendant of a project a work-package filter names,
+        readable or not, and counts and sums them."""
+        started = self._tick()
+        projects = await self._list_projects(ids=None, ancestor_id=project_id)
+        for project in projects:
+            self._store(project, as_of=started)
+        return frozenset(project.id for project in projects if project.id in self._readable)
+
     def _tick(self) -> int:
         self._ticks += 1
         return self._ticks
@@ -173,12 +183,16 @@ class ProjectDirectoryService:
             self._last_scan_attempt = self._clock()
         self._replace_with_scan(projects, started)
 
-    async def _list_projects(self, *, ids: Sequence[int] | None) -> list[_Project]:
+    async def _list_projects(self, *, ids: Sequence[int] | None, ancestor_id: int | None = None) -> list[_Project]:
         projects: list[_Project] = []
         offset = 1
         while True:
             page = await self._api.list(
-                server_offset=offset, server_page_size=self._settings.max_page_size, search=None, ids=ids
+                server_offset=offset,
+                server_page_size=self._settings.max_page_size,
+                search=None,
+                ids=ids,
+                ancestor_id=ancestor_id,
             )
             projects.extend(project for record in page.records if (project := _from_summary(record.summary)))
             if page.exhausted or not page.records:

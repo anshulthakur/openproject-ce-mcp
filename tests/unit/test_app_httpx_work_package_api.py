@@ -1104,3 +1104,21 @@ async def test_get_work_package_exposes_custom_fields_end_to_end() -> None:
         "customField1": "<user-content>Acme Corp</user-content>",
         "customField2": "v1.0",
     }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("include_subprojects", "sent"), [(None, None), (True, "true"), (False, "false")])
+async def test_list_sends_include_subprojects_only_when_asked(include_subprojects, sent) -> None:
+    seen: list[dict[str, str]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(dict(request.url.params))
+        return httpx.Response(200, json={"total": 0, "_embedded": {"elements": []}}, request=request)
+
+    async with _client(handler) as http_client:
+        api = HttpxWorkPackageApi(HttpxTransport(http_client), base_url=BASE_URL)
+        await api.list(
+            filters=[], offset=1, limit=10, sort_by=None, group_by=None, include_subprojects=include_subprojects
+        )
+
+    assert seen[0].get("includeSubprojects") == sent

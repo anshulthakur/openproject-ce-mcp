@@ -305,6 +305,7 @@ class OpenProjectClient:
         self._project_admin_service = ProjectAdminService(
             api=self._project_api,
             settings=settings,
+            project_id_to_identifier=self._project_id_to_identifier,
             resolver=self._project_resolver,
             base_url=settings.base_url,
         )

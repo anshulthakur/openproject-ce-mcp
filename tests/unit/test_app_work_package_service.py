@@ -43,6 +43,8 @@ def _summary(
     description_length: int | None = None,
     version: str | None = None,
     target_versions: list[str] | None = None,
+    parent_id: int | None = None,
+    parent_display_id: str | None = None,
 ) -> WorkPackageSummary:
     return WorkPackageSummary(
         id=wp_id,
@@ -58,6 +60,8 @@ def _summary(
         version=version,
         target_versions=target_versions if target_versions is not None else [],
         sprint=None,
+        parent_id=parent_id,
+        parent_display_id=parent_display_id,
         start_date=None,
         due_date=None,
         description=description,
@@ -74,6 +78,8 @@ def _detail(
     ancestors=None,
     version: str | None = None,
     target_versions: list[str] | None = None,
+    parent_id: int | None = None,
+    parent_display_id: str | None = None,
 ) -> WorkPackageDetail:
     return WorkPackageDetail(
         id=wp_id,
@@ -89,8 +95,8 @@ def _detail(
         version=version,
         target_versions=target_versions if target_versions is not None else [],
         sprint=None,
-        parent_id=None,
-        parent_display_id=None,
+        parent_id=parent_id,
+        parent_display_id=parent_display_id,
         start_date=None,
         due_date=None,
         lock_version=1,
@@ -144,9 +150,18 @@ class _FakeWorkPackageApi:
         self.parse_form_resolve_links_calls: list[bool] = []
         self.parse_form_allowed_values_cache_calls: list[object] = []
 
-    async def list(self, *, filters, offset, limit, sort_by, group_by, include_sums: bool = False) -> WorkPackagePage:
+    async def list(
+        self, *, filters, offset, limit, sort_by, group_by, include_sums: bool = False, include_subprojects=None
+    ) -> WorkPackagePage:
         self.list_calls.append(
-            {"filters": filters, "offset": offset, "limit": limit, "group_by": group_by, "include_sums": include_sums}
+            {
+                "filters": filters,
+                "offset": offset,
+                "limit": limit,
+                "group_by": group_by,
+                "include_sums": include_sums,
+                "include_subprojects": include_subprojects,
+            }
         )
         return WorkPackagePage(
             raw_elements=self._raw_elements,
@@ -356,13 +371,19 @@ def _bulk_from_single(single):
 
 
 class _ReadableIds:
-    def __init__(self, readable: Iterable[int]) -> None:
+    def __init__(self, readable: Iterable[int], *, descendants: dict[int, Iterable[int]] | None = None) -> None:
         self._readable = frozenset(readable)
+        self._descendants = {key: frozenset(value) for key, value in (descendants or {}).items()}
         self.calls = 0
+        self.descendant_calls: list[int] = []
 
     async def current_readable_project_ids(self) -> frozenset[int]:
         self.calls += 1
         return self._readable
+
+    async def readable_descendant_ids(self, project_id: int) -> frozenset[int]:
+        self.descendant_calls.append(project_id)
+        return self._descendants.get(project_id, frozenset())
 
 
 def _service(
@@ -575,6 +596,73 @@ async def test_list_exposes_real_total_when_restricted_scope_filter_sent() -> No
     assert result.total == 5
     assert result.count == 2
     assert {"project_id": {"operator": "=", "values": ["1"]}} in api.list_calls[0]["filters"]
+
+
+@pytest.mark.asyncio
+async def test_list_with_a_project_names_its_readable_descendants_and_turns_the_expansion_off() -> None:
+    """OpenProject adds every descendant of a named project, readable or not, and counts and
+    sums them; under a restricted scope the filter names the readable ones itself."""
+    api = _FakeWorkPackageApi(raw_elements=[_payload(1)], server_total=1)
+    readable_projects = _ReadableIds({1, 5, 9}, descendants={1: {5}})
+    service, _ = _service(
+        api,
+        settings=dataclasses.replace(make_settings(), read_projects=("demo",)),
+        project_id_to_identifier={1: "demo"},
+        readable_projects=readable_projects,
+    )
+
+    await service.list(project="demo", limit=2)
+
+    call = api.list_calls[0]
+    assert {"project_id": {"operator": "=", "values": ["1", "5"]}} in call["filters"]
+    assert call["include_subprojects"] is False
+    assert readable_projects.descendant_calls == [1]
+
+
+@pytest.mark.asyncio
+async def test_search_with_a_project_names_its_readable_descendants_and_turns_the_expansion_off() -> None:
+    api = _FakeWorkPackageApi(raw_elements=[_payload(1)], server_total=1)
+    service, _ = _service(
+        api,
+        settings=dataclasses.replace(make_settings(), read_projects=("demo",)),
+        project_id_to_identifier={1: "demo"},
+        readable_projects=_ReadableIds({1, 5}, descendants={1: {5}}),
+    )
+
+    await service.search(search="x", project="demo", limit=2)
+
+    call = api.list_calls[0]
+    assert {"project_id": {"operator": "=", "values": ["1", "5"]}} in call["filters"]
+    assert call["include_subprojects"] is False
+
+
+@pytest.mark.asyncio
+async def test_list_without_a_project_under_a_restricted_scope_turns_the_expansion_off() -> None:
+    api = _FakeWorkPackageApi(raw_elements=[_payload(1)], server_total=1)
+    service, _ = _service(
+        api,
+        settings=dataclasses.replace(make_settings(), read_projects=("demo",)),
+        project_id_to_identifier={1: "demo"},
+        readable_projects=_ReadableIds({1}),
+    )
+
+    await service.list(limit=2)
+
+    assert api.list_calls[0]["include_subprojects"] is False
+
+
+@pytest.mark.asyncio
+async def test_list_under_every_project_leaves_the_server_expansion_alone() -> None:
+    api = _FakeWorkPackageApi(raw_elements=[_payload(1)], server_total=1)
+    readable_projects = _ReadableIds({1})
+    service, _ = _service(api, readable_projects=readable_projects)
+
+    await service.list(project="demo", limit=2)
+
+    call = api.list_calls[0]
+    assert {"project_id": {"operator": "=", "values": ["1"]}} in call["filters"]
+    assert call["include_subprojects"] is None
+    assert readable_projects.descendant_calls == []
 
 
 @pytest.mark.asyncio
@@ -3338,3 +3426,129 @@ async def test_create_matches_a_digit_custom_field_option_by_title_before_a_late
 
     _project, payload = api.validate_create_calls[-1]
     assert payload["_links"]["customField10"] == {"href": "/api/v3/custom_options/4"}
+
+
+def _restricted(api, *, allowed_hrefs: set[str], bulk_calls: list | None = None):
+    async def allowed(href: str, *, context=None) -> bool:
+        return href in allowed_hrefs
+
+    bulk = _bulk_from_single(allowed)
+
+    async def recording_bulk(hrefs, *, context):
+        if bulk_calls is not None:
+            bulk_calls.append(list(hrefs))
+        return await bulk(hrefs, context=context)
+
+    return _service(
+        api,
+        settings=dataclasses.replace(make_settings(), read_projects=("demo",)),
+        project_id_to_identifier=PROJECT_ID_TO_IDENTIFIER,
+        work_package_project_allowed=allowed,
+        work_package_project_allowed_bulk=recording_bulk,
+    )[0]
+
+
+@pytest.mark.asyncio
+async def test_get_leaves_out_a_parent_the_read_scope_does_not_cover() -> None:
+    api = _FakeWorkPackageApi()
+    api._records_by_id[6] = _record(6, detail=_detail(6, parent_id=20, parent_display_id="OTHER-1"))
+    service = _restricted(api, allowed_hrefs=set())
+
+    result = await service.get(6)
+
+    assert (result.parent_id, result.parent_display_id) == (None, None)
+
+
+@pytest.mark.asyncio
+async def test_get_keeps_a_parent_the_read_scope_covers() -> None:
+    api = _FakeWorkPackageApi()
+    api._records_by_id[6] = _record(6, detail=_detail(6, parent_id=20, parent_display_id="DEMO-1"))
+    service = _restricted(api, allowed_hrefs={"/api/v3/work_packages/20"})
+
+    result = await service.get(6)
+
+    assert (result.parent_id, result.parent_display_id) == (20, "DEMO-1")
+
+
+@pytest.mark.asyncio
+async def test_get_checks_a_parent_that_is_also_an_ancestor_once() -> None:
+    ancestors = [{"href": "/api/v3/work_packages/20", "title": "Parent", "display_id": None}]
+    api = _FakeWorkPackageApi()
+    api._records_by_id[6] = _record(6, detail=_detail(6, ancestors=ancestors, parent_id=20))
+    calls: list[list[str]] = []
+    service = _restricted(api, allowed_hrefs={"/api/v3/work_packages/20"}, bulk_calls=calls)
+
+    await service.get(6)
+
+    assert calls == [["/api/v3/work_packages/20", "/api/v3/work_packages/20"]]
+
+
+@pytest.mark.asyncio
+async def test_get_keeps_the_parent_under_every_project_without_a_lookup() -> None:
+    api = _FakeWorkPackageApi()
+    api._records_by_id[6] = _record(6, detail=_detail(6, parent_id=20, parent_display_id="OTHER-1"))
+    calls: list[list[str]] = []
+    service = _service(api)[0]
+    service._work_package_project_allowed_bulk = lambda hrefs, *, context: calls.append(list(hrefs))  # type: ignore[assignment]
+
+    result = await service.get(6)
+
+    assert (result.parent_id, result.parent_display_id) == (20, "OTHER-1")
+    assert calls == []
+
+
+def _rows_with_parents(parents: dict[int, int | None]) -> _FakeWorkPackageApi:
+    api = _FakeWorkPackageApi(raw_elements=[_payload(wp_id) for wp_id in parents], server_total=len(parents))
+    for wp_id, parent in parents.items():
+        api._records_by_id[wp_id] = _record(
+            wp_id,
+            summary=_summary(wp_id, parent_id=parent, parent_display_id=None if parent is None else f"P-{parent}"),
+        )
+    return api
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("scope_safe_project", [None, "demo"])
+async def test_list_rows_leave_out_parents_the_read_scope_does_not_cover(scope_safe_project) -> None:
+    api = _rows_with_parents({1: 20, 2: 21, 3: None, 4: 20})
+    calls: list[list[str]] = []
+    service = _restricted(api, allowed_hrefs={"/api/v3/work_packages/21"}, bulk_calls=calls)
+
+    result = await service.list(project=scope_safe_project, limit=10)
+
+    assert {row.id: (row.parent_id, row.parent_display_id) for row in result.results} == {
+        1: (None, None),
+        2: (21, "P-21"),
+        3: (None, None),
+        4: (None, None),
+    }
+    assert len(calls) == 1
+    assert sorted(set(calls[0])) == ["/api/v3/work_packages/20", "/api/v3/work_packages/21"]
+
+
+@pytest.mark.asyncio
+async def test_scanned_list_rows_leave_out_parents_the_read_scope_does_not_cover() -> None:
+    api = _rows_with_parents({1: 20, 2: 21})
+    service = _restricted(api, allowed_hrefs={"/api/v3/work_packages/21"})
+
+    result = await service.list_my_open(limit=10)
+
+    assert {row.id: row.parent_id for row in result.results} == {1: None, 2: 21}
+
+
+@pytest.mark.asyncio
+async def test_list_rows_keep_their_hidden_field_stamp_after_the_parent_is_left_out() -> None:
+    api = _rows_with_parents({1: 20})
+    service = _service(
+        api,
+        settings=dataclasses.replace(
+            make_settings(), read_projects=("demo",), hidden_fields={"work_package": ("subject",)}
+        ),
+        project_id_to_identifier=PROJECT_ID_TO_IDENTIFIER,
+        work_package_project_allowed_bulk=_bulk_from_single(_no_project_allowed),
+    )[0]
+
+    result = await service.list(limit=10)
+
+    assert result.results[0].parent_id is None
+    assert result.results[0]._hidden_keys == frozenset({"subject"})

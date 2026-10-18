@@ -784,7 +784,15 @@ async def project_refs(client: OpenProjectClient):
         try:
             await unrestricted_client.project.delete(project_ref=project_ref, confirm=True)
         except Exception:
-            pass
+            continue
+        # The delete runs as a background job; the next test's project create or work package form
+        # deadlocks or fails on 16.0 while it still holds the nested-set rows.
+        for _ in range(60):
+            try:
+                await unrestricted_client.project.get(project_ref)
+            except NotFoundError:
+                break
+            await asyncio.sleep(0.5)
 
 
 _WP_MULTI_VERSIONS_CAPABILITY_CHECK = "Setting.respond_to?(:work_package_multiple_versions=)"
