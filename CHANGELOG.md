@@ -361,6 +361,11 @@ Thanks to our contributors: [@feci](https://github.com/feci) ([#35](https://gith
   `sprint` 17.4, `backlog_bucket` 17.6, `target_versions` 17.8,
   `observed_in_versions` 17.9). The parameter descriptions list every field and
   these releases.
+- A project reference or a `list_projects` search that contained `_` or `%`
+  also matched other projects, because OpenProject uses the search text as a
+  LIKE pattern: a project named `a_b` could be confused with `axb`, and the name
+  fallback for a project reference could pick the wrong project. The text is
+  now searched literally.
 
 Thanks to our contributors: [@webadmin-stattreisen](https://github.com/webadmin-stattreisen) ([#45](https://github.com/jtauschl/openproject-ce-mcp/pull/45)).
 
