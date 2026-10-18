@@ -50,7 +50,7 @@ from enum import Enum, auto
 from fnmatch import fnmatch
 from functools import lru_cache
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 from ...config import Settings
 from ..errors import PermissionDeniedError, ProjectLinkPrefixError
@@ -288,6 +288,25 @@ def project_link_candidates(link: Any, *, settings: Settings, project_id_to_iden
         # named "My Project" matches the pattern "my-project" (its likely identifier).
         candidates.add(title_cf.replace(" ", "-"))
     return candidates
+
+
+def project_named_by_link_allowed(link: Mapping[str, Any], *, settings: Settings) -> bool:
+    """Read-scope verdict for a link that names a project by identifier and name rather than by id
+    (the time entry activities' project links do)."""
+    href = link.get("href")
+    identifier = unquote(href.rstrip("/").rsplit("/", maxsplit=1)[-1]) if isinstance(href, str) else None
+    title = link.get("title")
+    candidates = project_record_candidates(None, identifier, title if isinstance(title, str) else None)
+    return scope_matches_candidates(settings.read_projects, candidates)
+
+
+def project_known_by_id_allowed(
+    project_id: int, name: str | None, *, settings: Settings, project_id_to_identifier: Mapping[int, str]
+) -> bool:
+    """Read-scope verdict for a project that a result names only by id and name. An identifier
+    pattern covers it only when the directory already knows the identifier: fail closed."""
+    candidates = project_record_candidates(project_id, project_id_to_identifier.get(project_id), name)
+    return scope_matches_candidates(settings.read_projects, candidates)
 
 
 def payload_allowed(ensure: Callable[[], None]) -> bool:

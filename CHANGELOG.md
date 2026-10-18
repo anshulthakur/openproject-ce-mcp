@@ -68,6 +68,9 @@ development baseline.
   buckets of such projects in the allowed values of its fields. A shared
   version defined outside the allowlist can therefore no longer be assigned
   by name.
+- `list_time_entry_activities` named every project that enables an activity,
+  also those outside `OPENPROJECT_READ_PROJECTS`. It now names only the
+  projects the read allowlist covers.
 
 ### Added
 

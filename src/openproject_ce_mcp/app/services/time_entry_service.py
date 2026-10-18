@@ -163,6 +163,16 @@ class TimeEntryService:
         return hidden_fields.apply_hidden_fields("time_entry_activity", summary, settings=self._settings)
 
     def _normalize_activity_element(self, item: dict[str, Any]) -> TimeEntryActivitySummary:
+        # OpenProject lists every project the user sees that enables the activity.
+        links = item.get("_links", {})
+        projects = links.get("projects")
+        if isinstance(projects, list):
+            covered = [
+                link
+                for link in projects
+                if isinstance(link, dict) and scope_policy.project_named_by_link_allowed(link, settings=self._settings)
+            ]
+            item = {**item, "_links": {**links, "projects": covered}}
         return self._stamp_activity(self._api.to_activity_record(item).summary)
 
     def _activities_from_form(self, form: dict[str, Any]) -> list[TimeEntryActivitySummary]:
