@@ -138,6 +138,13 @@ development baseline.
 
 ### Fixed
 
+- The items of `bulk_create_work_packages` and `bulk_update_work_packages` are
+  checked against a schema now, which the tool input schema lists. A value of
+  the wrong type used to be converted (`true` for a subject became the text
+  "True") or crashed the validator (a number for a description ended in an
+  internal error); it is refused with its position (`items.2.subject`) before
+  any request, like an unknown key or a missing `project`, `type`, `subject` or
+  `work_package_id`.
 - `list_reminders`, `create_work_package_reminder`, `update_reminder` and
   `delete_reminder` answered a bare not-found on OpenProject 16.0, which has no
   collection of reminders and no route to create, change or delete one. They

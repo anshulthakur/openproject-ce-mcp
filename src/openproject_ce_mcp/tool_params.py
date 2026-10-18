@@ -12,10 +12,11 @@ values and report a rejection as ``[validation_error]``.
 from __future__ import annotations
 
 from dataclasses import fields as dataclass_fields
-from typing import Annotated
+from typing import Annotated, Any
 
-from pydantic import Field
+from pydantic import ConfigDict, Field, with_config
 from pydantic.fields import FieldInfo
+from typing_extensions import Required, TypedDict
 
 from .tool_types import IdOrName
 
@@ -46,6 +47,62 @@ OptionalWorkPackageRef = Annotated[int | str | None, Field(description=_WORK_PAC
 _PROJECT_REF = "Project identifier, id, or name; a unique part of a name or identifier also matches."
 ProjectRef = Annotated[IdOrName, Field(description=_PROJECT_REF)]
 OptionalProjectRef = Annotated[IdOrName | None, Field(description=_PROJECT_REF)]
+
+
+@with_config(ConfigDict(strict=True, extra="forbid", allow_inf_nan=False))
+class BulkCreateWorkPackageItem(TypedDict, total=False):
+    """One work package of `bulk_create_work_packages`; a key outside this list is rejected, and so is
+    a value of the wrong JSON type (a boolean for a subject, a number for a description)."""
+
+    project: Required[ProjectRef]
+    type: Required[IdOrName]
+    subject: Required[str]
+    description: str | None
+    version: IdOrName | None
+    target_versions: list[IdOrName] | None
+    project_phase: IdOrName | None
+    assignee: IdOrName | None
+    responsible: IdOrName | None
+    priority: IdOrName | None
+    category: IdOrName | None
+    custom_fields: dict[str, Any] | None
+    parent: IdOrName | None
+    parent_work_package_id: OptionalWorkPackageRef
+    start_date: str | None
+    due_date: str | None
+    estimated_time: str | None
+    remaining_time: str | None
+    duration: str | None
+
+
+@with_config(ConfigDict(strict=True, extra="forbid", allow_inf_nan=False))
+class BulkUpdateWorkPackageItem(TypedDict, total=False):
+    """One change of `bulk_update_work_packages`; a key outside this list is rejected, and so is a
+    value of the wrong JSON type."""
+
+    work_package_id: Required[WorkPackageRef]
+    subject: str | None
+    description: str | None
+    type: IdOrName | None
+    version: IdOrName | None
+    target_versions: list[IdOrName] | None
+    sprint: IdOrName | None
+    project_phase: IdOrName | None
+    status: IdOrName | None
+    assignee: IdOrName | None
+    responsible: IdOrName | None
+    priority: IdOrName | None
+    category: IdOrName | None
+    custom_fields: dict[str, Any] | None
+    parent: IdOrName | None
+    parent_work_package_id: OptionalWorkPackageRef
+    start_date: str | None
+    due_date: str | None
+    estimated_time: str | None
+    remaining_time: str | None
+    duration: str | None
+    percentage_done: int | None
+
 
 Offset = Annotated[int, Field(description="1-based page number; pass the previous result's next_offset.")]
 
