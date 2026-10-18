@@ -377,6 +377,7 @@ Thanks to our contributors: [@feci](https://github.com/feci) ([#35](https://gith
   a list argument the text `null` is rejected instead of read as missing.
   Lists of numbers are checked element by element, and `NaN` and `Infinity`
   are no numbers anywhere in an argument.
+  *(On this branch: the error code is `[VALIDATION_FAILED]`.)*
 
 Thanks to our contributors: [@webadmin-stattreisen](https://github.com/webadmin-stattreisen) ([#45](https://github.com/jtauschl/openproject-ce-mcp/pull/45)).
 
