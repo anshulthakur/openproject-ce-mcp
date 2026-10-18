@@ -26,7 +26,9 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal
+
+from typing_extensions import TypedDict
 
 
 class ToolCallLogRecord(TypedDict):

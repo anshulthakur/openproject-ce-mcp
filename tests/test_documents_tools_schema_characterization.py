@@ -682,7 +682,7 @@ def test_list_work_package_wiki_links_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_work_package_wiki_links"]
     assert (
         tool.description
-        == "List wiki pages linked to a work package.\n\nRequires OpenProject 17.5+; on an older server this returns a\n[RESOURCE_NOT_FOUND] naming the required version.\n\nKnown OpenProject server bug (17.5 to at least 17.9.1): this call returns\nan [OPENPROJECT_UNAVAILABLE] when none of the work package's links\nresolves to a wiki page the user can see, and on 17.5/17.6 also when the\nwork package has no links. A link to the internal wiki resolves when its\nidentifier is the page's numeric id.\n"
+        == "List wiki pages linked to a work package.\n\nRequires OpenProject 17.5+; on an older server this returns a\n[RESOURCE_NOT_FOUND] naming the required version.\n\nKnown OpenProject server bug (17.5 to at least 17.9.1): this call returns\nan [OPENPROJECT_UNAVAILABLE] when none of the work package's links\nresolves to a wiki page the user can see, and on 17.5/17.6 also when the\nwork package has no links. A link to the internal wiki resolves when its\nidentifier is the page's numeric id.\n\nOnly the work package is checked against OPENPROJECT_READ_PROJECTS: a link\ncarries no project, so a link to a page in another project is listed. It\nshows the identifier, provider and author, never the page's title or text.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {

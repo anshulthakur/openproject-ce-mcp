@@ -35,7 +35,14 @@ def _types_payload(type_id: int, name: str) -> dict:
 
 
 def _versions_payload(version_id: int, name: str) -> dict:
-    return {"total": 1, "_embedded": {"elements": [{"id": version_id, "name": name, "_links": {}}]}}
+    return {
+        "total": 1,
+        "_embedded": {
+            "elements": [
+                {"id": version_id, "name": name, "_links": {"definingProject": {"href": "/api/v3/projects/1"}}}
+            ]
+        },
+    }
 
 
 def _sprints_payload(sprint_id: int, name: str, *, project_id: int = 1) -> dict:

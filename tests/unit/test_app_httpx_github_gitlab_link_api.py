@@ -138,7 +138,7 @@ def test_normalize_github_pull_request_raw_extracts_all_fields() -> None:
     assert pr.repository_html_url == "https://github.com/acme/widget"
     assert pr.github_updated_at == "2026-03-20T10:00:00Z"
     assert pr.title == "Fix the thing"
-    assert pr.body == "This PR fixes the thing."
+    assert pr.body == "<user-content>This PR fixes the thing.</user-content>"
     assert pr.body_truncated is False
     assert pr.body_length == len("This PR fixes the thing.")
     assert pr.draft is False
@@ -176,7 +176,7 @@ def test_normalize_github_pull_request_raw_truncates_long_body() -> None:
     assert pr.body_truncated is True
     assert pr.body_length == 50
     assert pr.body is not None
-    assert len(pr.body) == 10
+    assert len(pr.body.removeprefix("<user-content>").removesuffix("</user-content>")) == 10
 
 
 def test_normalize_github_pull_request_raw_defaults_booleans_when_absent() -> None:
@@ -220,7 +220,7 @@ def test_normalize_gitlab_issue_raw_extracts_all_fields() -> None:
     assert issue.repository == "acme/widget"
     assert issue.gitlab_updated_at == "2026-03-20T10:00:00Z"
     assert issue.title == "Investigate the flaky test"
-    assert issue.body == "It fails intermittently."
+    assert issue.body == "<user-content>It fails intermittently.</user-content>"
     assert issue.body_truncated is False
     assert issue.body_length == len("It fails intermittently.")
     assert issue.labels == ["flaky"]
@@ -248,7 +248,7 @@ def test_normalize_gitlab_issue_raw_truncates_long_body() -> None:
     assert issue.body_truncated is True
     assert issue.body_length == 50
     assert issue.body is not None
-    assert len(issue.body) == 10
+    assert len(issue.body.removeprefix("<user-content>").removesuffix("</user-content>")) == 10
 
 
 # --- GitLab merge requests ---------------------------------------------------
@@ -284,7 +284,7 @@ def test_normalize_gitlab_merge_request_raw_extracts_all_fields() -> None:
     assert mr.repository == "acme/widget"
     assert mr.gitlab_updated_at == "2026-03-20T10:00:00Z"
     assert mr.title == "Add the feature"
-    assert mr.body == "Adds the feature."
+    assert mr.body == "<user-content>Adds the feature.</user-content>"
     assert mr.body_truncated is False
     assert mr.body_length == len("Adds the feature.")
     assert mr.draft is True
@@ -316,4 +316,4 @@ def test_normalize_gitlab_merge_request_raw_truncates_long_body() -> None:
     assert mr.body_truncated is True
     assert mr.body_length == 50
     assert mr.body is not None
-    assert len(mr.body) == 10
+    assert len(mr.body.removeprefix("<user-content>").removesuffix("</user-content>")) == 10

@@ -239,8 +239,83 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
     "bulk_create_work_packages": {
         "description_hash": "d6a810e62043b8f1a37741f3fee41a31889365fc5f757e90b4a67f2f0033fc5b",
         "input_schema": {
+            "$defs": {
+                "BulkCreateWorkPackageItem": {
+                    "additionalProperties": False,
+                    "description": "One work package of `bulk_create_work_packages`; a key outside this list is rejected, and so is\na value of the wrong JSON type (a boolean for a subject, a number for a description).",
+                    "properties": {
+                        "project": {
+                            "anyOf": [{"type": "integer"}, {"type": "string"}],
+                            "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
+                            "title": "Project",
+                        },
+                        "type": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Type"},
+                        "subject": {"title": "Subject", "type": "string"},
+                        "description": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Description"},
+                        "version": {
+                            "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                            "title": "Version",
+                        },
+                        "target_versions": {
+                            "anyOf": [
+                                {"items": {"anyOf": [{"type": "integer"}, {"type": "string"}]}, "type": "array"},
+                                {"type": "null"},
+                            ],
+                            "title": "Target Versions",
+                        },
+                        "observed_in_versions": {
+                            "anyOf": [
+                                {"items": {"anyOf": [{"type": "integer"}, {"type": "string"}]}, "type": "array"},
+                                {"type": "null"},
+                            ],
+                            "title": "Observed In Versions",
+                        },
+                        "project_phase": {
+                            "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                            "title": "Project Phase",
+                        },
+                        "assignee": {
+                            "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                            "title": "Assignee",
+                        },
+                        "responsible": {
+                            "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                            "title": "Responsible",
+                        },
+                        "priority": {
+                            "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                            "title": "Priority",
+                        },
+                        "category": {
+                            "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                            "title": "Category",
+                        },
+                        "custom_fields": {
+                            "anyOf": [{"additionalProperties": True, "type": "object"}, {"type": "null"}],
+                            "title": "Custom Fields",
+                        },
+                        "parent": {
+                            "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                            "title": "Parent",
+                        },
+                        "parent_work_package_id": {
+                            "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                            "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                            "title": "Parent Work Package Id",
+                        },
+                        "start_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Start Date"},
+                        "due_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Due Date"},
+                        "estimated_time": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Estimated Time"},
+                        "remaining_time": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Remaining Time"},
+                        "duration": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Duration"},
+                    },
+                    "required": ["project", "type", "subject"],
+                    "title": "BulkCreateWorkPackageItem",
+                    "type": "object",
+                }
+            },
             "properties": {
-                "items": {"items": {"additionalProperties": True, "type": "object"}, "title": "Items", "type": "array"},
+                "items": {"items": {"$ref": "#/$defs/BulkCreateWorkPackageItem"}, "title": "Items", "type": "array"},
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
@@ -268,8 +343,95 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
     "bulk_update_work_packages": {
         "description_hash": "9c7dd3b5a3b00eb7a88a5e1b180885b41b3cb2c3b69ebfe2a6362df34d966b30",
         "input_schema": {
+            "$defs": {
+                "BulkUpdateWorkPackageItem": {
+                    "additionalProperties": False,
+                    "description": "One change of `bulk_update_work_packages`; a key outside this list is rejected, and so is a\nvalue of the wrong JSON type.",
+                    "properties": {
+                        "work_package_id": {
+                            "anyOf": [{"type": "integer"}, {"type": "string"}],
+                            "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                            "title": "Work Package Id",
+                        },
+                        "subject": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Subject"},
+                        "description": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Description"},
+                        "type": {"anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}], "title": "Type"},
+                        "version": {
+                            "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                            "title": "Version",
+                        },
+                        "target_versions": {
+                            "anyOf": [
+                                {"items": {"anyOf": [{"type": "integer"}, {"type": "string"}]}, "type": "array"},
+                                {"type": "null"},
+                            ],
+                            "title": "Target Versions",
+                        },
+                        "observed_in_versions": {
+                            "anyOf": [
+                                {"items": {"anyOf": [{"type": "integer"}, {"type": "string"}]}, "type": "array"},
+                                {"type": "null"},
+                            ],
+                            "title": "Observed In Versions",
+                        },
+                        "sprint": {
+                            "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                            "title": "Sprint",
+                        },
+                        "project_phase": {
+                            "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                            "title": "Project Phase",
+                        },
+                        "status": {
+                            "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                            "title": "Status",
+                        },
+                        "assignee": {
+                            "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                            "title": "Assignee",
+                        },
+                        "responsible": {
+                            "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                            "title": "Responsible",
+                        },
+                        "priority": {
+                            "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                            "title": "Priority",
+                        },
+                        "category": {
+                            "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                            "title": "Category",
+                        },
+                        "custom_fields": {
+                            "anyOf": [{"additionalProperties": True, "type": "object"}, {"type": "null"}],
+                            "title": "Custom Fields",
+                        },
+                        "parent": {
+                            "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                            "title": "Parent",
+                        },
+                        "parent_work_package_id": {
+                            "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                            "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                            "title": "Parent Work Package Id",
+                        },
+                        "start_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Start Date"},
+                        "due_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Due Date"},
+                        "estimated_time": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Estimated Time"},
+                        "remaining_time": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Remaining Time"},
+                        "duration": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Duration"},
+                        "percentage_done": {
+                            "anyOf": [{"type": "integer"}, {"type": "null"}],
+                            "title": "Percentage Done",
+                        },
+                    },
+                    "required": ["work_package_id"],
+                    "title": "BulkUpdateWorkPackageItem",
+                    "type": "object",
+                }
+            },
             "properties": {
-                "items": {"items": {"additionalProperties": True, "type": "object"}, "title": "Items", "type": "array"},
+                "items": {"items": {"$ref": "#/$defs/BulkUpdateWorkPackageItem"}, "title": "Items", "type": "array"},
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
@@ -1650,7 +1812,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "create_work_package_reminder": {
-        "description_hash": "fe186c60bfe8aaa9cbabe70ae573cbb64fe291c3213790be4464ff2e95ae0233",
+        "description_hash": "40044c528a4c9e897c0262f45345a7c6b757b793dad9625bac44af1e0b614107",
         "input_schema": {
             "properties": {
                 "work_package_id": {
@@ -5895,7 +6057,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_reminders": {
-        "description_hash": "418262cb6484f01ff259777201da4fffc1fefb444d54310b7737897054304b89",
+        "description_hash": "2d6513484ca88dd35a7d6c2098cbd870db5d50dc6d8351de34819d5a90a776f9",
         "input_schema": {
             "properties": {
                 "select": {
@@ -6470,7 +6632,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_work_package_meeting_agenda_items": {
-        "description_hash": "e605c02c119bb6e6a500f026f4bfc1861a81e2a1f4e5156ccb48d6b72dd1960c",
+        "description_hash": "bcb30737129fbc130b4e97e0386c59ff5afaf6d64ca75a61559149a4f81fb4a3",
         "input_schema": {
             "properties": {
                 "work_package_id": {
@@ -6568,7 +6730,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_work_package_wiki_links": {
-        "description_hash": "d4fcbc5a498839ec20bb46928e940b27c4f66b7ce0d4b5cb981edadee15787c7",
+        "description_hash": "43771c4dd6ac59625aa4e7e38ecd999bdd3dae1310d9747470c91897e99ab17c",
         "input_schema": {
             "properties": {
                 "work_package_id": {
@@ -7819,7 +7981,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "update_reminder": {
-        "description_hash": "9a4a351d3307b86ea9c05cf2bad38cab0d16780b86532d09264e09691cabdc64",
+        "description_hash": "e730e03aab1eae4c0900d98e72537b00a784d78ba377cb4872db650427c375b5",
         "input_schema": {
             "properties": {
                 "reminder_id": {

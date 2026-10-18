@@ -157,6 +157,7 @@ from ..ports.work_package_ref import (
 )
 from ..ports.work_package_resolution import WorkPackageAllowedContext
 from ..version_gate import call_query_version_gated
+from ._work_package_parents import parent_href, without_parent_unless, without_uncovered_parents
 from ._work_package_write_helpers import (
     resolve_custom_field_key,
     resolve_custom_field_links,
@@ -659,6 +660,17 @@ class WorkPackageService:
         by (project, kind, ref), never cross-project)."""
         return WorkPackageResolutionContext(ProjectResolutionContext(self._resolve_project_ref))
 
+    async def _present(self, raw_items: builtins.list[dict[str, Any]]) -> builtins.list[WorkPackageSummary]:
+        # Hidden-field stamping must come last: dataclasses.replace drops the dynamic `_hidden_keys`.
+        summaries = [self._api.to_record(item, text_limit=self._settings.text_limit).summary for item in raw_items]
+        covered = await without_uncovered_parents(
+            summaries,
+            settings=self._settings,
+            api_prefix=self._api_prefix,
+            project_allowed_bulk=self._work_package_project_allowed_bulk,
+        )
+        return [self._stamp(summary) for summary in covered]
+
     def _payload_allowed(self, payload: dict[str, Any]) -> bool:
         return _work_package_policy.work_package_payload_allowed(
             payload, settings=self._settings, project_id_to_identifier=self._project_id_to_identifier
@@ -675,6 +687,7 @@ class WorkPackageService:
         group_by: str | None,
         total_is_scope_safe: bool,
         include_sums: bool = False,
+        include_subprojects: bool | None = None,
     ) -> WorkPackageListResult:
         del project_id  # unused: filters already carry any project_id constraint
         if not self._settings.read_projects:
@@ -698,6 +711,7 @@ class WorkPackageService:
                     sort_by=sort_by,
                     group_by=group_by,
                     requested_sums=requested_sums,
+                    include_subprojects=include_subprojects,
                 )
             return self._list_collection_scanned(
                 filters=filters,
@@ -723,6 +737,7 @@ class WorkPackageService:
         sort_by: list[SortCriterion] | None,
         group_by: str | None,
         requested_sums: bool,
+        include_subprojects: bool | None,
     ) -> WorkPackageListResult:
         """Single-request path for a scope-safe query -- either genuinely
         unrestricted (`*`) or already narrowed to allowed projects via a
@@ -745,15 +760,14 @@ class WorkPackageService:
             sort_by=sort_by,
             group_by=group_by,
             include_sums=requested_sums,
+            include_subprojects=include_subprojects,
         )
         allowed_items = [item for item in page.raw_elements if self._payload_allowed(item)]
         # Trim to `limit`: the server is asked for exactly `limit` elements
         # and expected to honor that, but this is still a hard safety net
         # against a server (or a misbehaving mock) that returns more.
         raw_items = allowed_items[:limit]
-        results = [
-            self._stamp(self._api.to_record(item, text_limit=self._settings.text_limit).summary) for item in raw_items
-        ]
+        results = await self._present(raw_items)
         server_total = page.server_total if page.server_total is not None else len(results)
         # If the allowlist check actually dropped something here, the
         # server-side filter this path relies on did not fully hold --
@@ -761,7 +775,8 @@ class WorkPackageService:
         # longer trustworthy either, so fall back to what this page actually
         # proved rather than leak the existence of a disallowed match via
         # `total`.
-        if len(allowed_items) == len(page.raw_elements):
+        aggregates_hold = len(allowed_items) == len(page.raw_elements)
+        if aggregates_hold:
             next_offset, truncated = paginate_server(offset=offset, limit=limit, total=server_total)
         else:
             server_total = len(results)
@@ -772,10 +787,11 @@ class WorkPackageService:
                 WorkPackageGroupSums(value=g.get("value"), count=g.get("count", 0), sums=g.get("sums"))
                 for g in page.raw_groups
             ]
-            if requested_sums and page.raw_groups is not None
+            if requested_sums and aggregates_hold and page.raw_groups is not None
             else None
         )
-        total_sums = page.raw_total_sums if requested_sums else None
+        # The server computed them over the rows it returned, which include the dropped ones.
+        total_sums = page.raw_total_sums if requested_sums and aggregates_hold else None
         return WorkPackageListResult(
             offset=offset,
             limit=limit,
@@ -826,7 +842,7 @@ class WorkPackageService:
         """
         skip_count = (offset - 1) * limit
         skipped = 0
-        results: list[WorkPackageSummary] = []
+        results: list[dict[str, Any]] = []
         server_offset = 1
         server_page_size = min(self._settings.max_page_size, self._settings.max_results)
 
@@ -847,7 +863,7 @@ class WorkPackageService:
                 if skipped < skip_count:
                     skipped += 1
                     continue
-                results.append(self._stamp(self._api.to_record(item, text_limit=self._settings.text_limit).summary))
+                results.append(item)
                 if len(results) > limit:
                     break
 
@@ -860,16 +876,17 @@ class WorkPackageService:
         truncated = len(results) > limit
         if truncated:
             results = results[:limit]
-        total = len(results)
+        summaries = await self._present(results)
+        total = len(summaries)
         next_offset = (offset + 1) if truncated else None
         return WorkPackageListResult(
             offset=offset,
             limit=limit,
             total=total,
-            count=len(results),
+            count=len(summaries),
             next_offset=next_offset,
             truncated=truncated,
-            results=results,
+            results=summaries,
             groups=None,
             total_sums=None,
         )
@@ -1045,11 +1062,14 @@ class WorkPackageService:
         # docstring's "rejected before any network call" claim.
         self._apply_custom_field_filters(other_filters, custom_field_filters=custom_field_filters)
         project_id: int | None = None
-        total_is_scope_safe = scope_allows_all(self._settings.read_projects)
+        read_everywhere = scope_allows_all(self._settings.read_projects)
+        total_is_scope_safe = read_everywhere
+        include_subprojects: bool | None = None if read_everywhere else False
         if project is not None:
             project_payload = await self._resolve_project_ref(project)
             project_id = int(project_payload["id"])
-            other_filters.append({"project_id": {"operator": "=", "values": [str(project_id)]}})
+            project_ids = await self._covered_project_ids(project_id)
+            other_filters.append({"project_id": {"operator": "=", "values": [str(i) for i in project_ids]}})
             total_is_scope_safe = True
         if status:
             status_id = await self._resolve_status_id(status)
@@ -1086,6 +1106,7 @@ class WorkPackageService:
                 group_by=group_by,
                 total_is_scope_safe=total_is_scope_safe,
                 include_sums=include_sums,
+                include_subprojects=include_subprojects,
             ),
             self._resolve_search_exact_match(search, other_filters=other_filters),
         )
@@ -1175,11 +1196,14 @@ class WorkPackageService:
         # project when both type and version filters are given alongside
         # project.
         resolution_context = ProjectResolutionContext(self._resolve_project_ref)
-        total_is_scope_safe = scope_allows_all(self._settings.read_projects)
+        read_everywhere = scope_allows_all(self._settings.read_projects)
+        total_is_scope_safe = read_everywhere
+        include_subprojects: bool | None = None if read_everywhere else False
         if project is not None:
             project_payload = await self._resolve_project_ref(project, context=resolution_context)
             project_id = int(project_payload["id"])
-            filters.append({"project_id": {"operator": "=", "values": [str(project_id)]}})
+            project_ids = await self._covered_project_ids(project_id)
+            filters.append({"project_id": {"operator": "=", "values": [str(i) for i in project_ids]}})
             total_is_scope_safe = True
         elif not total_is_scope_safe:
             allowed_ids = [str(pid) for pid in sorted(await self._readable_projects.current_readable_project_ids())]
@@ -1247,6 +1271,7 @@ class WorkPackageService:
                 group_by=group_by,
                 total_is_scope_safe=total_is_scope_safe,
                 include_sums=include_sums,
+                include_subprojects=include_subprojects,
             )
 
         if version_status:
@@ -1276,6 +1301,15 @@ class WorkPackageService:
             group_by=None,
             total_is_scope_safe=total_is_scope_safe,
         )
+
+    async def _covered_project_ids(self, project_id: int) -> builtins.list[int]:
+        """The project ids a work-package project filter names for `project_id`. OpenProject adds
+        every descendant of a named project unless told otherwise, readable or not, and counts
+        and sums them; under a restricted scope the filter therefore names the readable
+        descendants itself and the request turns the expansion off."""
+        if scope_allows_all(self._settings.read_projects):
+            return [project_id]
+        return [project_id, *sorted(await self._readable_projects.readable_descendant_ids(project_id))]
 
     async def _filter_hierarchy_allowlist(self, detail: WorkPackageDetail) -> WorkPackageDetail:
         """Drop children/ancestors entries outside OPENPROJECT_READ_PROJECTS.
@@ -1317,7 +1351,8 @@ class WorkPackageService:
                 return []
             return [href for entry in entries if (href := entry.get("href"))]
 
-        all_hrefs = hrefs_of(detail.children) + hrefs_of(detail.ancestors)
+        parent_link = parent_href(detail.parent_id, api_prefix=self._api_prefix)
+        all_hrefs = hrefs_of(detail.children) + hrefs_of(detail.ancestors) + ([parent_link] if parent_link else [])
         outcomes = await self._work_package_project_allowed_bulk(all_hrefs, context=cache) if all_hrefs else {}
 
         def keep(entries: builtins.list[dict[str, str | None]] | None) -> builtins.list[dict[str, str | None]] | None:
@@ -1342,7 +1377,7 @@ class WorkPackageService:
         children_count = len(children) if children else 0
         ancestors_count = len(ancestors) if ancestors else 0
         return dataclasses.replace(
-            detail,
+            without_parent_unless(detail, parent_link, outcomes),
             children=children,
             ancestors=ancestors,
             children_truncated=detail.children_truncated and children_count == original_children_count,
@@ -2338,7 +2373,7 @@ class WorkPackageService:
             settings=self._settings,
             project_id_to_identifier=self._project_id_to_identifier,
         )
-        detail = self._stamp_detail(record.to_detail())
+        detail = self._stamp_detail(await self._filter_hierarchy_allowlist(record.to_detail()))
         payload = {"id": detail.id, "subject": detail.subject, "lockVersion": detail.lock_version}
 
         async def _commit(p: dict[str, Any]) -> None:

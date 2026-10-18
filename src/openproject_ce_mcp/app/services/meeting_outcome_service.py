@@ -31,12 +31,12 @@ from ..api_href import api_href as _api_href
 from ..errors import NotFoundError
 from ..pagination import clamp_limit, paginate_client
 from ..policies import access, hidden_fields
-from ..policies import scope as scope_policy
 from ..ports.meeting_agenda_item_api import MeetingAgendaItemApi
 from ..ports.meeting_api import MeetingApi
 from ..ports.meeting_outcome_api import MeetingOutcomeApi
 from ..ports.work_package_ref import WorkPackageIdResolver
 from ..version_gate import call_version_gated
+from . import _meeting_scope as meeting_scope
 from ._write_outcome import _finalize_write, _WriteOutcome
 
 
@@ -80,15 +80,13 @@ class MeetingOutcomeService:
         meeting_id = agenda_item.summary.meeting_id
         if meeting_id is None:
             raise NotFoundError(f"OpenProject meeting agenda item {agenda_item_id} has no parent meeting.")
-        meeting = await call_version_gated(lambda: self._meeting_api.get(meeting_id), feature="Meetings", floor="17.4")
-        if write:
-            scope_policy.ensure_project_write_link_allowed(
-                meeting.project_link, settings=self._settings, project_id_to_identifier=self._project_id_to_identifier
-            )
-        else:
-            scope_policy.ensure_project_link_allowed(
-                meeting.project_link, settings=self._settings, project_id_to_identifier=self._project_id_to_identifier
-            )
+        await meeting_scope.ensure_allowed(
+            self._meeting_api,
+            meeting_id,
+            write=write,
+            settings=self._settings,
+            project_id_to_identifier=self._project_id_to_identifier,
+        )
         return meeting_id
 
     async def list_for_agenda_item(

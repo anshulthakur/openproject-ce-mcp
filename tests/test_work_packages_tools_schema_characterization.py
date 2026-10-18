@@ -656,8 +656,80 @@ def test_bulk_create_work_packages_schema() -> None:
     )
     assert tool.output_schema is None
     assert tool.parameters == {
+        "$defs": {
+            "BulkCreateWorkPackageItem": {
+                "additionalProperties": False,
+                "description": "One work package of `bulk_create_work_packages`; a key outside this list is rejected, and so is\na value of the wrong JSON type (a boolean for a subject, a number for a description).",
+                "properties": {
+                    "project": {
+                        "anyOf": [{"type": "integer"}, {"type": "string"}],
+                        "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
+                        "title": "Project",
+                    },
+                    "type": {"anyOf": [{"type": "integer"}, {"type": "string"}], "title": "Type"},
+                    "subject": {"title": "Subject", "type": "string"},
+                    "description": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Description"},
+                    "version": {
+                        "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                        "title": "Version",
+                    },
+                    "target_versions": {
+                        "anyOf": [
+                            {"items": {"anyOf": [{"type": "integer"}, {"type": "string"}]}, "type": "array"},
+                            {"type": "null"},
+                        ],
+                        "title": "Target Versions",
+                    },
+                    "observed_in_versions": {
+                        "anyOf": [
+                            {"items": {"anyOf": [{"type": "integer"}, {"type": "string"}]}, "type": "array"},
+                            {"type": "null"},
+                        ],
+                        "title": "Observed In Versions",
+                    },
+                    "project_phase": {
+                        "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                        "title": "Project Phase",
+                    },
+                    "assignee": {
+                        "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                        "title": "Assignee",
+                    },
+                    "responsible": {
+                        "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                        "title": "Responsible",
+                    },
+                    "priority": {
+                        "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                        "title": "Priority",
+                    },
+                    "category": {
+                        "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                        "title": "Category",
+                    },
+                    "custom_fields": {
+                        "anyOf": [{"additionalProperties": True, "type": "object"}, {"type": "null"}],
+                        "title": "Custom Fields",
+                    },
+                    "parent": {"anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}], "title": "Parent"},
+                    "parent_work_package_id": {
+                        "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                        "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                        "title": "Parent Work Package Id",
+                    },
+                    "start_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Start Date"},
+                    "due_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Due Date"},
+                    "estimated_time": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Estimated Time"},
+                    "remaining_time": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Remaining Time"},
+                    "duration": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Duration"},
+                },
+                "required": ["project", "type", "subject"],
+                "title": "BulkCreateWorkPackageItem",
+                "type": "object",
+            }
+        },
         "properties": {
-            "items": {"items": {"additionalProperties": True, "type": "object"}, "title": "Items", "type": "array"},
+            "items": {"items": {"$ref": "#/$defs/BulkCreateWorkPackageItem"}, "title": "Items", "type": "array"},
             "select": {
                 "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,
@@ -688,8 +760,83 @@ def test_bulk_update_work_packages_schema() -> None:
     )
     assert tool.output_schema is None
     assert tool.parameters == {
+        "$defs": {
+            "BulkUpdateWorkPackageItem": {
+                "additionalProperties": False,
+                "description": "One change of `bulk_update_work_packages`; a key outside this list is rejected, and so is a\nvalue of the wrong JSON type.",
+                "properties": {
+                    "work_package_id": {
+                        "anyOf": [{"type": "integer"}, {"type": "string"}],
+                        "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                        "title": "Work Package Id",
+                    },
+                    "subject": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Subject"},
+                    "description": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Description"},
+                    "type": {"anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}], "title": "Type"},
+                    "version": {
+                        "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                        "title": "Version",
+                    },
+                    "target_versions": {
+                        "anyOf": [
+                            {"items": {"anyOf": [{"type": "integer"}, {"type": "string"}]}, "type": "array"},
+                            {"type": "null"},
+                        ],
+                        "title": "Target Versions",
+                    },
+                    "observed_in_versions": {
+                        "anyOf": [
+                            {"items": {"anyOf": [{"type": "integer"}, {"type": "string"}]}, "type": "array"},
+                            {"type": "null"},
+                        ],
+                        "title": "Observed In Versions",
+                    },
+                    "sprint": {"anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}], "title": "Sprint"},
+                    "project_phase": {
+                        "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                        "title": "Project Phase",
+                    },
+                    "status": {"anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}], "title": "Status"},
+                    "assignee": {
+                        "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                        "title": "Assignee",
+                    },
+                    "responsible": {
+                        "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                        "title": "Responsible",
+                    },
+                    "priority": {
+                        "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                        "title": "Priority",
+                    },
+                    "category": {
+                        "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                        "title": "Category",
+                    },
+                    "custom_fields": {
+                        "anyOf": [{"additionalProperties": True, "type": "object"}, {"type": "null"}],
+                        "title": "Custom Fields",
+                    },
+                    "parent": {"anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}], "title": "Parent"},
+                    "parent_work_package_id": {
+                        "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+                        "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                        "title": "Parent Work Package Id",
+                    },
+                    "start_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Start Date"},
+                    "due_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Due Date"},
+                    "estimated_time": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Estimated Time"},
+                    "remaining_time": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Remaining Time"},
+                    "duration": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Duration"},
+                    "percentage_done": {"anyOf": [{"type": "integer"}, {"type": "null"}], "title": "Percentage Done"},
+                },
+                "required": ["work_package_id"],
+                "title": "BulkUpdateWorkPackageItem",
+                "type": "object",
+            }
+        },
         "properties": {
-            "items": {"items": {"additionalProperties": True, "type": "object"}, "title": "Items", "type": "array"},
+            "items": {"items": {"$ref": "#/$defs/BulkUpdateWorkPackageItem"}, "title": "Items", "type": "array"},
             "select": {
                 "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,

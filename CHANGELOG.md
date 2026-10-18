@@ -136,6 +136,46 @@ Thanks to our contributors: [@feci](https://github.com/feci) ([#35](https://gith
   preview. When both allowlists are `*`, both tools behave as before,
   apart from one more request; a relation without a target link is
   refused.
+- `list_work_package_meeting_agenda_items` returned every agenda item that
+  links the work package, also those of meetings in projects outside
+  `OPENPROJECT_READ_PROJECTS`. It now leaves out items of meetings whose
+  project the read allowlist does not cover, and counts only the items it
+  returns. It reads the project from the meeting the response embeds, so it
+  sends no extra request.
+- `list_versions` with a `project`, and every version lookup by name inside a
+  project, returned versions defined in projects outside
+  `OPENPROJECT_READ_PROJECTS`: OpenProject lists the versions shared into a
+  project (system-wide, by tree or by hierarchy) next to its own. They are
+  now left out per version, as in the list without a project, and
+  `get_project_work_package_context` and `get_project_admin_context` leave out
+  versions, sprints and backlog buckets of such projects in the allowed values
+  of their fields. A shared
+  version defined outside the allowlist can therefore no longer be assigned
+  by name.
+- `list_time_entry_activities` named every project that enables an activity,
+  also those outside `OPENPROJECT_READ_PROJECTS`. It now names only the
+  projects the read allowlist covers.
+- Write previews echoed the title and display id of every link in
+  OpenProject's form, so the subject of a parent work package or the name of a
+  version outside `OPENPROJECT_READ_PROJECTS` could appear in a preview that
+  never touched it. A preview now shows a title only for links to resources
+  every user sees alike (type, status, priority, users, roles, the target
+  project) and the href for any other link. `get_board` likewise shows the
+  title of a filter value only for filters on such resources (status, type,
+  priority, assignee, author, responsible) and the link for all others. The
+  preview of `copy_project` is reduced the same way.
+- `get_project`, `list_projects` and the project results of writes named
+  parents and ancestors outside `OPENPROJECT_READ_PROJECTS`, and
+  `get_work_package`, the work package lists, `execute_query`, the results of
+  writes and the preview of `delete_work_package` showed the id and display id
+  of a parent in such a project, and the delete preview also its children and
+  ancestors. They now leave out a parent, ancestor or child the read allowlist
+  does not cover.
+- `list_work_packages` and `search_work_packages` could count, group and sum
+  work packages of subprojects outside `OPENPROJECT_READ_PROJECTS`, because
+  OpenProject adds the subprojects of every project a filter names. Under a
+  restricted scope the filter now names the covered subprojects itself and the
+  request turns the expansion off. Under `*` nothing changes.
 
 ### Added
 
@@ -150,6 +190,9 @@ Thanks to our contributors: [@feci](https://github.com/feci) ([#35](https://gith
 
 ### Changed
 
+- `list_work_package_wiki_links` now says that it checks only the work package
+  against `OPENPROJECT_READ_PROJECTS`, because a wiki page link carries no
+  project.
 - Tool descriptions state each action and its consequences directly, delete
   tools say when a deletion cannot be undone, and the parameters most tools
   share describe themselves in the tool schema; `select` lists every field it
@@ -179,6 +222,40 @@ Thanks to our contributors: [@feci](https://github.com/feci) ([#35](https://gith
 
 ### Fixed
 
+- The SBOM built with the package named an `unknown` component without a
+  version where the project itself belongs, and listed no dependency edges. It
+  is exported from the lock file now, names `openproject-ce-mcp` and its version
+  as the root component, lists every runtime dependency reachable from it, and
+  the build fails if that does not hold.
+- The items of `bulk_create_work_packages` and `bulk_update_work_packages` are
+  checked against a schema now, which the tool input schema lists. A value of
+  the wrong type used to be converted (`true` for a subject became the text
+  "True") or crashed the validator (a number for a description ended in an
+  internal error); it is refused with its position (`items.2.subject`) before
+  any request, like an unknown key or a missing `project`, `type`, `subject` or
+  `work_package_id`.
+- `list_reminders`, `create_work_package_reminder`, `update_reminder` and
+  `delete_reminder` answered a bare not-found on OpenProject 16.0, which has no
+  collection of reminders and no route to create, change or delete one. They
+  now say that the call requires OpenProject 16.1 or newer, and the
+  descriptions of the three writes state it.
+- Help texts and the bodies of GitHub pull requests and GitLab issues and merge
+  requests reached the agent without the `<user-content>` delimiter that marks
+  text written by users, unlike every other text field. They carry it now.
+- `responsible`, `priority`, `category`, `project_phase` and the options of
+  custom fields, given by title, wrote the first of several allowed values
+  that share the title (display names of users are not unique, and a version
+  shared into a project can repeat a name), while `assignee` reported such a
+  title as ambiguous. They report it as ambiguous too and name the matching
+  ids, and a custom field name shared by two custom fields is ambiguous in the
+  same way. Passing the numeric id still works.
+- A user or group given by name (an assignee, a responsible, a reference in
+  the user and group tools) and `list_principals(search=...)` treated `_` and
+  `%` in the text as wildcards, and a name was looked up on the first page of
+  matches only, so a wildcard match could push the exact name off it and the
+  lookup reported it as not found. The text is searched literally now, and
+  every page of the matches is read, so a second exact match on a later page
+  is reported as ambiguous.
 - `create_work_package`, `update_work_package` and `create_subtask` accept a
   numeric `parent`, `assignee` and `responsible` (a JSON number such as `7`),
   not only a string; `bulk_update_work_packages` items accept a numeric

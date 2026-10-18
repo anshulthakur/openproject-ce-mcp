@@ -41,6 +41,9 @@ dependencies = [
   "mcp>=2,<3",
   # Imported directly for StrictInt in the tool signatures; mcp itself needs >=2.12.
   "pydantic>=2.12,<3",
+  # Imported directly: pydantic accepts a TypedDict only from typing_extensions before Python 3.12;
+  # 4.16.0 is the lowest the newest anyio allows, so a lowest-direct install cannot reach a lower one.
+  "typing-extensions>=4.16.0",
 ]
 
 [project.optional-dependencies]

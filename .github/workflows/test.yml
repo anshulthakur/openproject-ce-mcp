@@ -195,6 +195,8 @@ jobs:
 
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
+          # uv's CycloneDX export is experimental, so the job runs the uv release it was written against.
+          version: "0.12.24"
           python-version: "3.12"
 
       - name: Build sdist and wheel
@@ -213,10 +215,8 @@ jobs:
       - name: Check package metadata
         run: uvx twine check dist/*
 
-      - name: Generate SBOM
-        run: |
-          uv export --no-dev --format requirements-txt --no-hashes -o requirements.txt
-          uvx --from cyclonedx-bom cyclonedx-py requirements requirements.txt --of JSON -o sbom.json
+      - name: Generate and check the SBOM
+        run: ./dev sbom
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

@@ -50,7 +50,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from fnmatch import fnmatch
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 from ... import policy_observation
 from ...config import Settings
@@ -305,6 +305,29 @@ def project_link_candidates(link: Any, *, settings: Settings, project_id_to_iden
     return candidates
 
 
+def project_named_by_link_allowed(
+    link: Mapping[str, Any], *, settings: Settings, ids_by_identifier: Mapping[str, int]
+) -> bool:
+    """Read-scope verdict for a link that names a project by identifier and name rather than by id
+    (the time entry activities' project links do). The id comes from the directory, so a scope
+    pattern that is an id matches too."""
+    href = link.get("href")
+    identifier = unquote(href.rstrip("/").rsplit("/", maxsplit=1)[-1]) if isinstance(href, str) else None
+    title = link.get("title")
+    project_id = ids_by_identifier.get(identifier) if identifier is not None else None
+    candidates = project_record_candidates(project_id, identifier, title if isinstance(title, str) else None)
+    return scope_matches_candidates(settings.read_projects, candidates)
+
+
+def project_known_by_id_allowed(
+    project_id: int, name: str | None, *, settings: Settings, project_id_to_identifier: Mapping[int, str]
+) -> bool:
+    """Read-scope verdict for a project that a result names only by id and name. An identifier
+    pattern covers it only when the directory already knows the identifier: fail closed."""
+    candidates = project_record_candidates(project_id, project_id_to_identifier.get(project_id), name)
+    return scope_matches_candidates(settings.read_projects, candidates)
+
+
 def payload_allowed(ensure: Callable[[], None]) -> bool:
     """Run an `ensure_*_allowed` check, turning PermissionDeniedError into False.
 
@@ -326,12 +349,33 @@ def project_link_payload_allowed(
     carries the project reference (`"project"` for Documents/News/Work
     Packages, `"definingProject"` for Versions).
     """
+    return project_link_allowed(
+        payload.get("_links", {}).get(link_key), settings=settings, project_id_to_identifier=project_id_to_identifier
+    )
+
+
+_DEFINING_PROJECT_LINK_KEYS = ("definingProject", "definingWorkspace")
+
+
+def defining_project_allowed(
+    item: Mapping[str, Any], *, settings: Settings, project_id_to_identifier: Mapping[int, str]
+) -> bool:
+    """False for an embedded resource (version, sprint, backlog bucket) that names its defining
+    project when the read allowlist does not cover that project. A resource that names none is
+    not project-bound and passes."""
+    links = item.get("_links", {})
+    for key in _DEFINING_PROJECT_LINK_KEYS:
+        if key in links:
+            return project_link_allowed(
+                links[key], settings=settings, project_id_to_identifier=project_id_to_identifier
+            )
+    return True
+
+
+def project_link_allowed(link: Any, *, settings: Settings, project_id_to_identifier: Mapping[int, str]) -> bool:
+    """Bool form of `ensure_project_link_allowed` (same REQUIRED-link contract)."""
     return payload_allowed(
-        lambda: ensure_project_link_allowed(
-            payload.get("_links", {}).get(link_key),
-            settings=settings,
-            project_id_to_identifier=project_id_to_identifier,
-        )
+        lambda: ensure_project_link_allowed(link, settings=settings, project_id_to_identifier=project_id_to_identifier)
     )
 
 

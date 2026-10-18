@@ -142,7 +142,7 @@ class _GatedProjects:
         self.projects = {42: ("FIDOLD", "Fid Project")}
 
     async def list(
-        self, *, server_offset: int, server_page_size: int, search: str | None, ids: Any = None
+        self, *, server_offset: int, server_page_size: int, search: str | None, ids: Any = None, **_: Any
     ) -> ProjectPage:
         records = [_record(project_id, *project) for project_id, project in self.projects.items()]
         return ProjectPage(records=records, server_total=len(records), exhausted=True)

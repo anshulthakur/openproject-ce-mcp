@@ -644,7 +644,7 @@ def test_every_scalar_argument_of_the_catalog_rejects_a_wrong_type_and_accepts_a
                 # the positive control per argument: a value of its own type passes
                 model.model_validate({**required, key: _valid_value(schema)})
                 cases = [(key, wrong) for wrong in _wrong_values(scalar)]
-            elif scalar == {"array"} and schema.get("items"):
+            elif scalar == {"array"} and schema.get("items") and "$ref" not in schema["items"]:
                 item_types = _schema_types(schema["items"])
                 model.model_validate({**required, key: [_valid_value(schema["items"])]})
                 cases = [(key, [wrong]) for wrong in _wrong_values(item_types)]
@@ -656,3 +656,64 @@ def test_every_scalar_argument_of_the_catalog_rejects_a_wrong_type_and_accepts_a
                 assert any(err["loc"][0] == name for err in error.value.errors()), (tool.name, name, wrong)
                 checked += 1
     assert checked > 1000
+
+
+def test_every_key_of_a_structured_item_rejects_a_wrong_type_and_an_unknown_key() -> None:
+    """The items of a bulk tool are objects with a schema of their own; each of their keys is checked
+    like a top-level argument, and a key the schema does not list is refused."""
+    checked = 0
+    for tool in _catalog_tools():
+        defs = tool.parameters.get("$defs", {})
+        required = {
+            key: _valid_value(schema)
+            for key, schema in tool.parameters.get("properties", {}).items()
+            if key in tool.parameters.get("required", [])
+        }
+        model = tool.fn_metadata.arg_model
+        for key, schema in tool.parameters.get("properties", {}).items():
+            reference = schema.get("items", {}).get("$ref") if schema.get("type") == "array" else None
+            if reference is None:
+                continue
+            item_schema = defs[reference.rsplit("/", 1)[-1]]
+            properties = item_schema["properties"]
+            valid_item = {
+                name: _valid_value(prop) for name, prop in properties.items() if name in item_schema.get("required", [])
+            }
+            model.model_validate({**required, key: [valid_item]})
+            with pytest.raises(ValidationError) as unknown:
+                model.model_validate({**required, key: [{**valid_item, "no_such_key": 1}]})
+            assert unknown.value.errors()[0]["type"] == "extra_forbidden", (tool.name, key)
+            for name, prop in properties.items():
+                types_ = _schema_types(prop)
+                if not types_ or types_ & {"array", "object"}:
+                    continue
+                model.model_validate({**required, key: [{**valid_item, name: _valid_value(prop)}]})
+                for wrong in _wrong_values(types_):
+                    with pytest.raises(ValidationError) as error:
+                        model.model_validate({**required, key: [{**valid_item, name: wrong}]})
+                    assert any(err["loc"][:3] == (key, 0, name) for err in error.value.errors()), (tool.name, name)
+                    checked += 1
+    assert checked > 40
+
+
+# Parameters whose value is an object with no fixed set of keys. Their values are checked by the tool body
+# (`_validate_custom_field_value`, `_validate_custom_field_filters`), because the type of a value depends on the
+# custom field it names; a structured item is a typed schema instead (test above).
+FREE_FORM_OBJECT_PARAMETERS = {
+    ("list_work_packages", "custom_field_filters"),
+    ("search_work_packages", "custom_field_filters"),
+    ("create_work_package", "custom_fields"),
+    ("create_subtask", "custom_fields"),
+    ("update_work_package", "custom_fields"),
+}
+
+
+def test_every_object_parameter_is_a_typed_item_or_a_reviewed_free_form_one() -> None:
+    free_form = {
+        (tool.name, key)
+        for tool in _catalog_tools()
+        for key, schema in tool.parameters.get("properties", {}).items()
+        if "object" in _schema_types(schema)
+    }
+
+    assert free_form == FREE_FORM_OBJECT_PARAMETERS, "a new object parameter needs a typed schema, or a review here"

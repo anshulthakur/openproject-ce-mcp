@@ -679,6 +679,8 @@ dependencies = [
     { name = "httpx", extra = ["socks"] },
     { name = "mcp" },
     { name = "pydantic" },
+    { name = "typing-extensions", version = "4.15.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.15'" },
+    { name = "typing-extensions", version = "4.16.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.15'" },
 ]
 
 [package.optional-dependencies]
@@ -712,6 +714,7 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=7.1,<8" },
     { name = "tiktoken", marker = "extra == 'measure'", specifier = ">=0.8,<1" },
     { name = "trustme", marker = "extra == 'dev'", specifier = ">=1.2,<2" },
+    { name = "typing-extensions", specifier = ">=4.16.0" },
 ]
 provides-extras = ["dev", "measure"]
 

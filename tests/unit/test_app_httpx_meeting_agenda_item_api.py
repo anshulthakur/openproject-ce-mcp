@@ -210,3 +210,31 @@ async def test_delete_requests_the_agenda_item_id() -> None:
     async with _client(handler) as http_client:
         api = HttpxMeetingAgendaItemApi(HttpxTransport(http_client))
         await api.delete(21)
+
+
+@pytest.mark.asyncio
+async def test_a_record_carries_the_project_link_of_the_embedded_meeting() -> None:
+    payload = _agenda_item_payload()
+    payload["_embedded"] = {
+        **payload.get("_embedded", {}),
+        "meeting": {"id": 12, "_links": {"project": {"href": "/api/v3/projects/7"}}},
+    }
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"_embedded": {"elements": [payload]}}, request=request)
+
+    async with _client(handler) as http_client:
+        records = await HttpxMeetingAgendaItemApi(HttpxTransport(http_client)).list_for_work_package(99)
+
+    assert records[0].meeting_project_link == {"href": "/api/v3/projects/7"}
+
+
+@pytest.mark.asyncio
+async def test_a_record_without_an_embedded_meeting_has_no_project_link() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"_embedded": {"elements": [_agenda_item_payload()]}}, request=request)
+
+    async with _client(handler) as http_client:
+        records = await HttpxMeetingAgendaItemApi(HttpxTransport(http_client)).list_for_work_package(99)
+
+    assert records[0].meeting_project_link is None

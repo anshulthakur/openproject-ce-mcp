@@ -76,10 +76,8 @@ def _validate_optional_query(value: str | None, *, field_name: str, max_length: 
     if value is None:
         return None
     if not isinstance(value, str):
-        # Reachable with a non-str JSON scalar (e.g. a bare number or bool) from
-        # bulk_update_work_packages' untyped `items: list[dict[str, Any]]` — MCP
-        # tool parameters are str-typed and coerced/rejected by the SDK before
-        # reaching here, but a dict value has no such guarantee.
+        # The tool schema types the value; this keeps a call that bypasses it (a test, an
+        # internal caller) from crashing in the normalization below.
         raise ValueError(f"{field_name} must be a string.")
     normalized = " ".join(value.split())
     if not normalized:
@@ -320,8 +318,8 @@ def _validate_required_query(value: str, *, field_name: str, max_length: int) ->
 
 def _ref_text(value: int | str, *, field_name: str) -> str:
     """A reference as the text the services resolve: an id given as a number
-    becomes its decimal string. Bulk items are untyped dicts, so the type is
-    checked here as well as in the tool schema."""
+    becomes its decimal string. The tool schema types the value; the check here also
+    covers a call that bypasses it."""
     # bool is an int subclass; reject it so `true` doesn't become id 1.
     if isinstance(value, bool) or not isinstance(value, (int, str)):
         raise ValueError(f"{field_name} must be a string or an integer.")

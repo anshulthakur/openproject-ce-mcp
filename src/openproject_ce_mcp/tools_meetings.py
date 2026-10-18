@@ -352,6 +352,8 @@ async def list_work_package_meeting_agenda_items(
 
     Requires OpenProject 17.7+.
 
+    Items of meetings in projects outside OPENPROJECT_READ_PROJECTS are left out.
+
     This list is unpaginated server-side; offset/limit are applied
     client-side by this MCP.
 

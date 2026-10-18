@@ -5,6 +5,7 @@ import dataclasses
 import pytest
 from _client_test_helpers import make_settings
 
+from openproject_ce_mcp.app.adapters.httpx_time_entry_api import normalize_time_entry_activity_raw
 from openproject_ce_mcp.app.errors import InvalidInputError, PermissionDeniedError
 from openproject_ce_mcp.app.ports.time_entry_api import TimeEntryActivityRecord, TimeEntryFormResult, TimeEntryRecord
 from openproject_ce_mcp.app.ports.user_api import UserRecord
@@ -875,3 +876,59 @@ async def test_create_reads_a_non_ascii_digit_activity_as_a_name(name: str) -> N
     await service.create(work_package_id=42, activity=name, hours="PT1H", spent_on="2026-03-20", confirm=False)
 
     assert api.validate_create_calls[-1]["_links"]["activity"]["href"] == "/api/v3/time_entries/activities/5"
+
+
+class _RealActivityNormalizerApi(_FakeTimeEntryApi):
+    def to_activity_record(self, payload: dict) -> TimeEntryActivityRecord:
+        return TimeEntryActivityRecord(summary=normalize_time_entry_activity_raw(payload))
+
+
+def _activity_with_projects(*projects: tuple[str, str]) -> dict:
+    return {
+        "id": 3,
+        "name": "Development",
+        "_links": {"projects": [{"href": f"/api/v3/projects/{ident}", "title": name} for ident, name in projects]},
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("scope", [("demo",), ("Demo Project",)], ids=["by identifier", "by name"])
+async def test_list_activities_names_only_projects_the_read_scope_covers(scope) -> None:
+    activity = _activity_with_projects(("demo", "Demo Project"), ("secret-x", "Secret X"))
+    api = _RealActivityNormalizerApi(fetch_activities_result={"_embedded": {"elements": [activity]}})
+    service = _service(api=api, settings=dataclasses.replace(make_settings(), read_projects=scope))
+
+    result = await service.list_activities()
+
+    assert result.results[0].projects == ["Demo Project"]
+
+
+@pytest.mark.asyncio
+async def test_list_activities_names_every_project_under_every_project_scope() -> None:
+    activity = _activity_with_projects(("demo", "Demo Project"), ("secret-x", "Secret X"))
+    api = _RealActivityNormalizerApi(fetch_activities_result={"_embedded": {"elements": [activity]}})
+
+    result = await _service(api=api).list_activities()
+
+    assert result.results[0].projects == ["Demo Project", "Secret X"]
+
+
+@pytest.mark.asyncio
+async def test_activities_read_from_a_project_form_name_only_covered_projects_too() -> None:
+    api = _RealActivityNormalizerApi()
+    activity = _activity_with_projects(("demo", "Demo Project"), ("secret-x", "Secret X"))
+    form = {"_embedded": {"schema": {"activity": {"_embedded": {"allowedValues": [activity]}}}}}
+    service = _service(api=api, settings=dataclasses.replace(make_settings(), read_projects=("demo",)))
+
+    assert [a.projects for a in service._activities_from_form(form)] == [["Demo Project"]]
+
+
+@pytest.mark.asyncio
+async def test_list_activities_matches_a_numeric_read_scope_through_the_directory_id() -> None:
+    activity = _activity_with_projects(("demo", "Demo Project"), ("secret-x", "Secret X"))
+    api = _RealActivityNormalizerApi(fetch_activities_result={"_embedded": {"elements": [activity]}})
+    service = _service(api=api, settings=dataclasses.replace(make_settings(), read_projects=("1",)))
+
+    result = await service.list_activities()
+
+    assert result.results[0].projects == ["Demo Project"]

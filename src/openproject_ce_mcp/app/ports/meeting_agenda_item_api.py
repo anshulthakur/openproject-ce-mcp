@@ -63,9 +63,15 @@ class MeetingAgendaItemRecord:
     via an injected MeetingApi dependency (the cross-domain Port precedent
     this project already established for WorkPackageService->ActivityApi /
     FileLinkService->WorkPackageLookupApi).
+
+    `meeting_project_link` is the project link of the meeting the response
+    embeds, for the lists that embed it (the work package route does): it
+    decides the item's scope without a further request. None when the
+    response embedded no meeting.
     """
 
     summary: MeetingAgendaItemSummary
+    meeting_project_link: dict[str, Any] | None = None
 
 
 class MeetingAgendaItemApi(Protocol):

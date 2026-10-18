@@ -27,6 +27,7 @@ fifteen public names: thirteen because existing tests
 from __future__ import annotations
 
 import functools
+from collections.abc import Mapping
 from typing import Annotated, Any
 
 from mcp.server.mcpserver import Context
@@ -49,6 +50,8 @@ from .models import (
 )
 from .tool_params import (
     BulkConfirm,
+    BulkCreateWorkPackageItem,
+    BulkUpdateWorkPackageItem,
     Confirm,
     Limit,
     Offset,
@@ -876,7 +879,7 @@ async def update_work_package(
     )
 
 
-def _resolve_bulk_parent_field(item: dict[str, Any], index: int) -> tuple[Any, str]:
+def _resolve_bulk_parent_field(item: Mapping[str, Any], index: int) -> tuple[Any, str]:
     """Resolve a bulk item's parent value, accepting `parent` as an alias for `parent_work_package_id`."""
     has_parent = "parent" in item
     has_parent_wp_id = "parent_work_package_id" in item
@@ -887,36 +890,13 @@ def _resolve_bulk_parent_field(item: dict[str, Any], index: int) -> tuple[Any, s
     return item.get("parent_work_package_id"), f"items[{index}].parent_work_package_id"
 
 
-_BULK_CREATE_WORK_PACKAGE_ITEM_FIELDS = frozenset(
-    {
-        "project",
-        "type",
-        "subject",
-        "description",
-        "version",
-        "target_versions",
-        "observed_in_versions",
-        "project_phase",
-        "assignee",
-        "responsible",
-        "priority",
-        "category",
-        "custom_fields",
-        "parent",
-        "parent_work_package_id",
-        "start_date",
-        "due_date",
-        "estimated_time",
-        "remaining_time",
-        "duration",
-    }
-)
+_BULK_CREATE_WORK_PACKAGE_ITEM_FIELDS = frozenset(BulkCreateWorkPackageItem.__annotations__)
 
 
 @register_tool
 async def bulk_create_work_packages(
     ctx: Context,
-    items: list[dict[str, Any]],
+    items: list[BulkCreateWorkPackageItem],
     select: Annotated[
         list[str] | None,
         select_field(
@@ -1045,39 +1025,13 @@ async def bulk_create_work_packages(
     return await _run_tool(client.work_package.bulk_create(items=safe_items, confirm=confirm))
 
 
-_BULK_UPDATE_WORK_PACKAGE_ITEM_FIELDS = frozenset(
-    {
-        "work_package_id",
-        "subject",
-        "description",
-        "type",
-        "version",
-        "target_versions",
-        "observed_in_versions",
-        "sprint",
-        "project_phase",
-        "status",
-        "assignee",
-        "responsible",
-        "priority",
-        "category",
-        "custom_fields",
-        "parent",
-        "parent_work_package_id",
-        "start_date",
-        "due_date",
-        "estimated_time",
-        "remaining_time",
-        "duration",
-        "percentage_done",
-    }
-)
+_BULK_UPDATE_WORK_PACKAGE_ITEM_FIELDS = frozenset(BulkUpdateWorkPackageItem.__annotations__)
 
 
 @register_tool
 async def bulk_update_work_packages(
     ctx: Context,
-    items: list[dict[str, Any]],
+    items: list[BulkUpdateWorkPackageItem],
     select: Annotated[
         list[str] | None,
         select_field(

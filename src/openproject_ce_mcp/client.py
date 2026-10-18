@@ -92,6 +92,7 @@ from .app.pagination import (
 )
 from .app.policies import access as _access_policy
 from .app.policies import hidden_fields as _hidden_fields_policy
+from .app.policies import scope as _scope_policy
 from .app.ports.action_capability_api import ActionCapabilityApi
 from .app.ports.activity_api import ActivityApi
 from .app.ports.attachment_api import AttachmentApi
@@ -406,6 +407,7 @@ class OpenProjectClient:
         self._project_admin_service = ProjectAdminService(
             api=self._project_api,
             settings=settings,
+            project_id_to_identifier=self._project_id_to_identifier,
             resolver=self._project_resolver,
             base_url=settings.base_url,
         )
@@ -726,6 +728,8 @@ class OpenProjectClient:
             work_package_api=self._work_package_api,
             settings=settings,
             project_id_to_identifier=self._project_id_to_identifier,
+            work_package_project_allowed_bulk=self._work_package_resolver.project_links_allowed,
+            api_prefix=self._api_prefix,
         )
 
         self._reminder_api: ReminderApi = HttpxReminderApi(self._transport)
@@ -1410,7 +1414,15 @@ class OpenProjectClient:
 
     def _normalize_field_schema(self, key: str, payload: dict[str, Any]) -> WorkPackageFieldSchema:
         allowed_values = payload.get("_embedded", {}).get("allowedValues", [])
-        normalized_allowed_values = [_normalize_option_value(item) for item in allowed_values if isinstance(item, dict)]
+        # A version, sprint or backlog bucket can be shared into this project from one the allowlist does not cover.
+        normalized_allowed_values = [
+            _normalize_option_value(item)
+            for item in allowed_values
+            if isinstance(item, dict)
+            and _scope_policy.defining_project_allowed(
+                item, settings=self.settings, project_id_to_identifier=self._project_id_to_identifier
+            )
+        ]
         return WorkPackageFieldSchema(
             key=key,
             name=_trim_text(payload.get("name"), limit=SUBJECT_LIMIT) or key,

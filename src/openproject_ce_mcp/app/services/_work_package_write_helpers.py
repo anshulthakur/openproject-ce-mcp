@@ -130,23 +130,47 @@ def _not_allowed(raw_value: Any, key: str) -> InvalidInputError:
     return InvalidInputError(f"OpenProject value '{raw_value}' is not allowed for field '{key}'.")
 
 
+def _title_matches(options: builtins.list[tuple[str, int | None, str | None]], normalized: str) -> builtins.list[str]:
+    return list(
+        dict.fromkeys(href for href, _item_id, title in options if title and title.casefold() == normalized.casefold())
+    )
+
+
+def _ambiguous(raw_value: Any, key: str, hrefs: builtins.list[str]) -> InvalidInputError:
+    ids = ", ".join(str(_id_from_href(href) or href) for href in hrefs)
+    return InvalidInputError(
+        f"OpenProject value '{raw_value}' is ambiguous for field '{key}' (matches {ids}). Pass a numeric id."
+    )
+
+
 def resolve_schema_option_href(schema: dict[str, Any], key: str, raw_value: Any) -> str:
-    """A built-in field's allowed value: digits are its id, anything else its title."""
+    """A built-in field's allowed value: digits are its id, anything else its title; a title that
+    several allowed values share is ambiguous, because writing the first one would be a guess."""
     normalized, options = _allowed_options(schema, key, raw_value)
     if is_numeric_ref(normalized):
         matches = [href for href, item_id, _title in options if item_id == int(normalized)]
     else:
-        matches = [href for href, _item_id, title in options if title and title.casefold() == normalized.casefold()]
+        matches = _title_matches(options, normalized)
     if not matches:
         raise _not_allowed(raw_value, key)
+    if len(matches) > 1:
+        raise _ambiguous(raw_value, key, matches)
     return matches[0]
 
 
 def _resolve_custom_field_option_href(field: dict[str, Any], key: str, raw_value: Any) -> str:
     """A custom field's allowed value, matched by id or title in option order:
-    an option list such as story points has titles made of digits."""
+    an option list such as story points has titles made of digits. Several options with the same
+    title are ambiguous."""
     normalized, options = _allowed_options({key: field}, key, raw_value)
+    title_matches = _title_matches(options, normalized)
     numeric = is_numeric_ref(normalized)
+    if len(title_matches) > 1:
+        # An id names one option, so it settles a clash between titles that look like it.
+        by_id = [href for href, item_id, _title in options if numeric and item_id == int(normalized)]
+        if not by_id:
+            raise _ambiguous(raw_value, key, title_matches)
+        return by_id[0]
     for href, item_id, title in options:
         if numeric and item_id == int(normalized):
             return href
@@ -165,12 +189,21 @@ def resolve_custom_field_key(schema: dict[str, Any], raw_key: str) -> str:
         candidate = f"customField{normalized[11:]}"
         if candidate in schema:
             return candidate
-    for key, field in schema.items():
-        if not key.startswith("customField") or not isinstance(field, dict):
-            continue
-        name = _trim_text(field.get("name"))
-        if name and name.casefold() == normalized.casefold():
-            return key
+    named = [
+        key
+        for key, field in schema.items()
+        if key.startswith("customField")
+        and isinstance(field, dict)
+        and (name := _trim_text(field.get("name")))
+        and name.casefold() == normalized.casefold()
+    ]
+    if len(named) > 1:
+        raise InvalidInputError(
+            f"OpenProject custom field '{raw_key}' is ambiguous for this work package (matches {', '.join(named)}). "
+            "Use the customField key."
+        )
+    if named:
+        return named[0]
     raise InvalidInputError(f"OpenProject custom field '{raw_key}' is not available for this work package.")
 
 

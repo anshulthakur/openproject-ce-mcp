@@ -71,6 +71,7 @@ def call_tool(recorder: _Recorder) -> CallTool:
         names=[
             tools_work_packages.update_work_package.__name__,
             tools_work_packages.bulk_update_work_packages.__name__,
+            tools_work_packages.bulk_create_work_packages.__name__,
         ],
         hide_active=False,
         annotations=tools.TOOL_ANNOTATIONS,
@@ -122,14 +123,62 @@ async def test_a_value_outside_0_to_100_is_rejected_before_any_request(
     assert recorder.requests == []
 
 
-@pytest.mark.parametrize("value", [True, 40.0, "40", -1, 101])
+@pytest.mark.parametrize(
+    ("value", "message"),
+    [
+        (True, "items.0.percentage_done:"),
+        (40.0, "items.0.percentage_done:"),
+        ("40", "items.0.percentage_done:"),
+        (-1, "items[0].percentage_done must be"),
+        (101, "items[0].percentage_done must be"),
+    ],
+)
 async def test_a_bulk_item_rejects_what_the_single_call_rejects(
-    call_tool: CallTool, recorder: _Recorder, value: Any
+    call_tool: CallTool, recorder: _Recorder, value: Any, message: str
 ) -> None:
+    """A value of the wrong JSON type fails the item schema; a number out of range, the tool's own check."""
     result = await call_tool(
         "bulk_update_work_packages", {"items": [{"work_package_id": 42, "percentage_done": value}], "confirm": True}
     )
 
     assert result.is_error is True
-    assert "items[0].percentage_done must be" in _text(result)
+    assert message in _text(result)
     assert recorder.requests == []
+
+
+@pytest.mark.parametrize(
+    ("tool", "item", "path"),
+    [
+        ("bulk_update_work_packages", {"work_package_id": 42, "subject": True}, "items.0.subject"),
+        ("bulk_update_work_packages", {"work_package_id": 42, "description": 5}, "items.0.description"),
+        ("bulk_update_work_packages", {"work_package_id": True, "subject": "s"}, "items.0.work_package_id"),
+        ("bulk_update_work_packages", {"work_package_id": 42, "target_versions": [True]}, "items.0.target_versions"),
+        ("bulk_create_work_packages", {"project": 1, "type": "Task", "subject": True}, "items.0.subject"),
+        (
+            "bulk_create_work_packages",
+            {"project": 1, "type": "Task", "subject": "s", "description": 5},
+            "items.0.description",
+        ),
+        ("bulk_create_work_packages", {"project": True, "type": "Task", "subject": "s"}, "items.0.project"),
+        ("bulk_create_work_packages", {"type": "Task", "subject": "s"}, "items.0.project"),
+        ("bulk_create_work_packages", {"project": 1, "type": "Task", "subject": "s", "other": 1}, "items.0.other"),
+    ],
+)
+async def test_a_bulk_item_of_the_wrong_shape_is_refused_with_its_index_and_sends_nothing(
+    call_tool: CallTool, recorder: _Recorder, tool: str, item: dict, path: str
+) -> None:
+    result = await call_tool(tool, {"items": [item], "confirm": True})
+
+    assert result.is_error is True
+    assert result.content and "[VALIDATION_FAILED]" in _text(result)
+    assert path in _text(result)
+    assert recorder.requests == []
+
+
+async def test_a_bulk_item_of_the_right_shape_still_reaches_the_form(call_tool: CallTool, recorder: _Recorder) -> None:
+    result = await call_tool(
+        "bulk_update_work_packages", {"items": [{"work_package_id": 42, "subject": "renamed"}], "confirm": False}
+    )
+
+    assert result.is_error is False, _text(result)
+    assert recorder.forms()

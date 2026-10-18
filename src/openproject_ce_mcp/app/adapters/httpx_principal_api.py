@@ -12,6 +12,7 @@ from typing import Any
 from ...models import PrincipalSummary
 from ..ports.principal_api import PrincipalRecord
 from ..transport.protocol import Transport
+from ._filters import escape_like
 from ._text import SUBJECT_LIMIT
 from ._text import has_usable_id as _has_usable_id
 from ._text import trim_text as _trim_text
@@ -48,7 +49,7 @@ class HttpxPrincipalApi:
     ) -> tuple[list[PrincipalRecord], int]:
         filters: list[dict[str, Any]] = []
         if search:
-            filters.append({"name": {"operator": "~", "values": [search]}})
+            filters.append({"name": {"operator": "~", "values": [escape_like(search)]}})
         payload = await self._transport.get_json(
             "principals",
             params={

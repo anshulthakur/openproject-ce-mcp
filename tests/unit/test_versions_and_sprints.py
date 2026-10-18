@@ -492,7 +492,14 @@ async def test_list_work_packages_version_filter_uses_correct_key() -> None:
         if "/versions" in request.url.path:
             return httpx.Response(
                 200,
-                json={"total": 1, "_embedded": {"elements": [{"id": 5, "name": "v1.0", "_links": {}}]}},
+                json={
+                    "total": 1,
+                    "_embedded": {
+                        "elements": [
+                            {"id": 5, "name": "v1.0", "_links": {"definingProject": {"href": "/api/v3/projects/1"}}}
+                        ]
+                    },
+                },
                 request=request,
             )
         if request.url.path == "/api/v3/work_packages":
@@ -930,11 +937,11 @@ async def test_list_versions_project_scoped_walks_and_slices_client_side() -> No
                     "total": 5,
                     "_embedded": {
                         "elements": [
-                            {"id": 1, "name": "v1", "_links": {}},
-                            {"id": 2, "name": "v2", "_links": {}},
-                            {"id": 3, "name": "v3", "_links": {}},
-                            {"id": 4, "name": "v4", "_links": {}},
-                            {"id": 5, "name": "v5", "_links": {}},
+                            {"id": 1, "name": "v1", "_links": {"definingProject": {"href": "/api/v3/projects/1"}}},
+                            {"id": 2, "name": "v2", "_links": {"definingProject": {"href": "/api/v3/projects/1"}}},
+                            {"id": 3, "name": "v3", "_links": {"definingProject": {"href": "/api/v3/projects/1"}}},
+                            {"id": 4, "name": "v4", "_links": {"definingProject": {"href": "/api/v3/projects/1"}}},
+                            {"id": 5, "name": "v5", "_links": {"definingProject": {"href": "/api/v3/projects/1"}}},
                         ]
                     },
                 },
@@ -1068,10 +1075,22 @@ async def test_list_versions_project_scoped_search_overfetches_and_filters() -> 
                 json={
                     "_embedded": {
                         "elements": [
-                            {"id": 1, "name": "Sprint 1", "_links": {}},
-                            {"id": 2, "name": "Sprint 2", "_links": {}},
-                            {"id": 3, "name": "Backlog", "_links": {}},
-                            {"id": 4, "name": "Sprint 3", "_links": {}},
+                            {
+                                "id": 1,
+                                "name": "Sprint 1",
+                                "_links": {"definingProject": {"href": "/api/v3/projects/1"}},
+                            },
+                            {
+                                "id": 2,
+                                "name": "Sprint 2",
+                                "_links": {"definingProject": {"href": "/api/v3/projects/1"}},
+                            },
+                            {"id": 3, "name": "Backlog", "_links": {"definingProject": {"href": "/api/v3/projects/1"}}},
+                            {
+                                "id": 4,
+                                "name": "Sprint 3",
+                                "_links": {"definingProject": {"href": "/api/v3/projects/1"}},
+                            },
                         ]
                     },
                 },

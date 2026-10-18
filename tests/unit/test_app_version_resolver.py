@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 from _client_test_helpers import make_settings
 
@@ -27,7 +29,7 @@ def _record(
 ) -> VersionRecord:
     return VersionRecord(
         summary=_summary(version_id, name),
-        defining_project_link=defining_project_link,
+        defining_project_link=defining_project_link or {"href": "/api/v3/projects/6"},
         lookup_name=name if lookup_name is None else lookup_name,
     )
 
@@ -159,3 +161,34 @@ async def test_resolve_reads_non_ascii_digits_as_a_name(name: str, project: str 
     resolver = _resolver([_record(8, name, defining_project_link=link)])
 
     assert await resolver.resolve_id(name, project=project) == "8"
+
+
+def _restricted_resolver(records: list[VersionRecord]) -> VersionResolver:
+    return VersionResolver(
+        api=_FakeVersionApi(records),
+        resolve_project_ref=_resolve_project_ref,
+        settings=dataclasses.replace(make_settings(), read_projects=("demo",)),
+        project_id_to_identifier={6: "demo"},
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("reference", ["Shared in", "9"])
+async def test_a_version_shared_in_from_an_uncovered_project_is_not_offered_and_the_error_says_why(reference) -> None:
+    records = [
+        _record(8, "Own"),
+        _record(9, "Shared in", defining_project_link={"href": "/api/v3/projects/20"}),
+    ]
+
+    with pytest.raises(InvalidInputError, match=r"(was not found|is not available) in project 'demo'.*not cover"):
+        await _restricted_resolver(records).resolve_id(reference, project="demo")
+
+    assert await _restricted_resolver(records).resolve_id("Own", project="demo") == "8"
+
+
+@pytest.mark.asyncio
+async def test_the_error_names_no_scope_reason_when_every_project_is_readable() -> None:
+    with pytest.raises(InvalidInputError) as caught:
+        await _resolver([_record(8, "Own")]).resolve_id("Nope", project="demo")
+
+    assert "OPENPROJECT_READ_PROJECTS" not in str(caught.value)

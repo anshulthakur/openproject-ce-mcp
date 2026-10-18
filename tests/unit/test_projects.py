@@ -869,6 +869,8 @@ async def test_project_scoped_reads_accept_numeric_project_ids_when_allowed_by_n
     async def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/api/v3/work_packages/Scoped":
             return httpx.Response(404, json={"message": "not found"}, request=request)
+        if request.url.path == "/api/v3/projects":
+            return httpx.Response(200, json={"total": 0, "_embedded": {"elements": []}}, request=request)
         if request.url.path == "/api/v3/projects/6":
             return httpx.Response(
                 200,
@@ -1438,7 +1440,7 @@ async def test_help_texts_and_working_days() -> None:
     assert help_texts.results[0].attribute_name == "description"
 
     help_text = await client.extended_metadata.get_help_text(5)
-    assert help_text.help_text == "Describe the work."
+    assert help_text.help_text == "<user-content>Describe the work.</user-content>"
 
     days = await client.extended_metadata.list_working_days()
     assert days.count == 2
@@ -1972,3 +1974,73 @@ async def test_list_projects_cross_call_pagination_with_allowlist_thinning_acros
         True,
         False,
     ], "offset=3's p5 is the actual last allowed project -- must not report truncated=True"
+
+
+@pytest.mark.asyncio
+async def test_work_package_context_drops_form_values_defined_in_projects_outside_the_read_scope() -> None:
+    """A version, sprint or backlog bucket shared into the project can be defined in a project
+    the allowlist does not cover."""
+
+    def option(option_id: int, name: str, defining: dict | None) -> dict:
+        links: dict = {"self": {"href": f"/api/v3/versions/{option_id}", "title": name}}
+        if defining is not None:
+            links.update(defining)
+        return {"id": option_id, "name": name, "_links": links}
+
+    allowed = {"definingProject": {"href": "/api/v3/projects/1"}}
+    foreign = {"definingProject": {"href": "/api/v3/projects/9"}}
+    foreign_workspace = {"definingWorkspace": {"href": "/api/v3/projects/9"}}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path in {"/api/v3/projects/demo", "/api/v3/projects/1"}:
+            body = {"_type": "Project", "id": 1, "name": "Demo", "identifier": "demo", "_links": {}}
+        elif path == "/api/v3/projects/1/types":
+            body = {"_embedded": {"elements": [{"id": 7, "name": "Feature"}]}}
+        elif path in {"/api/v3/statuses", "/api/v3/priorities", "/api/v3/projects/1/categories"}:
+            body = {"_embedded": {"elements": []}}
+        elif path == "/api/v3/projects/1/versions":
+            body = {"total": 0, "_embedded": {"elements": []}}
+        elif path == "/api/v3/projects/1/work_packages/form":
+            values = {
+                "version": [option(11, "Own", allowed), option(12, "Shared in", foreign), option(13, "Unbound", None)],
+                "sprint": [option(21, "Sprint own", allowed), option(22, "Sprint foreign", foreign_workspace)],
+            }
+            body = {
+                "_embedded": {
+                    "schema": {
+                        key: {
+                            "name": key,
+                            "type": "Version",
+                            "required": False,
+                            "writable": True,
+                            "_embedded": {"allowedValues": items},
+                        }
+                        for key, items in values.items()
+                    }
+                }
+            }
+        else:
+            raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+        return httpx.Response(200, json=body, request=request)
+
+    settings = Settings(
+        read_projects=("demo",),
+        write_projects=("demo",),
+        base_url="https://op.example.com",
+        api_token="token",
+        timeout=12,
+        verify_ssl=True,
+        default_page_size=10,
+        max_page_size=10,
+        max_results=10,
+        log_level="WARNING",
+    )
+    client = OpenProjectClient(settings, transport=httpx.MockTransport(handler))
+    client._project_id_to_identifier[1] = "demo"
+    result = await client.get_project_work_package_context(project="demo", type="Feature")
+
+    fields = {field.key: [value.title for value in field.allowed_values] for field in result.fields}
+    assert fields == {"version": ["Own", "Unbound"], "sprint": ["Sprint own"]}
+
+    await client.aclose()

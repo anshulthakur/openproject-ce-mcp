@@ -341,7 +341,11 @@ async def test_list_work_packages_resolves_type_and_version_filters() -> None:
                 200,
                 json={
                     "total": 1,
-                    "_embedded": {"elements": [{"id": 11, "name": "v1", "_links": {}}]},
+                    "_embedded": {
+                        "elements": [
+                            {"id": 11, "name": "v1", "_links": {"definingProject": {"href": "/api/v3/projects/1"}}}
+                        ]
+                    },
                 },
                 request=request,
             )

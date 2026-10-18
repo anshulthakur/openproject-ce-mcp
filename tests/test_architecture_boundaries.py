@@ -60,7 +60,13 @@ _LAYER_DEPENDENCIES: dict[str, set[str]] = {
     "resolvers": {"ports", "policies"},
     "services": {"ports", "policies", "resolvers"},
 }
-_SHARED_KERNEL = {"errors", "pagination", "api_href", "form_result"}  # module names directly under app/, not layer dirs
+_SHARED_KERNEL = {
+    "errors",
+    "pagination",
+    "api_href",
+    "form_result",
+    "link_titles",
+}  # module names directly under app/, not layer dirs
 
 
 def _imports_httpx(path: Path) -> bool:
@@ -1278,6 +1284,20 @@ def test_app_tree_never_reads_environment_variables_directly() -> None:
 # each one has a HIDE_FIELD_ENV_BY_ENTITY entry -- so a future domain that
 # repeats this exact mistake fails a test immediately instead of shipping a
 # silently-broken OPENPROJECT_HIDE_<X>_FIELDS env var.
+# Every function whose first argument is the entity: the masking calls and the write guards. A typo in
+# the entity of a write guard disables that guard silently, so those are held to the same registry.
+_HIDDEN_FIELD_ENTITY_CALLS = frozenset(
+    {
+        "apply_hidden_fields",
+        "_apply_hidden_fields",
+        "apply_hidden_fields_with_aliases",
+        "field_hidden",
+        "ensure_field_writable",
+        "hidden_patterns",
+    }
+)
+
+
 def _hidden_field_entity_literals(path: Path) -> set[str]:
     tree = ast.parse(path.read_text(), filename=str(path))
     entities: set[str] = set()
@@ -1292,9 +1312,9 @@ def _hidden_field_entity_literals(path: Path) -> set[str]:
         # migration's own self-audit: the underscore-less version alone returns an
         # EMPTY set for client.py, despite the module docstring above claiming
         # client.py's still-flat normalize_* methods are covered).
-        is_apply_hidden_fields_call = (
-            isinstance(func, ast.Attribute) and func.attr in ("apply_hidden_fields", "_apply_hidden_fields")
-        ) or (isinstance(func, ast.Name) and func.id in ("apply_hidden_fields", "_apply_hidden_fields"))
+        is_apply_hidden_fields_call = (isinstance(func, ast.Attribute) and func.attr in _HIDDEN_FIELD_ENTITY_CALLS) or (
+            isinstance(func, ast.Name) and func.id in _HIDDEN_FIELD_ENTITY_CALLS
+        )
         if not is_apply_hidden_fields_call or not node.args:
             continue
         first_arg = node.args[0]
@@ -1311,6 +1331,7 @@ def test_every_apply_hidden_fields_entity_is_registered_in_config() -> None:
     for path in APP.rglob("*.py"):
         entities |= _hidden_field_entity_literals(path)
 
+    assert len(entities) >= 25, "the scan found too few entities to be reading the source"
     unregistered = sorted(entities - HIDE_FIELD_ENV_BY_ENTITY.keys())
     assert unregistered == [], (
         f"Entities passed to apply_hidden_fields/_apply_hidden_fields with no "
@@ -1425,6 +1446,9 @@ def test_f3_allowlist_semaphore_is_structurally_separate_from_f6_batch_read_sema
 
     class _StubReadableProjects:
         async def current_readable_project_ids(self) -> frozenset[int]:
+            raise AssertionError("unused")
+
+        async def readable_descendant_ids(self, project_id: int) -> frozenset[int]:
             raise AssertionError("unused")
 
     service = WorkPackageService(
@@ -2232,3 +2256,53 @@ async def test_every_adapter_reads_through_the_one_learning_transport() -> None:
                 assert adapter._transport is client._transport, type(adapter).__name__
     finally:
         await client.aclose()
+
+
+def _meeting_lookups(source: str) -> list[int]:
+    """Line numbers of `<x>.meeting_api.get(...)`/`<x>._meeting_api.get(...)` and `meeting_api.get(...)`."""
+    lines = []
+    for node in ast.walk(ast.parse(source)):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "get"):
+            continue
+        target = node.func.value
+        name = target.attr if isinstance(target, ast.Attribute) else getattr(target, "id", "")
+        if name in ("meeting_api", "_meeting_api"):
+            lines.append(node.lineno)
+    return lines
+
+
+@pytest.mark.parametrize(
+    "source",
+    ["await self._meeting_api.get(1)", "await meeting_api.get(1)", "x = lambda: self.meeting_api.get(i)"],
+)
+def test_meeting_lookup_detector_finds_every_spelling(source: str) -> None:
+    assert _meeting_lookups(source)
+
+
+def test_meeting_lookup_detector_ignores_other_receivers() -> None:
+    assert _meeting_lookups("self._api.get(1)\nself._meeting_api.list_page()\nmeetings.get(1)") == []
+
+
+def test_services_reach_a_meeting_only_through_the_shared_scope_check() -> None:
+    """A record that belongs to a meeting has the meeting's project, so a service that
+    fetches the meeting by itself can forget to check it. The shared module is the one
+    place that fetches a meeting for a scope decision."""
+    offenders = [
+        f"{path.name}:{line}"
+        for path in sorted((APP / "services").glob("*.py"))
+        if path.name != "_meeting_scope.py"
+        for line in _meeting_lookups(path.read_text())
+    ]
+    assert offenders == []
+
+
+def test_a_service_that_takes_the_meeting_port_uses_the_shared_scope_check() -> None:
+    """The lookup test above cannot see a service that never checks a meeting at all."""
+    offenders = []
+    for path in sorted((APP / "services").glob("*.py")):
+        tree = ast.parse(path.read_text())
+        takes_meeting_api = any(isinstance(node, ast.arg) and node.arg == "meeting_api" for node in ast.walk(tree))
+        uses_shared_check = "_meeting_scope" in path.read_text() or path.name == "_meeting_scope.py"
+        if takes_meeting_api and not uses_shared_check:
+            offenders.append(path.name)
+    assert offenders == []

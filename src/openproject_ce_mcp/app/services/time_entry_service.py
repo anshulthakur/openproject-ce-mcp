@@ -162,21 +162,43 @@ class TimeEntryService:
     def _stamp_activity(self, summary: TimeEntryActivitySummary) -> TimeEntryActivitySummary:
         return hidden_fields.apply_hidden_fields("time_entry_activity", summary, settings=self._settings)
 
-    def _normalize_activity_element(self, item: dict[str, Any]) -> TimeEntryActivitySummary:
+    def _normalize_activity_elements(self, elements: list[Any]) -> list[TimeEntryActivitySummary]:
+        # Built once per list: every activity names every project that enables it.
+        ids_by_identifier = {identifier: pid for pid, identifier in self._project_id_to_identifier.items()}
+        return [
+            self._normalize_activity_element(item, ids_by_identifier) for item in elements if isinstance(item, dict)
+        ]
+
+    def _normalize_activity_element(
+        self, item: dict[str, Any], ids_by_identifier: Mapping[str, int]
+    ) -> TimeEntryActivitySummary:
+        # OpenProject lists every project the user sees that enables the activity.
+        links = item.get("_links", {})
+        projects = links.get("projects")
+        if isinstance(projects, list):
+            covered = [
+                link
+                for link in projects
+                if isinstance(link, dict)
+                and scope_policy.project_named_by_link_allowed(
+                    link, settings=self._settings, ids_by_identifier=ids_by_identifier
+                )
+            ]
+            item = {**item, "_links": {**links, "projects": covered}}
         return self._stamp_activity(self._api.to_activity_record(item).summary)
 
     def _activities_from_form(self, form: dict[str, Any]) -> list[TimeEntryActivitySummary]:
         schema = form.get("_embedded", {}).get("schema", {})
         activity_field = schema.get("activity", {})
         allowed = activity_field.get("_embedded", {}).get("allowedValues", [])
-        return [self._normalize_activity_element(item) for item in allowed if isinstance(item, dict)]
+        return self._normalize_activity_elements(allowed)
 
     async def list_activities(self) -> TimeEntryActivityListResult:
         access.ensure_read_enabled("work_package", settings=self._settings)
         payload = await self._api.fetch_activities()
         if payload is not None:
             elements = payload.get("_embedded", {}).get("elements", [])
-            results = [self._normalize_activity_element(item) for item in elements if isinstance(item, dict)]
+            results = self._normalize_activity_elements(elements)
             if results:
                 return TimeEntryActivityListResult(count=len(results), results=results)
 

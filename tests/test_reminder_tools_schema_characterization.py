@@ -39,7 +39,9 @@ def _tools(mcp) -> dict:
 
 def test_list_reminders_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_reminders"]
-    assert tool.description == ("List the current user's active reminders across all work packages.")
+    assert tool.description == (
+        "List the current user's active reminders across all work packages. Requires OpenProject 16.1+."
+    )
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
@@ -65,6 +67,7 @@ def test_create_work_package_reminder_schema() -> None:
         "\n"
         "`remind_at` is an ISO 8601 date-time (e.g. 2026-12-01T09:00:00Z). Only one\n"
         "active reminder per work package is allowed; creating a second one fails.\n"
+        "Requires OpenProject 16.1+.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
@@ -96,7 +99,7 @@ def test_update_reminder_schema() -> None:
     tool = _tools(create_app(_make_settings()))["update_reminder"]
     assert (
         tool.description
-        == "Update a reminder's time or note; at least one is required, an omitted one stays unchanged."
+        == "Update a reminder's time or note; at least one is required, an omitted one stays unchanged.\n\nRequires OpenProject 16.1+.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {

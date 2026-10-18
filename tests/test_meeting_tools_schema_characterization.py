@@ -546,7 +546,7 @@ def test_list_work_package_meeting_agenda_items_schema() -> None:
     tool = _tools(create_app(_make_settings()))["list_work_package_meeting_agenda_items"]
     assert (
         tool.description
-        == "List the agenda items, across all meetings, that link a work package.\n\nRequires OpenProject 17.7+.\n\nThis list is unpaginated server-side; offset/limit are applied\nclient-side by this MCP.\n\ntext_limit caps each item's notes at that many characters (default: the\nserver's configured OPENPROJECT_TEXT_LIMIT, NOT unlimited). When text is\ncut, notes_truncated is true and notes_length reports the real length.\n"
+        == "List the agenda items, across all meetings, that link a work package.\n\nRequires OpenProject 17.7+.\n\nItems of meetings in projects outside OPENPROJECT_READ_PROJECTS are left out.\n\nThis list is unpaginated server-side; offset/limit are applied\nclient-side by this MCP.\n\ntext_limit caps each item's notes at that many characters (default: the\nserver's configured OPENPROJECT_TEXT_LIMIT, NOT unlimited). When text is\ncut, notes_truncated is true and notes_length reports the real length.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {

@@ -1141,7 +1141,7 @@ def test_bool_from_env_missing_key_uses_fallback() -> None:
 
 def test_shim_reexports_public_names() -> None:
     # The root configure_mcp.py shim must re-export main and helpers so a
-    # manual source checkout (`python3 configure_mcp.py`) and any importer
+    # manual source checkout (`.venv/bin/python configure_mcp.py`) and any importer
     # keep working.
     import importlib.util
 

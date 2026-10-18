@@ -1444,3 +1444,43 @@ async def test_columns_the_tool_does_not_offer_are_rejected_by_openproject(
     rejection = await _list_sorted_or_grouped(client, test_project, sort_by=[SortCriterion(field, "asc")])
 
     assert rejection is not None
+
+
+async def test_aggregates_of_a_project_listing_leave_out_subprojects_outside_the_read_scope(
+    project_refs: list[str], start_scoped_client
+) -> None:
+    """OpenProject adds the descendants of a named project, and counts and sums them."""
+    everywhere = await start_scoped_client(read_projects=("*",), write_projects=("*",))
+    parent = disposable_project_identifier()
+    child = disposable_project_identifier()
+    for identifier, parent_ref in ((parent, None), (child, parent)):
+        created = await everywhere.project.create(
+            name=f"[integration-test] {identifier}",
+            identifier=identifier,
+            confirm=True,
+            **({"parent": parent_ref} if parent_ref else {}),
+        )
+        assert created.ready, created.validation_errors
+        written = await everywhere.work_package.create(
+            project=identifier, type="Task", subject=f"[integration-test] in {identifier}", confirm=True
+        )
+        assert written.ready, written.validation_errors
+
+    # Deleting a project deletes its subprojects; deleting the child as well would race that job.
+    project_refs.append(parent)
+
+    both = await start_scoped_client(read_projects=(parent, child), write_projects=(parent,))
+    own_only = await start_scoped_client(read_projects=(parent,), write_projects=(parent,))
+
+    for call in ("list", "search"):
+        extra = {"search": "integration-test"} if call == "search" else {}
+        covered = await getattr(both.work_package, call)(project=parent, group_by="project", include_sums=True, **extra)
+        assert len(covered.results) == 2
+        assert sorted(group.count for group in covered.groups) == [1, 1]
+
+        alone = await getattr(own_only.work_package, call)(
+            project=parent, group_by="project", include_sums=True, **extra
+        )
+        assert len(alone.results) == 1
+        assert alone.total == 1
+        assert [group.count for group in alone.groups] == [1]

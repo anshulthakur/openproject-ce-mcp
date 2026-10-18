@@ -73,7 +73,9 @@ class _FakeMeetingApi:
 
 class _FakeMeetingAgendaItemApi:
     def __init__(self, records: list[MeetingAgendaItemRecord] | None = None) -> None:
-        self._records = records or [MeetingAgendaItemRecord(summary=_agenda_summary())]
+        self._records = records or [
+            MeetingAgendaItemRecord(summary=_agenda_summary(), meeting_project_link={"href": "/api/v3/projects/6"})
+        ]
         self.list_for_meeting_calls: list[int] = []
         self.list_for_work_package_calls: list[int] = []
         self.list_text_limit_calls: list[int | None] = []
@@ -220,6 +222,89 @@ async def test_list_for_work_package_passes_text_limit_through_to_the_adapter() 
     await service.list_for_work_package("99", text_limit=10)
 
     assert api.list_text_limit_calls == [10]
+
+
+def _items(*pairs: tuple[int, int | None]) -> list[MeetingAgendaItemRecord]:
+    """One record per (item id, project id of its embedded meeting; None = nothing embedded)."""
+    return [
+        MeetingAgendaItemRecord(
+            summary=_agenda_summary(item_id),
+            meeting_project_link=None if project_id is None else {"href": f"/api/v3/projects/{project_id}"},
+        )
+        for item_id, project_id in pairs
+    ]
+
+
+def _restricted_service(records, *, read=("demo",)):
+    return MeetingAgendaItemService(
+        api=_FakeMeetingAgendaItemApi(records),
+        meeting_api=_FakeMeetingApi(),
+        settings=dataclasses.replace(make_settings(), read_projects=read),
+        project_id_to_identifier={6: "demo", 7: "secret"},
+        resolve_work_package_id=_resolve_work_package_id_ok,
+        api_prefix="/api/v3/",
+    )
+
+
+@pytest.mark.asyncio
+async def test_list_for_work_package_drops_items_of_meetings_outside_the_read_scope() -> None:
+    service = _restricted_service(_items((1, 6), (2, 7), (3, 6)))
+
+    result = await service.list_for_work_package(99)
+
+    assert [item.id for item in result.results] == [1, 3]
+    assert (result.total, result.count) == (2, 2)
+
+
+@pytest.mark.asyncio
+async def test_list_for_work_package_returns_nothing_when_every_meeting_is_outside_the_read_scope() -> None:
+    result = await _restricted_service(_items((1, 7))).list_for_work_package(99)
+
+    assert result.results == []
+    assert result.total == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("read", [("demo",), ("*",)])
+async def test_list_for_work_package_drops_an_item_whose_meeting_project_is_unknown(read) -> None:
+    result = await _restricted_service(_items((1, None), (2, 6)), read=read).list_for_work_package(99)
+
+    assert [item.id for item in result.results] == [2]
+
+
+@pytest.mark.asyncio
+async def test_list_for_work_package_under_every_project_admits_each_meeting_project() -> None:
+    result = await _restricted_service(_items((1, 6), (2, 7)), read=("*",)).list_for_work_package(99)
+
+    assert [item.id for item in result.results] == [1, 2]
+
+
+@pytest.mark.asyncio
+async def test_list_for_work_package_drops_items_of_a_meeting_with_an_undisclosed_project() -> None:
+    records = [
+        MeetingAgendaItemRecord(
+            summary=_agenda_summary(1), meeting_project_link={"href": "urn:openproject-org:api:v3:undisclosed"}
+        )
+    ]
+
+    assert (await _restricted_service(records).list_for_work_package(99)).results == []
+
+
+@pytest.mark.asyncio
+async def test_list_for_work_package_asks_for_no_meeting_beyond_the_embedded_one() -> None:
+    meeting_api = _FakeMeetingApi()
+    service = MeetingAgendaItemService(
+        api=_FakeMeetingAgendaItemApi(_items((1, 6), (2, 7))),
+        meeting_api=meeting_api,
+        settings=dataclasses.replace(make_settings(), read_projects=("demo",)),
+        project_id_to_identifier={6: "demo", 7: "secret"},
+        resolve_work_package_id=_resolve_work_package_id_ok,
+        api_prefix="/api/v3/",
+    )
+
+    await service.list_for_work_package(99)
+
+    assert meeting_api.get_calls == []
 
 
 # --- get -- fetch-then-check bypass regression ------------------------------

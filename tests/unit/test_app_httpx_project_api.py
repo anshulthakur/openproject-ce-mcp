@@ -393,3 +393,20 @@ async def test_get_phase_fetches_by_id() -> None:
     assert record.phase.id == 3
     assert record.phase.name == "Build"
     assert record.project_link == {"href": "/api/v3/projects/6", "title": "Demo"}
+
+
+@pytest.mark.asyncio
+async def test_list_narrows_to_the_descendants_of_one_project() -> None:
+    seen: list[dict[str, str]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(dict(request.url.params))
+        return httpx.Response(200, json={"total": 0, "_embedded": {"elements": []}}, request=request)
+
+    async with _client(handler) as http_client:
+        api = HttpxProjectApi(HttpxTransport(http_client), base_url=BASE_URL)
+        await api.list(server_offset=1, server_page_size=10, search=None, ancestor_id=7)
+        await api.list(server_offset=1, server_page_size=10, search=None)
+
+    assert json.loads(seen[0]["filters"]) == [{"ancestor": {"operator": "=", "values": ["7"]}}]
+    assert json.loads(seen[1]["filters"]) == []

@@ -193,6 +193,7 @@ def _admin_service(api: _FakeProjectApi | None = None, *, settings=None) -> Proj
     return ProjectAdminService(
         api=api,
         settings=settings,
+        project_id_to_identifier={},
         resolver=_resolver(api, settings=settings),
         base_url=BASE_URL,
     )
@@ -961,3 +962,180 @@ def test_project_service_module_does_not_define_normalizer_names() -> None:
         "normalize_project_phase",
     }
     assert not normalizer_names & set(dir(project_service))
+
+
+def _record_below(parent: tuple[int, str] | None, ancestors: list[tuple[int, str]]) -> ProjectRecord:
+    links: dict = {}
+    if parent is not None:
+        links["parent"] = {"href": f"/api/v3/projects/{parent[0]}", "title": parent[1]}
+    if ancestors:
+        links["ancestors"] = [{"href": f"/api/v3/projects/{pid}", "title": title} for pid, title in ancestors]
+    payload = _payload(_links=links)
+    detail = normalize_project_detail(payload)
+    return ProjectRecord(summary=detail, to_detail=lambda: detail, payload=payload)
+
+
+def _scoped_service(record: ProjectRecord, *, read, known=None) -> ProjectService:
+    api = _FakeProjectApi([record])
+    settings = dataclasses.replace(make_settings(), read_projects=read)
+    return ProjectService(
+        api=api,
+        settings=settings,
+        project_id_to_identifier={6: "demo", **(known or {})},
+        resolver=_resolver(api, settings=settings),
+        base_url=BASE_URL,
+        api_prefix="/api/v3/",
+    )
+
+
+_BELOW_SECRET = [(1, "Secret Root"), (2, "Open Middle"), (3, "Secret Branch")]
+
+
+@pytest.mark.asyncio
+async def test_get_leaves_out_parents_the_read_scope_does_not_cover() -> None:
+    record = _record_below((3, "Secret Branch"), _BELOW_SECRET)
+    service = _scoped_service(record, read=("demo", "open-middle"), known={2: "open-middle"})
+
+    project = await service.get("demo")
+
+    assert (project.parent_id, project.parent_name) == (None, None)
+    assert project.ancestors == [{"href": "/api/v3/projects/2", "title": "Open Middle", "display_id": None}]
+
+
+@pytest.mark.asyncio
+async def test_get_drops_the_whole_ancestor_chain_when_none_is_covered() -> None:
+    project = await _scoped_service(_record_below((3, "Secret Branch"), _BELOW_SECRET), read=("demo",)).get("demo")
+
+    assert project.ancestors is None
+
+
+@pytest.mark.asyncio
+async def test_a_covered_parent_stays_but_only_when_its_identifier_is_known() -> None:
+    record = _record_below((2, "Open Middle"), [])
+
+    known = await _scoped_service(record, read=("demo", "om-ident"), known={2: "om-ident"}).get("demo")
+    unknown = await _scoped_service(record, read=("demo", "om-ident")).get("demo")
+
+    assert (known.parent_id, known.parent_name) == (2, "Open Middle")
+    assert (unknown.parent_id, unknown.parent_name) == (None, None)
+
+
+@pytest.mark.asyncio
+async def test_a_parent_named_by_the_scope_pattern_stays_under_every_project_scope() -> None:
+    record = _record_below((3, "Secret Branch"), _BELOW_SECRET)
+
+    project = await _scoped_service(record, read=("*",)).get("demo")
+
+    assert (project.parent_id, project.parent_name) == (3, "Secret Branch")
+    assert [entry["title"] for entry in project.ancestors] == ["Secret Root", "Open Middle", "Secret Branch"]
+
+
+@pytest.mark.asyncio
+async def test_list_leaves_out_an_uncovered_parent() -> None:
+    result = await _scoped_service(_record_below((3, "Secret Branch"), []), read=("demo",)).list()
+
+    assert [(row.parent_id, row.parent_name) for row in result.results] == [(None, None)]
+
+
+@pytest.mark.asyncio
+async def test_admin_context_leaves_out_an_uncovered_parent_of_its_project() -> None:
+    record = _record_below((3, "Secret Branch"), [])
+    api = _FakeProjectApi([record])
+    settings = dataclasses.replace(make_settings(), read_projects=("demo",))
+    service = ProjectAdminService(
+        api=api,
+        settings=settings,
+        project_id_to_identifier={6: "demo"},
+        resolver=_resolver(api, settings=settings),
+        base_url=BASE_URL,
+    )
+
+    context = await service.get_admin_context("demo")
+
+    assert (context.project.parent_id, context.project.parent_name) == (None, None)
+
+
+class _CopyFormWithParent(_FakeProjectApi):
+    async def copy_form(self, project_id, payload) -> ProjectCopyFormResult:
+        links = {
+            "parent": {"href": "/api/v3/projects/9", "title": "Secret parent"},
+            "status": {"href": "/api/v3/project_statuses/on_track", "title": "On track"},
+        }
+        return ProjectCopyFormResult(payload={"name": "Copy", "_links": links}, validation_errors={})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("confirm", [False, True])
+async def test_copy_shows_no_title_of_a_link_into_another_project_and_commits_the_form_payload(confirm) -> None:
+    settings = dataclasses.replace(make_settings(), enable_project_write=True)
+    api = _CopyFormWithParent()
+    service = _service(api, settings=settings)
+
+    result = await service.copy(source_project="demo", name="Copy", identifier="copy-project", confirm=confirm)
+
+    assert result.payload["_links"]["parent"] == {"href": "/api/v3/projects/9"}
+    assert result.payload["_links"]["status"]["title"] == "On track"
+    if confirm:
+        assert api.commit_copy_calls[0][1]["_links"]["parent"]["title"] == "Secret parent"
+
+
+@pytest.mark.asyncio
+async def test_admin_context_leaves_out_versions_defined_in_projects_the_read_scope_does_not_cover() -> None:
+    def version(version_id: int, name: str, project_id: int) -> dict:
+        return {
+            "id": version_id,
+            "name": name,
+            "_links": {
+                "self": {"href": f"/api/v3/versions/{version_id}", "title": name},
+                "definingProject": {"href": f"/api/v3/projects/{project_id}"},
+            },
+        }
+
+    api = _FakeProjectApi()
+    api.schema = {
+        "customField3": {
+            "name": "Target",
+            "type": "Version",
+            "writable": True,
+            "_embedded": {"allowedValues": [version(1, "Own", 6), version(2, "Shared in", 9)]},
+        }
+    }
+    settings = dataclasses.replace(make_settings(), read_projects=("demo",))
+    service = ProjectAdminService(
+        api=api,
+        settings=settings,
+        project_id_to_identifier={6: "demo"},
+        resolver=_resolver(api, settings=settings),
+        base_url=BASE_URL,
+    )
+
+    context = await service.get_admin_context("demo")
+
+    (field,) = [f for f in context.fields if f.key == "customField3"]
+    assert [value.title for value in field.allowed_values] == ["Own"]
+
+
+@pytest.mark.asyncio
+async def test_a_cut_ancestor_chain_does_not_stay_flagged_truncated_once_entries_are_left_out() -> None:
+    record = _record_below((3, "Secret Branch"), _BELOW_SECRET)
+    detail = dataclasses.replace(record.to_detail(), ancestors_truncated=True)
+    record = ProjectRecord(summary=detail, to_detail=lambda: detail, payload=record.payload)
+
+    kept_nothing_out = await _scoped_service(record, read=("*",)).get("demo")
+    left_some_out = await _scoped_service(record, read=("demo", "open-middle"), known={2: "open-middle"}).get("demo")
+
+    assert kept_nothing_out.ancestors_truncated is True
+    assert left_some_out.ancestors_truncated is False
+
+
+@pytest.mark.asyncio
+async def test_an_ancestor_without_an_id_stays_under_every_project_scope() -> None:
+    links = {"ancestors": [{"href": "urn:openproject-org:api:v3:undisclosed", "title": "Hidden"}]}
+    payload = _payload(_links=links)
+    detail = normalize_project_detail(payload)
+    record = ProjectRecord(summary=detail, to_detail=lambda: detail, payload=payload)
+
+    project = await _scoped_service(record, read=("*",)).get("demo")
+
+    assert project.ancestors is not None
+    assert len(project.ancestors) == 1

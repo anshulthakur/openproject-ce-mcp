@@ -170,3 +170,34 @@ async def test_second_user_membership_interaction(
     access = await second_client.get_my_project_access(test_project)
     assert access.current_user_id == second_user_id
     assert role_name in access.membership.role_names
+
+
+async def test_a_user_name_with_a_wildcard_character_is_resolved_as_literal_text(
+    client: OpenProjectClient, user_ids: list[int]
+) -> None:
+    """OpenProject puts the search text into LIKE '%text%' unescaped: `_` would match any
+    character, so a user named `Wild_card` also matches `WildXcard` and, with enough such
+    users, pushes the exact match off the first page."""
+    if not os.environ.get("OPENPROJECT_DOCKER_SERVICE"):
+        pytest.skip("creates users: only against the disposable Docker test instance")
+
+    suffix = uuid.uuid4().hex[:6]
+    created_ids = {}
+    for label, lastname in (("exact", f"Wild_{suffix}"), ("lookalike", f"WildX{suffix}")):
+        login = f"integration-test-{label}-{suffix}"
+        created = await client.user.create(
+            login=login,
+            email=f"{login}@example.invalid",
+            firstname="Wildcard",
+            lastname=lastname,
+            password=f"Aa1!{uuid.uuid4().hex}",
+            confirm=True,
+        )
+        assert created.ready, created.validation_errors
+        assert created.user_id is not None
+        user_ids.append(created.user_id)
+        created_ids[label] = created.user_id
+
+    assert await client._resolve_principal_id(f"Wildcard Wild_{suffix}") == str(created_ids["exact"])
+    found = await client.principal.list_principals(search=f"Wild_{suffix}")
+    assert [row.id for row in found.results] == [created_ids["exact"]]
