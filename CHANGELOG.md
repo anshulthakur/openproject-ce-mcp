@@ -138,6 +138,11 @@ development baseline.
 
 ### Fixed
 
+- The SBOM built with the package named an `unknown` component without a
+  version where the project itself belongs, and listed no dependency edges. It
+  is exported from the lock file now, names `openproject-ce-mcp` and its version
+  as the root component, lists every runtime dependency reachable from it, and
+  the build fails if that does not hold.
 - The items of `bulk_create_work_packages` and `bulk_update_work_packages` are
   checked against a schema now, which the tool input schema lists. A value of
   the wrong type used to be converted (`true` for a subject became the text

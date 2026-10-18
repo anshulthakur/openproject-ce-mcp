@@ -5,7 +5,7 @@ cmd="${1:-}"
 shift || true
 
 usage() {
-    echo "Usage: ./dev {bootstrap|lint|shell-lint|test|build|ci}" >&2
+    echo "Usage: ./dev {bootstrap|lint|shell-lint|test|build|sbom|ci}" >&2
     exit 1
 }
 
@@ -57,11 +57,17 @@ test_() {
         tests/unit/test_client_http_stack.py tests/unit/test_app_httpx_transport.py tests/test_retry_transport.py
 }
 
+# The SBOM is exported from the lock file, so the project is its root component and the graph is complete.
+# uv marks the format experimental; tools/check_sbom.py fails the build if a uv release changes what it needs.
+sbom() {
+    uv export --frozen --no-dev --format cyclonedx1.5 --preview-features sbom-export -o sbom.json >/dev/null
+    uv run --frozen python tools/check_sbom.py sbom.json
+}
+
 build() {
     uv build
     uvx twine check dist/*
-    uv export --no-dev --format requirements-txt --no-hashes -o requirements.txt
-    uvx --from cyclonedx-bom cyclonedx-py requirements requirements.txt --of JSON -o sbom.json
+    sbom
 }
 
 case "$cmd" in
@@ -70,6 +76,7 @@ lint) lint ;;
 shell-lint) shell_lint ;;
 test) test_ "$@" ;;
 build) build ;;
+sbom) sbom ;;
 ci)
     lint
     test_
