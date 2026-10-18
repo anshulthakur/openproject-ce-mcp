@@ -75,6 +75,43 @@ async def test_get_project_admin_context_filters_parent_candidates_by_read_allow
     assert identifier not in candidate_identifiers
 
 
+_WILDCARDS = pytest.mark.parametrize("wildcard", ["_", "%"], ids=["underscore", "percent"])
+
+
+async def _create_named_projects(client: OpenProjectClient, project_refs: list[str], names: list[str]) -> None:
+    for name in names:
+        identifier = disposable_project_identifier()
+        created = await client.create_project(name=name, identifier=identifier, confirm=True)
+        assert created.ready, created.validation_errors
+        project_refs.append(identifier)
+
+
+@_WILDCARDS
+async def test_project_search_treats_like_wildcards_as_literal_text(
+    start_scoped_client, project_refs: list[str], wildcard: str
+) -> None:
+    client = await start_scoped_client(read_projects=("*",), write_projects=("*",))
+    suffix = disposable_project_identifier()
+    literal_name = f"[integration-test] a{wildcard}b {suffix}"
+    await _create_named_projects(client, project_refs, [literal_name, f"[integration-test] axb {suffix}"])
+
+    found = await client.project.list(search=f"a{wildcard}b {suffix}")
+
+    assert [project.name for project in found.results] == [literal_name]
+
+
+@_WILDCARDS
+async def test_a_name_that_only_a_wildcard_would_match_is_not_resolved_to_that_project(
+    start_scoped_client, project_refs: list[str], wildcard: str
+) -> None:
+    client = await start_scoped_client(read_projects=("*",), write_projects=("*",))
+    suffix = disposable_project_identifier()
+    await _create_named_projects(client, project_refs, [f"[integration-test] axb {suffix}"])
+
+    with pytest.raises(NotFoundError):
+        await client.project.get(f"[integration-test] a{wildcard}b {suffix}")
+
+
 async def test_get_project_configuration(client: OpenProjectClient, test_project: str) -> None:
     # The project configuration endpoint was added in 17.4; older instances 404.
     try:
