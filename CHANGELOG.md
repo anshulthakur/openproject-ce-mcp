@@ -71,6 +71,14 @@ development baseline.
 - `list_time_entry_activities` named every project that enables an activity,
   also those outside `OPENPROJECT_READ_PROJECTS`. It now names only the
   projects the read allowlist covers.
+- Write previews echoed the title and display id of every link in
+  OpenProject's form, so the subject of a parent work package or the name of a
+  version outside `OPENPROJECT_READ_PROJECTS` could appear in a preview that
+  never touched it. A preview now shows a title only for links to resources
+  every user sees alike (type, status, priority, users, roles, the target
+  project) and the href for any other link. `get_board` likewise shows the
+  title of a filter value only for filters on such resources (status, type,
+  priority, assignee, author, responsible) and the id for all others.
 
 ### Added
 

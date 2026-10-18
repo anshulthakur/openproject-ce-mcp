@@ -51,7 +51,13 @@ _LAYER_DEPENDENCIES: dict[str, set[str]] = {
     "resolvers": {"ports", "policies"},
     "services": {"ports", "policies", "resolvers"},
 }
-_SHARED_KERNEL = {"errors", "pagination", "api_href", "form_result"}  # module names directly under app/, not layer dirs
+_SHARED_KERNEL = {
+    "errors",
+    "pagination",
+    "api_href",
+    "form_result",
+    "link_titles",
+}  # module names directly under app/, not layer dirs
 
 
 def _imports_httpx(path: Path) -> bool:

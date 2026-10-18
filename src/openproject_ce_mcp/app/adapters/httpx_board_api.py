@@ -26,6 +26,7 @@ from __future__ import annotations
 from typing import Any
 
 from ...models import BoardDetail, BoardFilter, BoardSummary
+from ..link_titles import KEPT_FILTER_KEYS, without_titles
 from ..ports.board_api import BoardFormResult, BoardRecord
 from ..transport.protocol import Transport
 from ._text import SUBJECT_LIMIT
@@ -62,11 +63,16 @@ def _normalize_filter_values(values: Any) -> list[str]:
 
 def _normalize_board_filter(payload: dict[str, Any]) -> BoardFilter:
     links = payload.get("_links", {})
+    key = _slug_from_href(links.get("filter", {}).get("href"))
+    values = links.get("values")
+    # A value is named by its link title; only some filters take values every user sees alike.
+    if key not in KEPT_FILTER_KEYS:
+        values = without_titles(values)
     return BoardFilter(
-        key=_slug_from_href(links.get("filter", {}).get("href")),
+        key=key,
         name=_link_title(links.get("filter")),
         operator=_link_title(links.get("operator")) or _slug_from_href(links.get("operator", {}).get("href")),
-        values=_normalize_filter_values(links.get("values")),
+        values=_normalize_filter_values(values),
     )
 
 

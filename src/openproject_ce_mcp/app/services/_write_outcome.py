@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
 
 from ...models import WriteResultState
+from ..link_titles import without_foreign_capable_titles
 
 _DetailT = TypeVar("_DetailT")
 
@@ -54,12 +55,13 @@ async def _finalize_write(
 ) -> _WriteOutcome[Any]:
     """Rejected/preview/committed state machine, shared by every Service that
     needs it (Versions, Projects, Memberships)."""
+    shown = without_foreign_capable_titles(payload)
     if validation_errors:
         return _WriteOutcome(
             ready=False,
             state="invalid" if confirm else "rejected",
             message=rejected_message,
-            payload=payload,
+            payload=shown,
             validation_errors=validation_errors,
             detail=None,
             identity=identity,
@@ -69,7 +71,7 @@ async def _finalize_write(
             ready=True,
             state="preview",
             message=preview_message,
-            payload=payload,
+            payload=shown,
             validation_errors={},
             detail=None,
             identity=identity,
@@ -80,7 +82,7 @@ async def _finalize_write(
         ready=True,
         state="confirmed",
         message=success_message,
-        payload=payload,
+        payload=shown,
         validation_errors={},
         detail=detail,
         identity=committed_identity(detail),
