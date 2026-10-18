@@ -366,6 +366,17 @@ Thanks to our contributors: [@feci](https://github.com/feci) ([#35](https://gith
   LIKE pattern: a project named `a_b` could be confused with `axb`, and the name
   fallback for a project reference could pick the wrong project. The text is
   now searched literally.
+- Tool arguments were converted instead of checked: `true` for an id was read
+  as id 1, `"5"` and `5.0` passed for a count, and `confirm` accepted `"yes"`,
+  `"true"` and `1`, so a delete ran on an answer that is not `true`. Every
+  argument now has to arrive with its own JSON type (a number, a boolean, a
+  string) and a mistyped one is rejected before any request, with the
+  `[validation_error]` category and the argument's name but not its value. A
+  list sent as JSON text still works. Text that looks like JSON (`null`,
+  `[1, 2]`) stays text in a string argument instead of being decoded, and for
+  a list argument the text `null` is rejected instead of read as missing.
+  Lists of numbers are checked element by element, and `NaN` and `Infinity`
+  are no numbers anywhere in an argument.
 
 Thanks to our contributors: [@webadmin-stattreisen](https://github.com/webadmin-stattreisen) ([#45](https://github.com/jtauschl/openproject-ce-mcp/pull/45)).
 

@@ -14,12 +14,14 @@ from typing import Any
 import pytest
 from mcp import types
 from mcp.client import Client
-from mcp.server.mcpserver import Context
+from mcp.server.mcpserver import Context, MCPServer
 from packaging.version import Version
+from pydantic import BaseModel, ValidationError
 
 from openproject_ce_mcp.config import Settings
 from openproject_ce_mcp.server import create_app
 from openproject_ce_mcp.strict_mcpserver import StrictMCPServer, verify_strict_dispatch
+from openproject_ce_mcp.tool_errors import ToolInputError
 
 
 def make_settings(**overrides) -> Settings:
@@ -384,3 +386,273 @@ async def test_verify_strict_dispatch_raises_if_dispatch_not_enforced() -> None:
     mcp = _AlwaysPermissiveMCP("broken")
     with pytest.raises(RuntimeError, match="StrictMCPServer self-test failed"):
         await verify_strict_dispatch(mcp)
+
+
+# Tool arguments keep their own JSON type: lax coercion turned `confirm="yes"` into a confirmed
+# write and `group_id=true` into group 1.
+
+
+class _Item(BaseModel):
+    value: int
+
+
+@pytest.fixture
+def typed_mcp() -> StrictMCPServer:
+    mcp = StrictMCPServer("typed")
+    mcp._test_calls = []  # type: ignore[attr-defined]
+
+    @mcp.tool()
+    async def typed(
+        count: int = 1, ratio: float = 1.0, flag: bool = False, label: str | None = None, ids: list[int] | None = None
+    ) -> str:
+        mcp._test_calls.append((count, ratio, flag, label, ids))  # type: ignore[attr-defined]
+        return "ran"
+
+    @mcp.tool()
+    async def bag(extra: dict[str, Any] | None = None) -> str:
+        mcp._test_calls.append(extra)  # type: ignore[attr-defined]
+        return "ran"
+
+    @mcp.tool()
+    async def modelled(item: _Item | None = None) -> str:
+        mcp._test_calls.append(item)  # type: ignore[attr-defined]
+        return "ran"
+
+    return mcp
+
+
+@pytest.mark.parametrize("extra", [{"a": float("nan")}, {"a": [1, {"b": float("inf")}]}])
+async def test_a_non_finite_number_inside_an_untyped_container_is_rejected(
+    typed_mcp: StrictMCPServer, extra: dict[str, Any]
+) -> None:
+    result = await _dispatch(typed_mcp, "bag", {"extra": extra})
+
+    assert result.is_error is True
+    assert "NaN or Infinity" in _text(result)
+    assert typed_mcp._test_calls == []  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize("extra", ['{"a": NaN}', '{"a": [Infinity]}', "[NaN]"])
+async def test_a_non_finite_number_in_json_text_is_not_decoded_into_a_value(
+    typed_mcp: StrictMCPServer, extra: str
+) -> None:
+    result = await _dispatch(typed_mcp, "bag", {"extra": extra})
+
+    assert result.is_error is True
+    assert typed_mcp._test_calls == []  # type: ignore[attr-defined]
+
+
+async def test_a_json_text_object_is_decoded_for_a_model_argument(typed_mcp: StrictMCPServer) -> None:
+    result = await _dispatch(typed_mcp, "modelled", {"item": '{"value": 3}'})
+
+    assert result.is_error is False, _text(result)
+    assert typed_mcp._test_calls == [_Item(value=3)]  # type: ignore[attr-defined]
+
+
+async def test_a_mistyped_argument_error_carries_the_category_and_not_the_value(typed_mcp: StrictMCPServer) -> None:
+    result = await _dispatch(typed_mcp, "typed", {"flag": "yes", "count": 7})
+
+    text = _text(result)
+    assert result.is_error is True
+    assert text.startswith("[VALIDATION_FAILED] Invalid argument(s) for tool 'typed': flag: ")
+    assert "yes" not in text
+
+
+async def test_finite_numbers_inside_an_untyped_container_reach_the_tool(typed_mcp: StrictMCPServer) -> None:
+    result = await _dispatch(typed_mcp, "bag", {"extra": {"a": 1.5, "b": [1, 2]}})
+
+    assert result.is_error is False, _text(result)
+    assert typed_mcp._test_calls == [{"a": 1.5, "b": [1, 2]}]  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"count": True},
+        {"count": "5"},
+        {"count": 5.0},
+        {"count": None},
+        {"ratio": True},
+        {"ratio": "1.5"},
+        {"ratio": float("nan")},
+        {"ratio": float("inf")},
+        {"flag": "yes"},
+        {"flag": "true"},
+        {"flag": "false"},
+        {"flag": 1},
+        {"flag": 0},
+        {"label": 5},
+        {"ids": [True]},
+        {"ids": ["5"]},
+        {"ids": [5.0]},
+        {"ids": "null"},
+        {"ids": "[true]"},
+    ],
+    ids=lambda arguments: repr(arguments),
+)
+async def test_a_mistyped_argument_is_rejected_before_the_tool_runs(
+    typed_mcp: StrictMCPServer, arguments: dict[str, Any]
+) -> None:
+    result = await _dispatch(typed_mcp, "typed", arguments)
+
+    assert result.is_error is True
+    assert next(iter(arguments)) in _text(result)
+    assert typed_mcp._test_calls == []  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize(
+    "arguments, expected",
+    [
+        ({"count": 5}, (5, 1.0, False, None, None)),
+        ({"ratio": 2}, (1, 2, False, None, None)),
+        ({"ratio": 2.5}, (1, 2.5, False, None, None)),
+        ({"flag": True}, (1, 1.0, True, None, None)),
+        ({"label": "null"}, (1, 1.0, False, "null", None)),
+        ({"label": "5"}, (1, 1.0, False, "5", None)),
+        ({"label": "[1, 2]"}, (1, 1.0, False, "[1, 2]", None)),
+        ({"label": '{"a": 1}'}, (1, 1.0, False, '{"a": 1}', None)),
+        ({"ids": [1, 2]}, (1, 1.0, False, None, [1, 2])),
+        ({"ids": "[1, 2]"}, (1, 1.0, False, None, [1, 2])),
+    ],
+    ids=lambda value: repr(value),
+)
+async def test_a_correctly_typed_argument_reaches_the_tool_unchanged(
+    typed_mcp: StrictMCPServer, arguments: dict[str, Any], expected: tuple[Any, ...]
+) -> None:
+    result = await _dispatch(typed_mcp, "typed", arguments)
+
+    assert result.is_error is False, _text(result)
+    assert typed_mcp._test_calls == [expected]  # type: ignore[attr-defined]
+
+
+async def test_json_text_is_decoded_only_for_a_list_or_object_argument(typed_mcp: StrictMCPServer) -> None:
+    """A client that sends the list `[1, 2]` as text still works; the text `null` for a string
+    argument stays the string "null" and is not turned into a missing value."""
+    result = await _dispatch(typed_mcp, "typed", {"ids": "[1, 2]", "label": "null"})
+
+    assert result.is_error is False, _text(result)
+    assert typed_mcp._test_calls == [(1, 1.0, False, "null", [1, 2])]  # type: ignore[attr-defined]
+
+
+def test_the_strict_metadata_keeps_everything_else_the_sdk_built(typed_mcp: StrictMCPServer) -> None:
+    tool = typed_mcp._tool_manager.get_tool("typed")
+    fresh = StrictMCPServer("plain")
+
+    async def typed_plain(count: int = 1) -> str:
+        return "ran"
+
+    MCPServer.add_tool(fresh, typed_plain, name="typed_plain")
+    reference = fresh._tool_manager.get_tool("typed_plain")
+
+    assert tool.fn_metadata.output_schema is not None
+    assert tool.fn_metadata.output_schema["properties"] == reference.fn_metadata.output_schema["properties"]
+    assert tool.fn_metadata.wrap_output == reference.fn_metadata.wrap_output
+
+
+async def test_verify_strict_dispatch_raises_if_the_typed_rejection_does_not_name_the_argument() -> None:
+    class _VagueRejection(StrictMCPServer):
+        async def call_tool(self, name, arguments, context=None):  # type: ignore[override]
+            if arguments == {"flag": "true"}:
+                raise ToolInputError("[VALIDATION_FAILED] something is wrong")
+            return await super().call_tool(name, arguments, context)
+
+    with pytest.raises(RuntimeError, match='the string "true" was accepted'):
+        await verify_strict_dispatch(_VagueRejection("vague"))
+
+
+async def test_verify_strict_dispatch_raises_if_argument_types_are_not_enforced(monkeypatch) -> None:
+    monkeypatch.setattr(StrictMCPServer, "_make_arguments_strict", staticmethod(lambda tool: None))
+
+    with pytest.raises(RuntimeError, match='the string "true" was accepted'):
+        await verify_strict_dispatch(StrictMCPServer("lax"))
+
+
+_VALID_SAMPLE = {"integer": 1, "number": 1.0, "boolean": True, "string": "x", "array": [], "object": {}}
+
+
+def _schema_types(schema: dict[str, Any]) -> set[str]:
+    types_ = {schema["type"]} if "type" in schema else set()
+    for option in (*schema.get("anyOf", []), *schema.get("oneOf", [])):
+        types_ |= _schema_types(option)
+    return types_ - {"null"}
+
+
+def _valid_value(schema: dict[str, Any]) -> Any:
+    return _VALID_SAMPLE[sorted(_schema_types(schema))[0]]
+
+
+def _wrong_values(types_: set[str]) -> list[Any]:
+    """Values of a JSON type the schema does not admit, or that a lax parser would coerce to one it does."""
+    wrong: list[Any] = []
+    if "integer" in types_:
+        wrong += [True, 5.0] + ([] if "string" in types_ else ["5"])
+    if "number" in types_ and "integer" not in types_:
+        wrong += [True, float("nan")] + ([] if "string" in types_ else ["1.5"])
+    if "boolean" in types_:
+        wrong += [] if "string" in types_ else [1, "yes", "true"]
+    if types_ == {"string"}:
+        wrong += [5, True]
+    return wrong
+
+
+def _catalog_tools() -> list[Any]:
+    # Project-bound write tools are registered only when a write scope exists.
+    settings = make_settings(write_projects=("*",), **dict.fromkeys(_ALL_ENABLE_FLAGS, True))
+    tools = list(create_app(settings)._tool_manager.list_tools())
+    names = {tool.name for tool in tools}
+    assert {"delete_work_package", "bulk_create_work_packages", "create_membership", "delete_group"} <= names
+    return tools
+
+
+# Every group the catalog can enable; the default settings leave the optional groups out.
+_ALL_ENABLE_FLAGS = [
+    field
+    for field in Settings.__dataclass_fields__
+    if field.startswith("enable_") and field not in {"enable_hide_active"}
+]
+
+
+def test_every_tool_of_the_catalog_validates_its_arguments_strictly() -> None:
+    tools = _catalog_tools()
+    assert len(tools) > 180
+
+    not_strict = [
+        tool.name
+        for tool in tools
+        if tool.fn_metadata.arg_model.model_config.get("strict") is not True
+        or tool.fn_metadata.arg_model.model_config.get("allow_inf_nan") is not False
+        or tool.fn_metadata.arg_model.model_config.get("validate_default") is not True
+    ]
+
+    assert not_strict == []
+
+
+def test_every_scalar_argument_of_the_catalog_rejects_a_wrong_type_and_accepts_a_right_one() -> None:
+    checked = 0
+    for tool in _catalog_tools():
+        properties = tool.parameters.get("properties", {})
+        required = {
+            key: _valid_value(schema)
+            for key, schema in properties.items()
+            if key in tool.parameters.get("required", [])
+        }
+        model = tool.fn_metadata.arg_model
+        model.model_validate(required)
+        for key, schema in properties.items():
+            scalar = _schema_types(schema)
+            if scalar and not scalar & {"array", "object"}:
+                # the positive control per argument: a value of its own type passes
+                model.model_validate({**required, key: _valid_value(schema)})
+                cases = [(key, wrong) for wrong in _wrong_values(scalar)]
+            elif scalar == {"array"} and schema.get("items"):
+                item_types = _schema_types(schema["items"])
+                model.model_validate({**required, key: [_valid_value(schema["items"])]})
+                cases = [(key, [wrong]) for wrong in _wrong_values(item_types)]
+            else:
+                continue
+            for name, wrong in cases:
+                with pytest.raises(ValidationError) as error:
+                    model.model_validate({**required, name: wrong})
+                assert any(err["loc"][0] == name for err in error.value.errors()), (tool.name, name, wrong)
+                checked += 1
+    assert checked > 1000
