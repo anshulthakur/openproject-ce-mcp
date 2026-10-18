@@ -323,6 +323,10 @@ async def list_work_package_wiki_links(
     resolves to a wiki page the user can see, and on 17.5/17.6 also when the
     work package has no links. A link to the internal wiki resolves when its
     identifier is the page's numeric id.
+
+    Only the work package is checked against OPENPROJECT_READ_PROJECTS: a link
+    carries no project, so a link to a page in another project is listed. It
+    shows the identifier, provider and author, never the page's title or text.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_work_package_ref(work_package_id)

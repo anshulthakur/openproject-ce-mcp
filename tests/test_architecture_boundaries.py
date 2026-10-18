@@ -2223,3 +2223,53 @@ async def test_every_adapter_reads_through_the_one_learning_transport() -> None:
                 assert adapter._transport is client._transport, type(adapter).__name__
     finally:
         await client.aclose()
+
+
+def _meeting_lookups(source: str) -> list[int]:
+    """Line numbers of `<x>.meeting_api.get(...)`/`<x>._meeting_api.get(...)` and `meeting_api.get(...)`."""
+    lines = []
+    for node in ast.walk(ast.parse(source)):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "get"):
+            continue
+        target = node.func.value
+        name = target.attr if isinstance(target, ast.Attribute) else getattr(target, "id", "")
+        if name in ("meeting_api", "_meeting_api"):
+            lines.append(node.lineno)
+    return lines
+
+
+@pytest.mark.parametrize(
+    "source",
+    ["await self._meeting_api.get(1)", "await meeting_api.get(1)", "x = lambda: self.meeting_api.get(i)"],
+)
+def test_meeting_lookup_detector_finds_every_spelling(source: str) -> None:
+    assert _meeting_lookups(source)
+
+
+def test_meeting_lookup_detector_ignores_other_receivers() -> None:
+    assert _meeting_lookups("self._api.get(1)\nself._meeting_api.list_page()\nmeetings.get(1)") == []
+
+
+def test_services_reach_a_meeting_only_through_the_shared_scope_check() -> None:
+    """A record that belongs to a meeting has the meeting's project, so a service that
+    fetches the meeting by itself can forget to check it. The shared module is the one
+    place that fetches a meeting for a scope decision."""
+    offenders = [
+        f"{path.name}:{line}"
+        for path in sorted((APP / "services").glob("*.py"))
+        if path.name != "_meeting_scope.py"
+        for line in _meeting_lookups(path.read_text())
+    ]
+    assert offenders == []
+
+
+def test_a_service_that_takes_the_meeting_port_uses_the_shared_scope_check() -> None:
+    """The lookup test above cannot see a service that never checks a meeting at all."""
+    offenders = []
+    for path in sorted((APP / "services").glob("*.py")):
+        tree = ast.parse(path.read_text())
+        takes_meeting_api = any(isinstance(node, ast.arg) and node.arg == "meeting_api" for node in ast.walk(tree))
+        uses_shared_check = "_meeting_scope" in path.read_text() or path.name == "_meeting_scope.py"
+        if takes_meeting_api and not uses_shared_check:
+            offenders.append(path.name)
+    assert offenders == []

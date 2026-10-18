@@ -53,6 +53,12 @@ development baseline.
   preview. When both allowlists are `*`, both tools behave as before,
   apart from one more request; a relation without a target link is
   refused.
+- `list_work_package_meeting_agenda_items` returned every agenda item that
+  links the work package, also those of meetings in projects outside
+  `OPENPROJECT_READ_PROJECTS`. It now leaves out items of meetings whose
+  project the read allowlist does not cover, and counts only the items it
+  returns. It reads the project from the meeting the response embeds, so it
+  sends no extra request.
 
 ### Added
 
@@ -67,6 +73,9 @@ development baseline.
 
 ### Changed
 
+- `list_work_package_wiki_links` now says that it checks only the work package
+  against `OPENPROJECT_READ_PROJECTS`, because a wiki page link carries no
+  project.
 - Tool descriptions state each action and its consequences directly, delete
   tools say when a deletion cannot be undone, and the parameters most tools
   share describe themselves in the tool schema; `select` lists every field it

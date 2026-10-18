@@ -31,10 +31,10 @@ from ..api_href import api_href as _api_href
 from ..errors import NotFoundError
 from ..pagination import clamp_limit, paginate_client
 from ..policies import access, hidden_fields
-from ..policies import scope as scope_policy
 from ..ports.meeting_api import MeetingApi
 from ..ports.meeting_section_api import MeetingSectionApi
 from ..version_gate import call_version_gated
+from . import _meeting_scope as meeting_scope
 
 
 class MeetingSectionService:
@@ -57,15 +57,13 @@ class MeetingSectionService:
         return hidden_fields.apply_hidden_fields("meeting_section", summary, settings=self._settings)
 
     async def _ensure_meeting_allowed(self, meeting_id: int, *, write: bool) -> None:
-        meeting = await call_version_gated(lambda: self._meeting_api.get(meeting_id), feature="Meetings", floor="17.4")
-        if write:
-            scope_policy.ensure_project_write_link_allowed(
-                meeting.project_link, settings=self._settings, project_id_to_identifier=self._project_id_to_identifier
-            )
-        else:
-            scope_policy.ensure_project_link_allowed(
-                meeting.project_link, settings=self._settings, project_id_to_identifier=self._project_id_to_identifier
-            )
+        await meeting_scope.ensure_allowed(
+            self._meeting_api,
+            meeting_id,
+            write=write,
+            settings=self._settings,
+            project_id_to_identifier=self._project_id_to_identifier,
+        )
 
     async def list_for_meeting(
         self, meeting_id: int, *, offset: int = 1, limit: int | None = None

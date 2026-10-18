@@ -40,10 +40,11 @@ from ..errors import NotFoundError
 from ..pagination import clamp_limit, paginate_client
 from ..policies import access, hidden_fields
 from ..policies import scope as scope_policy
-from ..ports.meeting_agenda_item_api import MeetingAgendaItemApi
+from ..ports.meeting_agenda_item_api import MeetingAgendaItemApi, MeetingAgendaItemRecord
 from ..ports.meeting_api import MeetingApi
 from ..ports.work_package_ref import WorkPackageIdResolver
 from ..version_gate import call_version_gated
+from . import _meeting_scope as meeting_scope
 
 
 class MeetingAgendaItemService:
@@ -68,15 +69,27 @@ class MeetingAgendaItemService:
         return hidden_fields.apply_hidden_fields("meeting_agenda_item", summary, settings=self._settings)
 
     async def _ensure_meeting_allowed(self, meeting_id: int, *, write: bool) -> None:
-        meeting = await call_version_gated(lambda: self._meeting_api.get(meeting_id), feature="Meetings", floor="17.4")
-        if write:
-            scope_policy.ensure_project_write_link_allowed(
-                meeting.project_link, settings=self._settings, project_id_to_identifier=self._project_id_to_identifier
+        await meeting_scope.ensure_allowed(
+            self._meeting_api,
+            meeting_id,
+            write=write,
+            settings=self._settings,
+            project_id_to_identifier=self._project_id_to_identifier,
+        )
+
+    def _readable_meeting_records(self, records: list[MeetingAgendaItemRecord]) -> list[MeetingAgendaItemRecord]:
+        # An item reached through a work package belongs to a meeting that can sit in another
+        # project than the work package, so the work package check does not cover it. The
+        # response embeds the meeting; an item without its project link is not admitted.
+        return [
+            record
+            for record in records
+            if scope_policy.project_link_allowed(
+                record.meeting_project_link,
+                settings=self._settings,
+                project_id_to_identifier=self._project_id_to_identifier,
             )
-        else:
-            scope_policy.ensure_project_link_allowed(
-                meeting.project_link, settings=self._settings, project_id_to_identifier=self._project_id_to_identifier
-            )
+        ]
 
     async def list_for_meeting(
         self, meeting_id: int, *, offset: int = 1, limit: int | None = None, text_limit: int | None = None
@@ -127,7 +140,8 @@ class MeetingAgendaItemService:
             feature="Work package meeting agenda items",
             floor="17.7",
         )
-        summaries = [self._stamp(record.summary) for record in records]
+        readable = self._readable_meeting_records(records)
+        summaries = [self._stamp(record.summary) for record in readable]
         page, total, next_offset, truncated = paginate_client(offset=offset, limit=effective_limit, results=summaries)
         return MeetingAgendaItemListResult(
             offset=offset,

@@ -311,12 +311,15 @@ def project_link_payload_allowed(
     carries the project reference (`"project"` for Documents/News/Work
     Packages, `"definingProject"` for Versions).
     """
+    return project_link_allowed(
+        payload.get("_links", {}).get(link_key), settings=settings, project_id_to_identifier=project_id_to_identifier
+    )
+
+
+def project_link_allowed(link: Any, *, settings: Settings, project_id_to_identifier: Mapping[int, str]) -> bool:
+    """Bool form of `ensure_project_link_allowed` (same REQUIRED-link contract)."""
     return payload_allowed(
-        lambda: ensure_project_link_allowed(
-            payload.get("_links", {}).get(link_key),
-            settings=settings,
-            project_id_to_identifier=project_id_to_identifier,
-        )
+        lambda: ensure_project_link_allowed(link, settings=settings, project_id_to_identifier=project_id_to_identifier)
     )
 
 

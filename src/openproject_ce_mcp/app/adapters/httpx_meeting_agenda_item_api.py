@@ -81,7 +81,14 @@ class HttpxMeetingAgendaItemApi:
 
     def _record(self, payload: dict[str, Any], *, text_limit: int | None = None) -> MeetingAgendaItemRecord:
         effective_text_limit = text_limit if text_limit is not None else self._text_limit
-        return MeetingAgendaItemRecord(summary=normalize_meeting_agenda_item(payload, text_limit=effective_text_limit))
+        embedded_meeting = payload.get("_embedded", {}).get("meeting")
+        meeting_project_link = (
+            embedded_meeting.get("_links", {}).get("project") if isinstance(embedded_meeting, dict) else None
+        )
+        return MeetingAgendaItemRecord(
+            summary=normalize_meeting_agenda_item(payload, text_limit=effective_text_limit),
+            meeting_project_link=meeting_project_link,
+        )
 
     async def list_for_meeting(
         self, meeting_id: int, *, text_limit: int | None = None

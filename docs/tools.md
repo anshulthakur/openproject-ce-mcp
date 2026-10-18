@@ -313,6 +313,11 @@ has
 > (a real authorization check, not skippable) by listing the work package's
 > links internally first. `create_work_package_wiki_link` is unaffected.
 >
+> `list_work_package_wiki_links` checks only the work package against
+> `OPENPROJECT_READ_PROJECTS`: a link carries no project, so a link to a page in
+> another project is listed. It shows the identifier, provider and author,
+> never the page's title or text.
+>
 > **Note:** `delete_work_package_wiki_link` deletes relation links only
 > (`link_type` `relation`). An inline link comes from a wiki link in the work
 > package's description or from a wiki page that mentions the work package;
@@ -528,7 +533,7 @@ later still). Meeting Outcomes require 17.6+ throughout.
 | `update_meeting` | Validate and then update a meeting; only writes when called again with `confirm=true`; `participant_user_refs` is rejected, change participants in OpenProject (requires OpenProject 17.4+) |
 | `delete_meeting` | Validate and then delete a meeting; only deletes when called again with `confirm=true`; rejects the template meeting of a recurring series (delete the series with `delete_recurring_meeting`) (requires OpenProject 17.4+) |
 | `list_meeting_agenda_items` | List a meeting's agenda items (unpaginated server-side; `offset`/`limit` applied client-side) (requires OpenProject 17.4+ — uses the meeting-nested `GET meetings/{id}/agenda_items` route) |
-| `list_work_package_meeting_agenda_items` | List meeting agenda items linked to a work package (unpaginated server-side; `offset`/`limit` applied client-side) (requires OpenProject 17.7+ — the `GET work_packages/{id}/meeting_agenda_items` route does not exist server-side before 17.7) |
+| `list_work_package_meeting_agenda_items` | List meeting agenda items linked to a work package; under a restricted `OPENPROJECT_READ_PROJECTS`, only items of meetings in projects it covers (unpaginated server-side; `offset`/`limit` applied client-side) (requires OpenProject 17.7+ — the `GET work_packages/{id}/meeting_agenda_items` route does not exist server-side before 17.7) |
 | `get_meeting_agenda_item` | Fetch a single meeting agenda item by id (requires OpenProject 17.6+ — uses the top-level `meeting_agenda_items/{id}` route, which does not exist before 17.6) |
 | `create_meeting_agenda_item` | Validate and then create a meeting agenda item, optionally linked to a work package or a section; only writes when called again with `confirm=true` (requires OpenProject 17.6+, for the same reason as `get_meeting_agenda_item` above) |
 | `update_meeting_agenda_item` | Validate and then update a meeting agenda item; only writes when called again with `confirm=true` (requires OpenProject 17.6+, for the same reason as `get_meeting_agenda_item` above) |

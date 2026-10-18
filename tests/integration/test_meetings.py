@@ -43,6 +43,8 @@ import pytest
 
 from openproject_ce_mcp.client import InvalidInputError, NotFoundError, OpenProjectClient, PermissionDeniedError
 
+from .conftest import disposable_project_identifier
+
 pytestmark = pytest.mark.integration
 
 
@@ -386,6 +388,65 @@ async def test_meeting_agenda_item_links_to_work_package(
     except NotFoundError:
         pytest.skip("work_packages/{id}/meeting_agenda_items endpoint not available (requires OpenProject 17.7+)")
     assert any(i.id == agenda_item_id for i in listed.results)
+
+
+async def test_work_package_agenda_items_follow_the_read_scope_of_their_meeting(
+    client: OpenProjectClient,
+    test_project: str,
+    wp_ids: list[int],
+    project_refs: list[str],
+    start_scoped_client,
+) -> None:
+    """The meeting that holds an agenda item can sit in another project than the
+    work package that item links, so the work package's scope does not decide."""
+    everywhere = await start_scoped_client(read_projects=("*",), write_projects=("*",))
+    other_project = disposable_project_identifier()
+    created = await everywhere.project.create(
+        name=f"[integration-test] {other_project}", identifier=other_project, confirm=True
+    )
+    assert created.ready, created.validation_errors
+    project_refs.append(other_project)
+
+    try:
+        meeting = await everywhere.meeting.create(
+            project=other_project, title=f"[integration-test] {uuid.uuid4().hex[:8]}", confirm=True
+        )
+    except NotFoundError:
+        pytest.skip("Meetings module not installed/enabled, or OpenProject < 17.4, on this instance")
+    assert meeting.ready, meeting.validation_errors
+
+    work_package = await client.work_package.create(
+        project=test_project, type="Task", subject=f"[integration-test] {uuid.uuid4().hex[:8]}", confirm=True
+    )
+    assert work_package.ready, work_package.validation_errors
+    wp_ids.append(work_package.work_package_id)
+
+    try:
+        item = await everywhere.meeting_agenda_item.create(
+            meeting_id=meeting.meeting_id,
+            title="[integration-test] cross-project item",
+            work_package_id=work_package.work_package_id,
+            confirm=True,
+        )
+    except NotFoundError:
+        pytest.skip("meeting_agenda_items endpoint not available (requires OpenProject 17.6+)")
+    assert item.ready, item.validation_errors
+
+    try:
+        seen = await everywhere.meeting_agenda_item.list_for_work_package(work_package.work_package_id)
+    except NotFoundError:
+        pytest.skip("work_packages/{id}/meeting_agenda_items endpoint not available (requires OpenProject 17.7+)")
+    assert [i.id for i in seen.results] == [item.agenda_item_id]
+
+    both = await start_scoped_client(read_projects=(test_project, other_project), write_projects=(test_project,))
+    assert [
+        i.id for i in (await both.meeting_agenda_item.list_for_work_package(work_package.work_package_id)).results
+    ] == [item.agenda_item_id]
+
+    only_work_package_project = await start_scoped_client(read_projects=(test_project,), write_projects=(test_project,))
+    hidden = await only_work_package_project.meeting_agenda_item.list_for_work_package(work_package.work_package_id)
+    assert hidden.results == []
+    assert hidden.total == 0
 
 
 async def test_create_update_delete_meeting_agenda_item_denied_outside_write_allowlist(
