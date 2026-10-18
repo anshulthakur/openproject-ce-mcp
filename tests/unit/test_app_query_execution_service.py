@@ -90,12 +90,19 @@ def _service(
     *,
     api: _FakeQueryExecutionApi,
     settings=None,
+    work_package_api=None,
+    bulk=None,
 ) -> QueryExecutionService:
+    async def nothing_allowed(hrefs, *, context):
+        return dict.fromkeys(hrefs, False)
+
     return QueryExecutionService(
         api=api,
-        work_package_api=_FakeWorkPackageApi(),
+        work_package_api=work_package_api or _FakeWorkPackageApi(),
         settings=settings or make_settings(),
         project_id_to_identifier=PROJECT_ID_TO_IDENTIFIER,
+        work_package_project_allowed_bulk=bulk or nothing_allowed,
+        api_prefix="/api/v3/",
     )
 
 
@@ -226,3 +233,46 @@ async def test_execute_masks_hidden_work_package_fields() -> None:
     result = await service.execute(7)
 
     assert getattr(result.results[0], "_hidden_keys", frozenset()) == {"subject"}
+
+
+class _ParentedWorkPackageApi(_FakeWorkPackageApi):
+    def to_record(self, payload: dict, *, text_limit: int | None) -> WorkPackageRecord:
+        wp_id = payload["id"]
+        summary = dataclasses.replace(_summary(wp_id), parent_id=payload.get("parent"), parent_display_id="OTHER-1")
+        return WorkPackageRecord(summary=summary, to_detail=lambda: None, payload=payload)
+
+
+@pytest.mark.asyncio
+async def test_execute_leaves_out_a_parent_the_read_scope_does_not_cover() -> None:
+    checked: list[list[str]] = []
+
+    async def bulk(hrefs, *, context):
+        checked.append(list(hrefs))
+        return {href: href.endswith("/21") for href in hrefs}
+
+    api = _FakeQueryExecutionApi([[{**_raw_wp(1), "parent": 20}, {**_raw_wp(2), "parent": 21}, _raw_wp(3)]])
+    settings = dataclasses.replace(make_settings(), read_projects=("demo",))
+    service = _service(api=api, settings=settings, work_package_api=_ParentedWorkPackageApi(), bulk=bulk)
+
+    result = await service.execute(7)
+
+    assert {row.id: (row.parent_id, row.parent_display_id) for row in result.results} == {
+        1: (None, None),
+        2: (21, "OTHER-1"),
+        3: (None, "OTHER-1"),
+    }
+    assert checked == [["/api/v3/work_packages/20", "/api/v3/work_packages/21"]]
+
+
+@pytest.mark.asyncio
+async def test_execute_keeps_the_hidden_field_stamp_after_the_parent_is_left_out() -> None:
+    api = _FakeQueryExecutionApi([[{**_raw_wp(1), "parent": 20}]])
+    settings = dataclasses.replace(
+        make_settings(), read_projects=("demo",), hidden_fields={"work_package": ("subject",)}
+    )
+    service = _service(api=api, settings=settings, work_package_api=_ParentedWorkPackageApi())
+
+    result = await service.execute(7)
+
+    assert result.results[0].parent_id is None
+    assert result.results[0]._hidden_keys == frozenset({"subject"})

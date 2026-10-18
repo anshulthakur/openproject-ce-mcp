@@ -290,13 +290,17 @@ def project_link_candidates(link: Any, *, settings: Settings, project_id_to_iden
     return candidates
 
 
-def project_named_by_link_allowed(link: Mapping[str, Any], *, settings: Settings) -> bool:
+def project_named_by_link_allowed(
+    link: Mapping[str, Any], *, settings: Settings, ids_by_identifier: Mapping[str, int]
+) -> bool:
     """Read-scope verdict for a link that names a project by identifier and name rather than by id
-    (the time entry activities' project links do)."""
+    (the time entry activities' project links do). The id comes from the directory, so a scope
+    pattern that is an id matches too."""
     href = link.get("href")
     identifier = unquote(href.rstrip("/").rsplit("/", maxsplit=1)[-1]) if isinstance(href, str) else None
     title = link.get("title")
-    candidates = project_record_candidates(None, identifier, title if isinstance(title, str) else None)
+    project_id = ids_by_identifier.get(identifier) if identifier is not None else None
+    candidates = project_record_candidates(project_id, identifier, title if isinstance(title, str) else None)
     return scope_matches_candidates(settings.read_projects, candidates)
 
 

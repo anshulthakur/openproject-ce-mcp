@@ -9,7 +9,6 @@ asked once per link and not after a leak.
 from __future__ import annotations
 
 import ast
-import re
 from pathlib import Path
 
 import pytest
@@ -60,10 +59,14 @@ CLASSIFIED: dict[str, str] = {
     "to": _CHECKED + " (both relation ends)",
     "column": _INSTANCE_WIDE,
     "context": _CHECKED + " (capability lists are filtered by project)",
-    # loop variables over lists of links; the list is named where it is read
-    "item": _REDUCED + " (time entry activity projects, work package children and ancestors)",
-    "value": _REDUCED + " (board filter values)",
-    "link": _REDUCED + " (time entry activity projects)",
+}
+
+# `_link_title(<loop variable>)`: the list of links is named where it is read ("file:function")
+LOOPS_OVER_LINKS: dict[str, str] = {
+    "httpx_time_entry_api.py:normalize_time_entry_activity_raw": _REDUCED + " (activity projects, in the service)",
+    "httpx_time_entry_api.py:project_link_title_and_id": "one project link of a time entry, checked per record",
+    "httpx_board_api.py:_normalize_query_link_label": _INSTANCE_WIDE + " (the column, group and sort names of a query)",
+    "httpx_work_package_api.py:_link_titles": _REDUCED + " (children and ancestors)",
 }
 
 
@@ -73,9 +76,10 @@ def _camel(name: str) -> str:
 
 
 def _link_name(argument: ast.expr) -> str | None:
-    """The link a `_link_title(...)` argument reads: a string key, or the variable's own name."""
+    """The link a `_link_title(...)` argument reads: a string key, or the name of a `<name>_link`
+    variable. None for any other spelling."""
     if isinstance(argument, ast.Name):
-        return _camel(re.sub(r"_link$", "", argument.id))
+        return _camel(argument.id.removesuffix("_link")) if argument.id.endswith("_link") else None
     node: ast.expr | None = argument
     if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "get":
         first = node.args[0] if node.args else None
@@ -86,34 +90,114 @@ def _link_name(argument: ast.expr) -> str | None:
     return None
 
 
-def _titled_links() -> dict[str, set[str]]:
-    found: dict[str, set[str]] = {}
+def _titled_links() -> tuple[dict[str, set[str]], dict[str, int]]:
+    """(link name -> files, "file:function" -> line) of every `_link_title(...)` call, the second
+    for the calls that pass a loop variable and so cannot be named."""
+    named: dict[str, set[str]] = {}
+    unnamed: dict[str, int] = {}
     for path in sorted(ADAPTERS.glob("*.py")):
-        for node in ast.walk(ast.parse(path.read_text())):
-            if not isinstance(node, ast.Call) or not node.args:
+        for function in ast.walk(ast.parse(path.read_text())):
+            if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
-            func = node.func
-            called = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
-            if called not in ("_link_title", "link_title"):
+            for node in ast.walk(function):
+                if not isinstance(node, ast.Call) or not node.args:
+                    continue
+                func = node.func
+                called = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
+                if called not in ("_link_title", "link_title"):
+                    continue
+                name = _link_name(node.args[0])
+                if name is None:
+                    unnamed.setdefault(f"{path.name}:{function.name}", node.lineno)
+                else:
+                    named.setdefault(name, set()).add(path.name)
+    return named, unnamed
+
+
+# `payload.get("title")`, `["title"]` and the display id reads that are not a `_link_title` call:
+# "file:function" -> why reading it is safe
+_OWN = "the record's own title, not a link"
+_INSTANCE = "names a resource every user of the instance sees alike"
+_REDUCED_BY_SERVICE = "the service leaves it out for a project the read scope does not cover"
+_ON_READABLE_WORK_PACKAGE = "named on a work package the caller may read"
+OTHER_TITLE_READS: dict[str, str] = {
+    "httpx_backlog_bucket_api.py:_defining_workspace_link": "the defining project, checked per record by the policy",
+    "httpx_sprint_api.py:_defining_workspace_link": "the defining project, checked per record by the policy",
+    "httpx_board_api.py:_normalize_filter_values": "reduced to the href unless the filter is on a resource everyone sees alike",
+    "httpx_document_api.py:normalize_document": _OWN,
+    "httpx_emoji_reaction_api.py:normalize_emoji_reaction": _INSTANCE + " (a user)",
+    "httpx_github_gitlab_link_api.py:normalize_github_pull_request_raw": _OWN,
+    "httpx_github_gitlab_link_api.py:normalize_gitlab_issue_raw": _OWN,
+    "httpx_github_gitlab_link_api.py:normalize_gitlab_merge_request_raw": _OWN,
+    "httpx_meeting_agenda_item_api.py:normalize_meeting_agenda_item": _OWN,
+    "httpx_meeting_api.py:normalize_meeting": _OWN,
+    "httpx_meeting_section_api.py:normalize_meeting_section": _OWN,
+    "httpx_membership_api.py:normalize_membership": _INSTANCE + " (a user, group or role)",
+    "httpx_news_api.py:normalize_news": _OWN,
+    "httpx_project_api.py:normalize_project_detail": _REDUCED_BY_SERVICE + " (ancestors)",
+    "httpx_project_api.py:normalize_option_value": "an allowed value; versions of an uncovered project are left out by the work package context and the admin context",
+    "httpx_project_api.py:normalize_project_field_schema": "an allowed value; see normalize_option_value",
+    "httpx_project_storage_api.py:normalize_project_storage_detail": _INSTANCE + " (a storage)",
+    "httpx_query_metadata_api.py:normalize_query_filter": _INSTANCE + " (a filter name)",
+    "httpx_query_metadata_api.py:normalize_query_column": _INSTANCE + " (a column name)",
+    "httpx_query_metadata_api.py:normalize_query_operator": _INSTANCE + " (an operator name)",
+    "httpx_query_metadata_api.py:normalize_query_sort_by": _INSTANCE + " (a sort option)",
+    "httpx_recurring_meeting_api.py:normalize_recurring_meeting": _OWN,
+    "httpx_recurring_meeting_api.py:_record": _OWN,
+    "httpx_user_non_working_time_api.py:normalize_user_non_working_time": _OWN,
+    "httpx_user_working_hours_api.py:normalize_user_working_hours": _OWN,
+    "httpx_wiki_page_api.py:normalize_wiki_page": _OWN,
+    "httpx_work_package_api.py:_link_title_with_meta": _ON_READABLE_WORK_PACKAGE + " (custom field link values)",
+    "httpx_work_package_api.py:normalize_work_package_summary": _REDUCED_BY_SERVICE + " (the parent's display id)",
+    "httpx_work_package_api.py:normalize_work_package_detail": _REDUCED_BY_SERVICE
+    + " (children, ancestors and parent)",
+    "_text.py:link_title": "the helper itself; every call is classified by link name above",
+}
+
+
+def _other_title_reads() -> dict[str, int]:
+    found: dict[str, int] = {}
+    for path in sorted(ADAPTERS.glob("*.py")):
+        for function in ast.walk(ast.parse(path.read_text())):
+            if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
-            name = _link_name(node.args[0])
-            assert name is not None, f"{path.name}:{node.lineno} reads a link title the audit cannot name"
-            found.setdefault(name, set()).add(path.name)
+            for node in ast.walk(function):
+                key = None
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "get":
+                    key = node.args[0] if node.args else None
+                elif isinstance(node, ast.Subscript):
+                    key = node.slice
+                if isinstance(key, ast.Constant) and key.value in ("title", "displayId", "display_id"):
+                    found.setdefault(f"{path.name}:{function.name}", node.lineno)
     return found
 
 
+def test_every_other_read_of_a_title_or_display_id_is_classified() -> None:
+    found = _other_title_reads()
+
+    assert len(found) >= 20, "the scan found too few title reads to be reading the adapters"
+    unclassified = {name: line for name, line in found.items() if name not in OTHER_TITLE_READS}
+    assert unclassified == {}, "classify these functions in OTHER_TITLE_READS with the reason the read is safe"
+
+
+def test_no_other_title_read_classification_outlives_the_read() -> None:
+    assert sorted(set(OTHER_TITLE_READS) - set(_other_title_reads())) == []
+
+
 def test_every_link_whose_title_an_adapter_reads_is_classified() -> None:
-    found = _titled_links()
+    found, unnamed = _titled_links()
 
     assert len(found) > 25, "the scan found too few links to be reading the adapters"
     unclassified = {name: sorted(files) for name, files in found.items() if name not in CLASSIFIED}
     assert unclassified == {}, "classify these links in CLASSIFIED with the reason their title is safe"
+    assert {k: v for k, v in unnamed.items() if k not in LOOPS_OVER_LINKS} == {}, "classify these in LOOPS_OVER_LINKS"
 
 
 def test_no_classification_outlives_the_link_it_describes() -> None:
-    stale = sorted(set(CLASSIFIED) - set(_titled_links()))
+    named, unnamed = _titled_links()
 
-    assert stale == []
+    assert sorted(set(CLASSIFIED) - set(named)) == []
+    assert sorted(set(LOOPS_OVER_LINKS) - set(unnamed)) == []
 
 
 @pytest.mark.parametrize(

@@ -61,6 +61,12 @@ class VersionResolver:
                 project_ref = project_payload.get("identifier") or project_ref
 
             wanted_id = int(version_ref) if is_numeric_ref(version_ref) else None
+            # A version shared into the project can be defined in a project the scope does not cover.
+            hint = (
+                ""
+                if scope_policy.scope_allows_all(self._settings.read_projects)
+                else " Versions defined in a project that OPENPROJECT_READ_PROJECTS does not cover are not offered."
+            )
             records = await fetch_visible_version_records(
                 api=self._api,
                 resolve_project_ref=self._resolve_project_ref,
@@ -73,13 +79,17 @@ class VersionResolver:
             if wanted_id is not None:
                 if any(r.summary.id == wanted_id for r in records):
                     return version_ref
-                raise InvalidInputError(f"OpenProject version '{version_ref}' is not available in project '{project}'.")
+                raise InvalidInputError(
+                    f"OpenProject version '{version_ref}' is not available in project '{project}'.{hint}"
+                )
 
             name_matches: list[VersionRecord] = [
                 r for r in records if r.lookup_name.casefold() == version_ref.casefold()
             ]
             if not name_matches:
-                raise InvalidInputError(f"OpenProject version '{version_ref}' was not found in project '{project}'.")
+                raise InvalidInputError(
+                    f"OpenProject version '{version_ref}' was not found in project '{project}'.{hint}"
+                )
             if len(name_matches) > 1:
                 raise InvalidInputError(
                     f"OpenProject version '{version_ref}' is ambiguous without a more specific filter. Pass a numeric version id."

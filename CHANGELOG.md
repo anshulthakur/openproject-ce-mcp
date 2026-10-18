@@ -64,8 +64,9 @@ development baseline.
   `OPENPROJECT_READ_PROJECTS`: OpenProject lists the versions shared into a
   project (system-wide, by tree or by hierarchy) next to its own. They are
   now left out per version, as in the list without a project, and
-  `get_project_work_package_context` leaves out versions, sprints and backlog
-  buckets of such projects in the allowed values of its fields. A shared
+  `get_project_work_package_context` and `get_project_admin_context` leave out
+  versions, sprints and backlog buckets of such projects in the allowed values
+  of their fields. A shared
   version defined outside the allowlist can therefore no longer be assigned
   by name.
 - `list_time_entry_activities` named every project that enables an activity,
@@ -78,12 +79,15 @@ development baseline.
   every user sees alike (type, status, priority, users, roles, the target
   project) and the href for any other link. `get_board` likewise shows the
   title of a filter value only for filters on such resources (status, type,
-  priority, assignee, author, responsible) and the id for all others.
+  priority, assignee, author, responsible) and the link for all others. The
+  preview of `copy_project` is reduced the same way.
 - `get_project`, `list_projects` and the project results of writes named
   parents and ancestors outside `OPENPROJECT_READ_PROJECTS`, and
-  `get_work_package`, the work package lists and the results of writes showed
-  the id and display id of a parent in such a project. They now leave out a
-  parent or ancestor the read allowlist does not cover.
+  `get_work_package`, the work package lists, `execute_query`, the results of
+  writes and the preview of `delete_work_package` showed the id and display id
+  of a parent in such a project, and the delete preview also its children and
+  ancestors. They now leave out a parent, ancestor or child the read allowlist
+  does not cover.
 - `list_work_packages` and `search_work_packages` could count, group and sum
   work packages of subprojects outside `OPENPROJECT_READ_PROJECTS`, because
   OpenProject adds the subprojects of every project a filter names. Under a

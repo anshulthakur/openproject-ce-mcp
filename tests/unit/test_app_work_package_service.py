@@ -3552,3 +3552,66 @@ async def test_list_rows_keep_their_hidden_field_stamp_after_the_parent_is_left_
 
     assert result.results[0].parent_id is None
     assert result.results[0]._hidden_keys == frozenset({"subject"})
+
+
+@pytest.mark.asyncio
+async def test_delete_preview_leaves_out_hierarchy_and_parent_the_read_scope_does_not_cover() -> None:
+    children = [{"href": "/api/v3/work_packages/10", "title": "Foreign child", "display_id": "OTHER-4"}]
+    ancestors = [{"href": "/api/v3/work_packages/20", "title": "Foreign parent", "display_id": "OTHER-1"}]
+    detail = _detail(6, children=children, ancestors=ancestors, parent_id=20, parent_display_id="OTHER-1")
+    api = _FakeWorkPackageApi()
+    api._records_by_id[6] = _record(6, detail=detail)
+    service = _restricted(api, allowed_hrefs=set())
+
+    result = await service.delete(work_package_id=6)
+
+    assert result.state == "preview"
+    assert result.result is not None
+    assert (result.result.children, result.result.ancestors) == (None, None)
+    assert (result.result.parent_id, result.result.parent_display_id) == (None, None)
+
+
+@pytest.mark.asyncio
+async def test_list_drops_groups_and_sums_when_a_returned_row_had_to_be_left_out() -> None:
+    """OpenProject computed them over the rows it returned, including the one the allowlist dropped."""
+    foreign = _payload(2, project_href="/api/v3/projects/20", project_title="Other")
+    api = _FakeWorkPackageApi(
+        raw_elements=[_payload(1), foreign],
+        raw_groups=[{"value": "New", "count": 2, "sums": {"estimatedTime": "P2D"}}],
+        raw_total_sums={"estimatedTime": "P2D"},
+    )
+    service, _ = _service(
+        api,
+        settings=dataclasses.replace(make_settings(), read_projects=("demo",)),
+        project_id_to_identifier={1: "demo", 20: "other"},
+        readable_projects=_ReadableIds({1}),
+    )
+
+    result = await service.list(project="demo", group_by="status", include_sums=True, limit=10)
+
+    assert [row.id for row in result.results] == [1]
+    assert result.total == 1
+    assert (result.groups, result.total_sums) == (None, None)
+
+
+@pytest.mark.asyncio
+async def test_list_rows_do_not_look_up_a_parent_that_is_a_row_of_the_same_page() -> None:
+    api = _rows_with_parents({1: 2, 2: 20})
+    looked_up: list[str] = []
+
+    async def lookup(href: str, *, context=None) -> bool:
+        looked_up.append(href)
+        return False
+
+    service = _service(
+        api,
+        settings=dataclasses.replace(make_settings(), read_projects=("demo",)),
+        project_id_to_identifier=PROJECT_ID_TO_IDENTIFIER,
+        work_package_project_allowed=lookup,
+        work_package_project_allowed_bulk=_bulk_from_single(lookup),
+    )[0]
+
+    result = await service.list(limit=10)
+
+    assert {row.id: row.parent_id for row in result.results} == {1: 2, 2: None}
+    assert looked_up == ["/api/v3/work_packages/20"]

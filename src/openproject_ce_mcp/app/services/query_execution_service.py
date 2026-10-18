@@ -43,6 +43,8 @@ from ..policies import access, hidden_fields
 from ..policies.work_package_policy import work_package_payload_allowed
 from ..ports.query_execution_api import QueryExecutionApi
 from ..ports.work_package_api import WorkPackageApi
+from ..ports.work_package_ref import WorkPackageProjectAllowedBulkCheck
+from ._work_package_parents import without_uncovered_parents
 
 
 class QueryExecutionService:
@@ -53,11 +55,15 @@ class QueryExecutionService:
         work_package_api: WorkPackageApi,
         settings: Settings,
         project_id_to_identifier: Mapping[int, str],
+        work_package_project_allowed_bulk: WorkPackageProjectAllowedBulkCheck,
+        api_prefix: str,
     ) -> None:
         self._api = api
         self._work_package_api = work_package_api
         self._settings = settings
         self._project_id_to_identifier = project_id_to_identifier
+        self._work_package_project_allowed_bulk = work_package_project_allowed_bulk
+        self._api_prefix = api_prefix
 
     async def execute(self, query_id: int, *, offset: int = 1, limit: int | None = None) -> WorkPackageListResult:
         access.ensure_read_enabled("work_package", settings=self._settings)
@@ -80,17 +86,7 @@ class QueryExecutionService:
             )
 
         def _normalize(raw: dict) -> WorkPackageSummary:
-            record = self._work_package_api.to_record(raw, text_limit=self._settings.text_limit)
-            # version/target_versions are coupled aliases of the same
-            # underlying data -- see WorkPackageService's own
-            # _apply_work_package_hidden_fields for the full rationale, this
-            # call site needs the same treatment, not just apply_hidden_fields.
-            return hidden_fields.apply_hidden_fields_with_aliases(
-                "work_package",
-                record.summary,
-                settings=self._settings,
-                aliases={"version": None, "target_versions": []},
-            )
+            return self._work_package_api.to_record(raw, text_limit=self._settings.text_limit).summary
 
         results, total, next_offset, truncated = await fetch_bounded_and_paginate(
             fetch_page=_fetch_page,
@@ -100,6 +96,23 @@ class QueryExecutionService:
             offset=offset,
             limit=effective,
         )
+        # Hidden-field stamping comes last: dataclasses.replace drops the dynamic `_hidden_keys`.
+        results = [
+            # version/target_versions are coupled aliases of the same underlying data -- see
+            # WorkPackageService's own _apply_work_package_hidden_fields for the full rationale.
+            hidden_fields.apply_hidden_fields_with_aliases(
+                "work_package",
+                summary,
+                settings=self._settings,
+                aliases={"version": None, "target_versions": []},
+            )
+            for summary in await without_uncovered_parents(
+                results,
+                settings=self._settings,
+                api_prefix=self._api_prefix,
+                project_allowed_bulk=self._work_package_project_allowed_bulk,
+            )
+        ]
         return WorkPackageListResult(
             offset=offset,
             limit=effective,

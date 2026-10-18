@@ -617,6 +617,8 @@ class OpenProjectClient:
             work_package_api=self._work_package_api,
             settings=settings,
             project_id_to_identifier=self._project_id_to_identifier,
+            work_package_project_allowed_bulk=self._work_package_resolver.project_links_allowed,
+            api_prefix=self._api_prefix,
         )
 
         self._reminder_api: ReminderApi = HttpxReminderApi(self._transport)

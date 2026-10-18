@@ -921,3 +921,14 @@ async def test_activities_read_from_a_project_form_name_only_covered_projects_to
     service = _service(api=api, settings=dataclasses.replace(make_settings(), read_projects=("demo",)))
 
     assert [a.projects for a in service._activities_from_form(form)] == [["Demo Project"]]
+
+
+@pytest.mark.asyncio
+async def test_list_activities_matches_a_numeric_read_scope_through_the_directory_id() -> None:
+    activity = _activity_with_projects(("demo", "Demo Project"), ("secret-x", "Secret X"))
+    api = _RealActivityNormalizerApi(fetch_activities_result={"_embedded": {"elements": [activity]}})
+    service = _service(api=api, settings=dataclasses.replace(make_settings(), read_projects=("1",)))
+
+    result = await service.list_activities()
+
+    assert result.results[0].projects == ["Demo Project"]

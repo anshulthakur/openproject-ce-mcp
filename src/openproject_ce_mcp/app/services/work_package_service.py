@@ -96,7 +96,7 @@ import functools
 import logging
 import re
 from collections.abc import Awaitable, Mapping
-from typing import Any, TypeVar
+from typing import Any
 
 from ...config import Settings
 from ...models import (
@@ -153,6 +153,7 @@ from ..ports.work_package_ref import (
 )
 from ..ports.work_package_resolution import WorkPackageAllowedContext
 from ..version_gate import call_query_version_gated
+from ._work_package_parents import parent_href, without_parent_unless, without_uncovered_parents
 from ._work_package_write_helpers import (
     resolve_custom_field_key,
     resolve_custom_field_links,
@@ -254,8 +255,6 @@ CLEAR_VERSION = object()
 # unchanged" (None). parent/version keep their own dedicated sentinels above
 # instead of sharing this one, for historical reasons.
 CLEAR = object()
-
-_ParentT = TypeVar("_ParentT", WorkPackageSummary, WorkPackageDetail)
 
 
 def _narrow_cleared(value: Any, *, sentinel: object = None) -> Any:
@@ -645,7 +644,13 @@ class WorkPackageService:
     async def _present(self, raw_items: builtins.list[dict[str, Any]]) -> builtins.list[WorkPackageSummary]:
         # Hidden-field stamping must come last: dataclasses.replace drops the dynamic `_hidden_keys`.
         summaries = [self._api.to_record(item, text_limit=self._settings.text_limit).summary for item in raw_items]
-        return [self._stamp(summary) for summary in await self._without_uncovered_parents(summaries)]
+        covered = await without_uncovered_parents(
+            summaries,
+            settings=self._settings,
+            api_prefix=self._api_prefix,
+            project_allowed_bulk=self._work_package_project_allowed_bulk,
+        )
+        return [self._stamp(summary) for summary in covered]
 
     def _payload_allowed(self, payload: dict[str, Any]) -> bool:
         return _work_package_policy.work_package_payload_allowed(
@@ -751,7 +756,8 @@ class WorkPackageService:
         # longer trustworthy either, so fall back to what this page actually
         # proved rather than leak the existence of a disallowed match via
         # `total`.
-        if len(allowed_items) == len(page.raw_elements):
+        aggregates_hold = len(allowed_items) == len(page.raw_elements)
+        if aggregates_hold:
             next_offset, truncated = paginate_server(offset=offset, limit=limit, total=server_total)
         else:
             server_total = len(results)
@@ -762,10 +768,11 @@ class WorkPackageService:
                 WorkPackageGroupSums(value=g.get("value"), count=g.get("count", 0), sums=g.get("sums"))
                 for g in page.raw_groups
             ]
-            if requested_sums and page.raw_groups is not None
+            if requested_sums and aggregates_hold and page.raw_groups is not None
             else None
         )
-        total_sums = page.raw_total_sums if requested_sums else None
+        # The server computed them over the rows it returned, which include the dropped ones.
+        total_sums = page.raw_total_sums if requested_sums and aggregates_hold else None
         return WorkPackageListResult(
             offset=offset,
             limit=limit,
@@ -1262,40 +1269,6 @@ class WorkPackageService:
             total_is_scope_safe=total_is_scope_safe,
         )
 
-    def _parent_href(self, parent_id: int | None) -> str | None:
-        return None if parent_id is None else _api_href(f"work_packages/{parent_id}", api_prefix=self._api_prefix)
-
-    @staticmethod
-    def _without_parent_unless(
-        item: _ParentT, parent_href: str | None, outcomes: Mapping[str, bool | Exception]
-    ) -> _ParentT:
-        """The item without its parent link when the parent sits in a project the read scope does
-        not cover: the parent's id and display id carry the other project's identifier."""
-        if parent_href is None:
-            return item
-        outcome = outcomes[parent_href]
-        if isinstance(outcome, Exception):
-            raise outcome
-        if outcome:
-            return item
-        return dataclasses.replace(item, parent_id=None, parent_display_id=None)
-
-    async def _without_uncovered_parents(self, items: builtins.list[_ParentT]) -> builtins.list[_ParentT]:
-        if scope_allows_all(self._settings.read_projects):
-            return items
-        hrefs = {item.parent_id: self._parent_href(item.parent_id) for item in items if item.parent_id is not None}
-        if not hrefs:
-            return items
-        outcomes = await self._work_package_project_allowed_bulk(
-            [href for href in hrefs.values() if href], context=WorkPackageAllowedContext()
-        )
-        return [
-            self._without_parent_unless(
-                item, hrefs.get(item.parent_id) if item.parent_id is not None else None, outcomes
-            )
-            for item in items
-        ]
-
     async def _covered_project_ids(self, project_id: int) -> builtins.list[int]:
         """The project ids a work-package project filter names for `project_id`. OpenProject adds
         every descendant of a named project unless told otherwise, readable or not, and counts
@@ -1345,8 +1318,8 @@ class WorkPackageService:
                 return []
             return [href for entry in entries if (href := entry.get("href"))]
 
-        parent_href = self._parent_href(detail.parent_id)
-        all_hrefs = hrefs_of(detail.children) + hrefs_of(detail.ancestors) + ([parent_href] if parent_href else [])
+        parent_link = parent_href(detail.parent_id, api_prefix=self._api_prefix)
+        all_hrefs = hrefs_of(detail.children) + hrefs_of(detail.ancestors) + ([parent_link] if parent_link else [])
         outcomes = await self._work_package_project_allowed_bulk(all_hrefs, context=cache) if all_hrefs else {}
 
         def keep(entries: builtins.list[dict[str, str | None]] | None) -> builtins.list[dict[str, str | None]] | None:
@@ -1371,7 +1344,7 @@ class WorkPackageService:
         children_count = len(children) if children else 0
         ancestors_count = len(ancestors) if ancestors else 0
         return dataclasses.replace(
-            self._without_parent_unless(detail, parent_href, outcomes),
+            without_parent_unless(detail, parent_link, outcomes),
             children=children,
             ancestors=ancestors,
             children_truncated=detail.children_truncated and children_count == original_children_count,
@@ -2331,7 +2304,7 @@ class WorkPackageService:
             settings=self._settings,
             project_id_to_identifier=self._project_id_to_identifier,
         )
-        detail = self._stamp_detail(record.to_detail())
+        detail = self._stamp_detail(await self._filter_hierarchy_allowlist(record.to_detail()))
         payload = {"id": detail.id, "subject": detail.subject, "lockVersion": detail.lock_version}
 
         if not confirm:

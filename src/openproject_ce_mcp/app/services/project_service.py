@@ -17,7 +17,7 @@ identity part only.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from typing import Any
 from urllib.parse import unquote
@@ -29,6 +29,7 @@ from ...models import (
     ProjectConfiguration,
     ProjectCopyResult,
     ProjectDetail,
+    ProjectFieldSchema,
     ProjectListResult,
     ProjectPhase,
     ProjectPhaseDefinition,
@@ -39,6 +40,7 @@ from ...models import (
 )
 from ..api_href import api_href as _api_href
 from ..errors import InvalidInputError
+from ..link_titles import without_foreign_capable_titles
 from ..pagination import clamp_limit
 from ..policies import access, hidden_fields
 from ..policies import project_policy as project_policy_module
@@ -98,6 +100,8 @@ def _without_uncovered_parents(
     # A readable project can sit below parents the read allowlist does not cover; their names
     # and display ids must not reach the result through the parent link or the ancestor chain.
     def covered(project_id: int | None, name: str | None) -> bool:
+        if scope_policy.scope_allows_all(settings.read_projects):
+            return True
         return project_id is not None and scope_policy.project_known_by_id_allowed(
             project_id, name, settings=settings, project_id_to_identifier=project_id_to_identifier
         )
@@ -110,7 +114,13 @@ def _without_uncovered_parents(
             for entry in value.ancestors
             if covered(scope_policy.id_from_href(entry.get("href")), entry.get("title"))
         ]
-        value = replace(value, ancestors=kept or None)
+        # The cap flag stays only when nothing was left out, as for the work package hierarchy: a
+        # flag kept after dropping entries would show that more ancestors exist.
+        value = replace(
+            value,
+            ancestors=kept or None,
+            ancestors_truncated=value.ancestors_truncated and len(kept) == len(value.ancestors),
+        )
     return value
 
 
@@ -378,6 +388,7 @@ class ProjectService:
             project_id=None,
         )
         form = await self._api.copy_form(project.id, payload)
+        shown = without_foreign_capable_titles(form.payload)
         ready = not form.validation_errors
         if not confirm:
             return ProjectCopyResult(
@@ -391,7 +402,7 @@ class ProjectService:
                 ),
                 source_project_id=project.id,
                 source_project=project.name,
-                payload=form.payload,
+                payload=shown,
                 validation_errors=form.validation_errors,
                 job_status_id=None,
             )
@@ -403,7 +414,7 @@ class ProjectService:
                 message="OpenProject rejected the project copy payload. Fix the validation errors and try again.",
                 source_project_id=project.id,
                 source_project=project.name,
-                payload=form.payload,
+                payload=shown,
                 validation_errors=form.validation_errors,
                 job_status_id=None,
             )
@@ -416,7 +427,7 @@ class ProjectService:
             message="Project copy job started successfully.",
             source_project_id=project.id,
             source_project=project.name,
-            payload=form.payload,
+            payload=shown,
             validation_errors={},
             # Job status ids are UUIDs (OpenProject's job_status API route
             # declares job_id as `type: String, desc: "Job UUID"` on every
@@ -580,6 +591,26 @@ class ProjectAdminService:
         self._resolver = resolver
         self._base_url = base_url
 
+    def _without_uncovered_options(
+        self, fields: Sequence[ProjectFieldSchema], schema: Mapping[str, Any]
+    ) -> list[ProjectFieldSchema]:
+        # A version-format custom field offers the versions shared into the project, some defined in
+        # a project the read scope does not cover.
+        uncovered: set[str] = set()
+        for entry in schema.values():
+            allowed = entry.get("_embedded", {}).get("allowedValues") if isinstance(entry, dict) else None
+            for item in allowed if isinstance(allowed, list) else []:
+                if isinstance(item, dict) and not scope_policy.defining_project_allowed(
+                    item, settings=self._settings, project_id_to_identifier=self._project_id_to_identifier
+                ):
+                    href = item.get("_links", {}).get("self", {}).get("href")
+                    if href:
+                        uncovered.add(href)
+        return [
+            replace(field, allowed_values=[value for value in field.allowed_values if value.href not in uncovered])
+            for field in fields
+        ]
+
     async def get_admin_context(self, project_ref: str) -> ProjectAdminContext:
         access.ensure_read_enabled("project", settings=self._settings)
         record = await self._resolver.resolve_record(project_ref, write=False)
@@ -616,7 +647,7 @@ class ProjectAdminService:
         ]
         # Non-writable/internal schema entries (id, timestamps, lockVersion, ...)
         # aren't useful to an agent discovering what it can set here.
-        writable_fields = [field for field in fields if field.writable]
+        writable_fields = [field for field in self._without_uncovered_options(fields, schema) if field.writable]
         return hidden_fields.apply_hidden_fields(
             "project_admin_context",
             ProjectAdminContext(
