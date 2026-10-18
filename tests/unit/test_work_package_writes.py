@@ -51,7 +51,14 @@ async def test_create_work_package_returns_confirmation_preview_before_writing()
         if request.url.path == "/api/v3/projects/1/versions":
             return httpx.Response(
                 200,
-                json={"total": 1, "_embedded": {"elements": [{"id": 11, "name": "Q2", "_links": {}}]}},
+                json={
+                    "total": 1,
+                    "_embedded": {
+                        "elements": [
+                            {"id": 11, "name": "Q2", "_links": {"definingProject": {"href": "/api/v3/projects/1"}}}
+                        ]
+                    },
+                },
                 request=request,
             )
         if request.url.path == "/api/v3/projects/1/work_packages/form":
@@ -1792,7 +1799,14 @@ async def test_create_work_package_resolves_project_only_once_for_type_and_versi
         if request.url.path == "/api/v3/projects/1/versions":
             return httpx.Response(
                 200,
-                json={"total": 1, "_embedded": {"elements": [{"id": 3, "name": "v1.0"}]}},
+                json={
+                    "total": 1,
+                    "_embedded": {
+                        "elements": [
+                            {"id": 3, "name": "v1.0", "_links": {"definingProject": {"href": "/api/v3/projects/1"}}}
+                        ]
+                    },
+                },
                 request=request,
             )
         if request.url.path == "/api/v3/projects/1/work_packages/form":

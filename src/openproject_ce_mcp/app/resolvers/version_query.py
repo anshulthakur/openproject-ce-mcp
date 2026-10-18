@@ -83,10 +83,10 @@ async def fetch_visible_version_records(
 
     if project:
         # GET /api/v3/versions has no project filter; use the project-scoped endpoint.
-        # Access to the project is verified by resolve_project_ref, so per-item
-        # allowlist checks are redundant and would fail because the definingProject
-        # link only carries the title (display name), not the identifier. This
-        # endpoint's collection is genuinely unpaginated server-side (verified
+        # Its collection is the project's own versions plus every version shared into it
+        # (system-wide, by tree, by hierarchy), so a version can be defined in a project the
+        # allowlist does not cover and is filtered per record below, like the global branch.
+        # The collection is genuinely unpaginated server-side (verified
         # against OpenProject's own API implementation -- VersionCollectionRepresenter
         # subclasses UnpaginatedCollection, via VersionsByProjectAPI) --
         # offset/pageSize params are silently ignored and every element is
@@ -99,21 +99,21 @@ async def fetch_visible_version_records(
         # this endpoint either).
         project_payload = await resolve_project_ref(project, write=False, context=context)
         project_id = int(project_payload["id"])
-        return await _fetch_all_pages(
+        records = await _fetch_all_pages(
             lambda offset: api.list_for_project(
                 project_id, offset=offset, page_size=settings.max_page_size, text_limit=text_limit
             ),
             page_size=settings.max_page_size,
         )
-
-    # The global endpoint has no project filter, so results are filtered
-    # client-side against OPENPROJECT_READ_PROJECTS -- a full walk of every
-    # server page is required, or any version beyond a single bounded
-    # fetch's cap would be silently hidden.
-    records = await _fetch_all_pages(
-        lambda offset: api.list_global(offset=offset, page_size=settings.max_page_size, text_limit=text_limit),
-        page_size=settings.max_page_size,
-    )
+    else:
+        # The global endpoint has no project filter, so results are filtered
+        # client-side against OPENPROJECT_READ_PROJECTS -- a full walk of every
+        # server page is required, or any version beyond a single bounded
+        # fetch's cap would be silently hidden.
+        records = await _fetch_all_pages(
+            lambda offset: api.list_global(offset=offset, page_size=settings.max_page_size, text_limit=text_limit),
+            page_size=settings.max_page_size,
+        )
     return [
         r
         for r in records

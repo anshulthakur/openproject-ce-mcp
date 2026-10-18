@@ -9,6 +9,8 @@ import pytest
 
 from openproject_ce_mcp.client import OpenProjectClient, PermissionDeniedError
 
+from .conftest import disposable_project_identifier
+
 pytestmark = pytest.mark.integration
 
 
@@ -135,3 +137,27 @@ async def test_update_and_delete_version_denied_outside_write_allowlist(
 
     with pytest.raises(PermissionDeniedError):
         await denied_client.version.delete(version_id=version_id, confirm=True)
+
+
+async def test_project_version_list_leaves_out_shared_versions_of_projects_outside_the_read_scope(
+    test_project: str, project_refs: list[str], start_scoped_client
+) -> None:
+    """A version shared system-wide is listed by its project's own versions route but is
+    defined in a project the allowlist does not cover."""
+    everywhere = await start_scoped_client(read_projects=("*",), write_projects=("*",))
+    other_project = disposable_project_identifier()
+    created = await everywhere.project.create(
+        name=f"[integration-test] {other_project}", identifier=other_project, confirm=True
+    )
+    assert created.ready, created.validation_errors
+    project_refs.append(other_project)
+
+    name = f"[integration-test] shared {uuid.uuid4().hex[:8]}"
+    version = await everywhere.version.create(project=other_project, name=name, sharing="system", confirm=True)
+    assert version.ready, version.validation_errors
+
+    listed_everywhere = await everywhere.version.list(project=test_project, search=name)
+    assert [v.name for v in listed_everywhere.results] == [name]
+
+    scoped = await start_scoped_client(read_projects=(test_project,), write_projects=(test_project,))
+    assert (await scoped.version.list(project=test_project, search=name)).results == []

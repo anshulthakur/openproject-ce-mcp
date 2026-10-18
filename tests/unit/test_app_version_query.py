@@ -69,7 +69,9 @@ async def test_project_scoped_without_search_walks_and_slices_client_side() -> N
     request here, since the fake already returns everything) and slice
     client-side, same as the project-scoped-with-search branch."""
     records = [
-        VersionRecord(summary=_summary(i, f"v{i}.0"), defining_project_link=None, lookup_name=f"v{i}.0")
+        VersionRecord(
+            summary=_summary(i, f"v{i}.0"), defining_project_link={"href": "/api/v3/projects/6"}, lookup_name=f"v{i}.0"
+        )
         for i in range(1, 26)
     ]
     api = _FakeVersionApi(records, server_total=25)
@@ -100,8 +102,16 @@ async def test_project_scoped_without_search_walks_and_slices_client_side() -> N
 @pytest.mark.asyncio
 async def test_project_scoped_with_search_overfetches_and_filters_in_memory() -> None:
     records = [
-        VersionRecord(summary=_summary(1, "Sprint 1"), defining_project_link=None, lookup_name="Sprint 1"),
-        VersionRecord(summary=_summary(2, "Release 2"), defining_project_link=None, lookup_name="Release 2"),
+        VersionRecord(
+            summary=_summary(1, "Sprint 1"),
+            defining_project_link={"href": "/api/v3/projects/6"},
+            lookup_name="Sprint 1",
+        ),
+        VersionRecord(
+            summary=_summary(2, "Release 2"),
+            defining_project_link={"href": "/api/v3/projects/6"},
+            lookup_name="Release 2",
+        ),
     ]
     api = _FakeVersionApi(records)
     settings = make_settings()
@@ -155,6 +165,36 @@ async def test_global_branch_filters_by_allowlist_before_search_and_pagination()
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("search", [None, "v-"])
+async def test_project_scoped_branch_drops_shared_versions_defined_outside_the_read_scope(search) -> None:
+    """`projects/{id}/versions` also returns versions shared into the project from other
+    projects, so the allowlist decides per version, not once for the requested project."""
+    own = VersionRecord(
+        summary=_summary(1, "v-own"), defining_project_link={"href": "/api/v3/projects/6"}, lookup_name="v-own"
+    )
+    shared = VersionRecord(
+        summary=_summary(2, "v-shared"), defining_project_link={"href": "/api/v3/projects/9"}, lookup_name="v-shared"
+    )
+    unscoped = VersionRecord(summary=_summary(3, "v-orphan"), defining_project_link=None, lookup_name="v-orphan")
+    settings = dataclasses.replace(make_settings(), read_projects=("demo",))
+
+    results, total, _next, _truncated = await fetch_version_page(
+        api=_FakeVersionApi([own, shared, unscoped]),
+        resolve_project_ref=_resolve_project_ref,
+        settings=settings,
+        project_id_to_identifier={6: "demo"},
+        project="demo",
+        search=search,
+        offset=1,
+        limit=10,
+        context=None,
+    )
+
+    assert [r.id for r in results] == [1]
+    assert total == 1
+
+
+@pytest.mark.asyncio
 async def test_project_scoped_branch_passes_write_false_to_resolve_project_ref() -> None:
     """fetch_version_page's project-scoped branch (no search) resolves the
     project via resolve_project_ref -- must ask for a READ-checked
@@ -173,7 +213,11 @@ async def test_project_scoped_branch_passes_write_false_to_resolve_project_ref()
         calls.append(write)
         return await _resolve_project_ref(project_ref, write=write, context=context)
 
-    records = [VersionRecord(summary=_summary(1, "v1.0"), defining_project_link=None, lookup_name="v1.0")]
+    records = [
+        VersionRecord(
+            summary=_summary(1, "v1.0"), defining_project_link={"href": "/api/v3/projects/6"}, lookup_name="v1.0"
+        )
+    ]
     api = _FakeVersionApi(records, server_total=1)
 
     await fetch_version_page(
@@ -205,7 +249,13 @@ async def test_project_scoped_with_search_branch_passes_write_false_to_resolve_p
         calls.append(write)
         return await _resolve_project_ref(project_ref, write=write, context=context)
 
-    records = [VersionRecord(summary=_summary(1, "Release 1"), defining_project_link=None, lookup_name="Release 1")]
+    records = [
+        VersionRecord(
+            summary=_summary(1, "Release 1"),
+            defining_project_link={"href": "/api/v3/projects/6"},
+            lookup_name="Release 1",
+        )
+    ]
     api = _FakeVersionApi(records)
 
     await fetch_version_page(

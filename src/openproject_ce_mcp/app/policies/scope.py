@@ -316,6 +316,24 @@ def project_link_payload_allowed(
     )
 
 
+_DEFINING_PROJECT_LINK_KEYS = ("definingProject", "definingWorkspace")
+
+
+def defining_project_allowed(
+    item: Mapping[str, Any], *, settings: Settings, project_id_to_identifier: Mapping[int, str]
+) -> bool:
+    """False for an embedded resource (version, sprint, backlog bucket) that names its defining
+    project when the read allowlist does not cover that project. A resource that names none is
+    not project-bound and passes."""
+    links = item.get("_links", {})
+    for key in _DEFINING_PROJECT_LINK_KEYS:
+        if key in links:
+            return project_link_allowed(
+                links[key], settings=settings, project_id_to_identifier=project_id_to_identifier
+            )
+    return True
+
+
 def project_link_allowed(link: Any, *, settings: Settings, project_id_to_identifier: Mapping[int, str]) -> bool:
     """Bool form of `ensure_project_link_allowed` (same REQUIRED-link contract)."""
     return payload_allowed(

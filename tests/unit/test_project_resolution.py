@@ -666,7 +666,9 @@ async def test_resolve_version_id_project_scoped_shared_version_found_on_second_
     def page_2() -> dict:
         return {
             "_embedded": {
-                "elements": [{"id": 999, "name": "Shared Release", "_links": {}}],
+                "elements": [
+                    {"id": 999, "name": "Shared Release", "_links": {"definingProject": {"href": "/api/v3/projects/1"}}}
+                ],
             }
         }
 
@@ -709,7 +711,14 @@ async def test_resolve_version_id_project_scoped_unrelated_version_denied() -> N
         if request.url.path == "/api/v3/projects/1/versions" and request.method == "GET":
             return httpx.Response(
                 200,
-                json={"total": 1, "_embedded": {"elements": [{"id": 1, "name": "v1", "_links": {}}]}},
+                json={
+                    "total": 1,
+                    "_embedded": {
+                        "elements": [
+                            {"id": 1, "name": "v1", "_links": {"definingProject": {"href": "/api/v3/projects/1"}}}
+                        ]
+                    },
+                },
                 request=request,
             )
         raise AssertionError(f"Unexpected request: {request.method} {request.url}")

@@ -27,7 +27,7 @@ def _record(
 ) -> VersionRecord:
     return VersionRecord(
         summary=_summary(version_id, name),
-        defining_project_link=defining_project_link,
+        defining_project_link=defining_project_link or {"href": "/api/v3/projects/6"},
         lookup_name=name if lookup_name is None else lookup_name,
     )
 

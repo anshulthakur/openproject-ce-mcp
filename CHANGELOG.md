@@ -59,6 +59,15 @@ development baseline.
   project the read allowlist does not cover, and counts only the items it
   returns. It reads the project from the meeting the response embeds, so it
   sends no extra request.
+- `list_versions` with a `project`, and every version lookup by name inside a
+  project, returned versions defined in projects outside
+  `OPENPROJECT_READ_PROJECTS`: OpenProject lists the versions shared into a
+  project (system-wide, by tree or by hierarchy) next to its own. They are
+  now left out per version, as in the list without a project, and
+  `get_project_work_package_context` leaves out versions, sprints and backlog
+  buckets of such projects in the allowed values of its fields. A shared
+  version defined outside the allowlist can therefore no longer be assigned
+  by name.
 
 ### Added
 
