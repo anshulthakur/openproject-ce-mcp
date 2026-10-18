@@ -3,15 +3,16 @@
 # src/openproject_ce_mcp/setup_cli.py so it ships with the package as
 # `openproject-ce-mcp configure` and its console-command alias
 # `openproject-ce-mcp-setup`. This file stays so a manual source checkout (see docs/installation.md's
-# "Development / from source" section: `python3 configure_mcp.py [args]`) works
-# without the package being installed.
+# "Development / from source" section) runs the setup with the checkout's own interpreter,
+# `.venv/bin/python configure_mcp.py [args]` or `uv run python configure_mcp.py [args]`: the
+# package's dependencies must be installed there, the package itself need not be.
 #
 # It puts src/ on sys.path and forwards argv to main(). Any other attribute
 # (`from configure_mcp import <name>`) is delegated lazily to setup_cli via
 # __getattr__, so we don't bulk-copy setup_cli's imported stdlib modules into this
 # namespace, and a renamed/removed symbol raises a clear AttributeError here rather
 # than silently vanishing.
-"""Run the interactive setup from a source checkout: python3 configure_mcp.py"""
+"""Run the interactive setup from a source checkout: .venv/bin/python configure_mcp.py"""
 
 import sys
 from pathlib import Path

@@ -2,7 +2,7 @@
 # This is the interactive MCP server setup, not a packaging file.
 # Run via `openproject-ce-mcp configure` or its console-command alias
 # `openproject-ce-mcp-setup`.
-# From a manual source checkout it also runs via `python3 configure_mcp.py`
+# From a manual source checkout it also runs via `.venv/bin/python configure_mcp.py`
 # (a thin shim that imports this module) -- see docs/installation.md's
 # "Development / from source" section.
 """Interactive setup: registers the openproject MCP server with clients and writes .mcp.json.

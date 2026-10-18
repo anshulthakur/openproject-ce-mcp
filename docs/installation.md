@@ -193,8 +193,9 @@ up a development environment — see
 [Development](https://github.com/jtauschl/openproject-ce-mcp/blob/main/CONTRIBUTING.md#set-up)
 for the exact commands (`git clone` + `uv sync --dev`, or a plain `venv` + `pip
 install -e ".[dev]"` alternative). Run the setup wizard from that checkout with
-`python3 configure_mcp.py` (or `uv run python configure_mcp.py` if you used
-`uv`) instead of the installed `openproject-ce-mcp configure`.
+`.venv/bin/python configure_mcp.py` (or `uv run python configure_mcp.py` if you
+used `uv`) instead of the installed `openproject-ce-mcp configure`. Use the
+checkout's own interpreter: it has the dependencies the setup imports.
 
 ## Uninstall
 

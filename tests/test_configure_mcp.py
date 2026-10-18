@@ -1083,7 +1083,7 @@ def test_merge_prefill_empty_project_token_does_not_blank_global_token(tmp_path:
 
 def test_shim_reexports_public_names() -> None:
     # The root configure_mcp.py shim must re-export main and helpers so a
-    # manual source checkout (`python3 configure_mcp.py`) and any importer
+    # manual source checkout (`.venv/bin/python configure_mcp.py`) and any importer
     # keep working.
     import importlib.util
 
