@@ -80,10 +80,10 @@ async def fetch_bounded_and_paginate(
     *,
     fetch_page: Callable[[int, int], Awaitable[dict[str, Any]]],
     normalize: Callable[[dict[str, Any]], _T],
-    item_allowed: Callable[[dict[str, Any]], Awaitable[bool]] | None,
     server_page_size: int,
     offset: int,
     limit: int,
+    item_allowed: Callable[[dict[str, Any]], Awaitable[bool]] | None = None,
     item_allowed_bulk: Callable[[list[dict[str, Any]]], Awaitable[list[bool | Exception]]] | None = None,
 ) -> tuple[list[_T], int, int | None, bool]:
     """Scan server pages, normalize + filter the raw elements, and stop as

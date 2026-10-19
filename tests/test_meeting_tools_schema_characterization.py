@@ -1749,6 +1749,7 @@ def test_get_recurring_meeting_schema() -> None:
     assert tool.parameters == {
         "properties": {
             "recurring_meeting_id": {
+                "description": "Recurring meeting series id, from list_recurring_meetings.",
                 "title": "Recurring Meeting Id",
                 "type": "integer",
             },
@@ -1869,7 +1870,11 @@ def test_update_recurring_meeting_schema() -> None:
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "recurring_meeting_id": {"title": "Recurring Meeting Id", "type": "integer"},
+            "recurring_meeting_id": {
+                "description": "Recurring meeting series id, from list_recurring_meetings.",
+                "title": "Recurring Meeting Id",
+                "type": "integer",
+            },
             "title": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Title"},
             "frequency": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Frequency"},
             "start_time": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Start Time"},
@@ -1912,7 +1917,11 @@ def test_delete_recurring_meeting_schema() -> None:
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "recurring_meeting_id": {"title": "Recurring Meeting Id", "type": "integer"},
+            "recurring_meeting_id": {
+                "description": "Recurring meeting series id, from list_recurring_meetings.",
+                "title": "Recurring Meeting Id",
+                "type": "integer",
+            },
             "confirm": {
                 "default": False,
                 "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
@@ -1938,7 +1947,11 @@ def test_list_recurring_meeting_occurrences_schema() -> None:
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "recurring_meeting_id": {"title": "Recurring Meeting Id", "type": "integer"},
+            "recurring_meeting_id": {
+                "description": "Recurring meeting series id, from list_recurring_meetings.",
+                "title": "Recurring Meeting Id",
+                "type": "integer",
+            },
             "filter": {"default": "upcoming", "title": "Filter", "type": "string"},
             "limit": {
                 "anyOf": [{"type": "integer"}, {"type": "null"}],
@@ -1965,7 +1978,11 @@ def test_init_recurring_meeting_occurrence_schema() -> None:
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "recurring_meeting_id": {"title": "Recurring Meeting Id", "type": "integer"},
+            "recurring_meeting_id": {
+                "description": "Recurring meeting series id, from list_recurring_meetings.",
+                "title": "Recurring Meeting Id",
+                "type": "integer",
+            },
             "start_time": {"title": "Start Time", "type": "string"},
             "confirm": {
                 "default": False,
@@ -1992,7 +2009,11 @@ def test_cancel_recurring_meeting_occurrence_schema() -> None:
     assert tool.output_schema is None
     assert tool.parameters == {
         "properties": {
-            "recurring_meeting_id": {"title": "Recurring Meeting Id", "type": "integer"},
+            "recurring_meeting_id": {
+                "description": "Recurring meeting series id, from list_recurring_meetings.",
+                "title": "Recurring Meeting Id",
+                "type": "integer",
+            },
             "start_time": {"title": "Start Time", "type": "string"},
             "confirm": {
                 "default": False,

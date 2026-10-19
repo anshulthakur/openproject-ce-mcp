@@ -126,7 +126,6 @@ class ReminderService:
                 lambda: self._api.fetch_page(offset=o, page_size=ps), feature="Reminders", floor="16.1"
             ),
             normalize=lambda raw: self._stamp(self._api.to_record(raw).summary()),
-            item_allowed=None,
             item_allowed_bulk=item_allowed_bulk if allowlisted else None,
             server_page_size=self._settings.max_page_size,
             offset=offset,

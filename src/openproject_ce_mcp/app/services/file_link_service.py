@@ -90,7 +90,6 @@ class FileLinkService:
         # pattern already applied to Documents/Views/News.
         raw_items, truncated = await scan_records_and_paginate(
             lambda o, ps: self._api.list_for_work_package(resolved_id, offset=o, page_size=ps),
-            item_allowed=lambda _record: True,
             server_page_size=self._settings.max_page_size,
             offset=offset,
             limit=effective_limit,

@@ -1175,7 +1175,7 @@ def test_check_binary_reports_version(capsys):
     from openproject_ce_mcp import __version__
     from openproject_ce_mcp.doctor.run import _check_binary
 
-    assert _check_binary() is True
+    assert _check_binary() is None
     out = capsys.readouterr().out
     assert __version__ in out and "[OK] Binary:" in out
 

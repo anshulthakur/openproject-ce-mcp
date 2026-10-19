@@ -242,7 +242,6 @@ class RelationService:
             normalize=lambda raw: self._stamp(
                 self._api.to_record(raw).summary(), queried_work_package_id=queried_work_package_id
             ),
-            item_allowed=None,
             item_allowed_bulk=item_allowed_bulk,
             server_page_size=self._settings.max_page_size,
             offset=offset,

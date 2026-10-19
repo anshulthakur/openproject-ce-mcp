@@ -4,9 +4,8 @@ The description travels in the tool's input schema, so an agent reads it
 next to the parameter instead of in a docstring paragraph. These aliases are
 resolved when the tool is registered (``inspect.signature(eval_str=True)``
 on the tool's module globals), so modules must import them at runtime,
-never under ``TYPE_CHECKING``. They add no constraint beyond their type
-(``IdOrName`` keeps its strict integer check); the tool bodies validate the
-values and report a rejection as ``[validation_error]``.
+never under ``TYPE_CHECKING``. They add no constraint beyond their type; the
+tool bodies validate the values and report a rejection as ``[validation_error]``.
 """
 
 from __future__ import annotations

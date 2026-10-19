@@ -117,7 +117,6 @@ class WikiPageLinkService:
                 feature="Listing wiki page links",
                 floor="17.5",
             ),
-            item_allowed=lambda _record: True,
             server_page_size=self._settings.max_page_size,
             offset=offset,
             limit=effective_limit,

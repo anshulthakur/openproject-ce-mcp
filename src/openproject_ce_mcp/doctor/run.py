@@ -66,11 +66,10 @@ def _run_doctor(
     return _summarize(evaluations)
 
 
-def _check_binary() -> bool:
+def _check_binary() -> None:
     """Check binary path and version."""
     path = shutil.which(SERVER_BIN) or sys.argv[0]
     print(f"[OK] Binary: {path} (v{__version__})")
-    return True
 
 
 def _print_host_notes(subjects: Sequence[Subject], ctx: HostContext) -> None:
