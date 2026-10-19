@@ -299,7 +299,6 @@ class OpenProjectClient:
             settings=settings,
             project_id_to_identifier=self._project_id_to_identifier,
             resolver=self._project_resolver,
-            base_url=settings.base_url,
             api_prefix=self._api_prefix,
         )
         self._project_admin_service = ProjectAdminService(
@@ -307,7 +306,6 @@ class OpenProjectClient:
             settings=settings,
             project_id_to_identifier=self._project_id_to_identifier,
             resolver=self._project_resolver,
-            base_url=settings.base_url,
         )
 
         self._version_api: VersionApi = HttpxVersionApi(self._transport)
@@ -560,7 +558,6 @@ class OpenProjectClient:
             status_api=self._status_priority_type_api,
             activity_api=self._activity_api,
             current_user=self._current_user_resolver,
-            work_package_project_allowed=self._work_package_resolver.project_link_allowed,
             work_package_project_allowed_bulk=self._work_package_resolver.project_links_allowed,
             api_prefix=self._api_prefix,
         )
@@ -628,7 +625,6 @@ class OpenProjectClient:
             settings=settings,
             project_id_to_identifier=self._project_id_to_identifier,
             resolve_work_package_id=self._work_package_resolver.resolve_id,
-            work_package_project_allowed=self._work_package_resolver.project_link_allowed,
             work_package_project_allowed_bulk=self._work_package_resolver.project_links_allowed,
         )
 
@@ -637,7 +633,6 @@ class OpenProjectClient:
             api=self._notification_api,
             settings=settings,
             project_id_to_identifier=self._project_id_to_identifier,
-            work_package_project_allowed=self._work_package_resolver.project_link_allowed,
             work_package_project_allowed_bulk=self._work_package_resolver.project_links_allowed,
             readable_projects=self._project_directory,
         )
@@ -649,7 +644,6 @@ class OpenProjectClient:
             settings=settings,
             project_id_to_identifier=self._project_id_to_identifier,
             resolve_work_package_id=self._work_package_resolver.resolve_id,
-            work_package_project_allowed=self._work_package_resolver.project_link_allowed,
             work_package_project_allowed_bulk=self._work_package_resolver.project_links_allowed,
             api_prefix=self._api_prefix,
         )
@@ -664,7 +658,6 @@ class OpenProjectClient:
             work_package_lookup_api=self._work_package_lookup_api,
             settings=settings,
             project_id_to_identifier=self._project_id_to_identifier,
-            resolve_work_package_id=self._work_package_resolver.resolve_id,
             resolve_project_ref=self._get_project_payload,
             resolve_project_id=self._resolve_project_id,
             resolve_principal_id=self._resolve_principal_id,
@@ -718,7 +711,6 @@ class OpenProjectClient:
             settings=settings,
             project_id_to_identifier=self._project_id_to_identifier,
             resolve_project_ref=self._get_project_payload,
-            resolve_project_id=self._resolve_project_id,
             resolve_principal_id=self._resolve_principal_id,
             api_prefix=self._api_prefix,
         )

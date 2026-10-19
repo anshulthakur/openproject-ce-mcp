@@ -95,17 +95,6 @@ class _FakeReadableProjects:
         return self._ids
 
 
-def _work_package_project_allowed_from(allowed_hrefs: set[str]):
-    calls: list[str] = []
-
-    async def check(href: str, *, context=None) -> bool:
-        calls.append(href)
-        return href in allowed_hrefs
-
-    check.calls = calls  # type: ignore[attr-defined]
-    return check
-
-
 def _work_package_project_allowed_bulk_from(allowed_hrefs: set[str], *, errors: dict[str, Exception] | None = None):
     """Fake `WorkPackageProjectAllowedBulkCheck`: mirrors
     `WorkPackageResolver.project_links_allowed`'s dedupe/cache/only-bools-
@@ -144,7 +133,6 @@ def _service(
     *,
     api: _FakeNotificationApi | None = None,
     settings=None,
-    work_package_project_allowed=None,
     work_package_project_allowed_bulk=None,
     readable_projects: _FakeReadableProjects | None = None,
 ) -> NotificationService:
@@ -152,7 +140,6 @@ def _service(
         api=api or _FakeNotificationApi(),
         settings=settings or dataclasses.replace(make_settings(), enable_personal_read=True),
         project_id_to_identifier=PROJECT_ID_TO_IDENTIFIER,
-        work_package_project_allowed=work_package_project_allowed or _work_package_project_allowed_from(set()),
         work_package_project_allowed_bulk=work_package_project_allowed_bulk
         or _work_package_project_allowed_bulk_from(set()),
         readable_projects=readable_projects or _FakeReadableProjects(),

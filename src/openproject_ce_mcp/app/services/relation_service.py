@@ -2,12 +2,12 @@
 
 Depends on the `RelationApi` Protocol (never `HttpxRelationApi` concretely --
 enforced by the architecture-boundary test), on `WorkPackageLookupApi`
-directly, on `WorkPackageIdResolver`, and on `WorkPackageProjectAllowedCheck`
+directly, on `WorkPackageIdResolver`, and on `WorkPackageProjectAllowedBulkCheck`
 -- matching Reminders' four-Protocol seam surface, for an analogous reason:
 
 - `list_all()`/`list_for_work_package()` each fan out across TWO *different*
   work packages PER RELATION (`from` and `to`, not a single anchor) -- uses
-  `WorkPackageProjectAllowedCheck` + a single `WorkPackageAllowedContext`
+  `WorkPackageProjectAllowedBulkCheck` + a single `WorkPackageAllowedContext`
   (a request-scoped cache, avoiding a redundant fetch when relations share
   an endpoint work package). BOTH sides must pass, or a relation to a work
   package outside the read allowlist would leak that work package's
@@ -83,7 +83,6 @@ from ..ports.work_package_lookup_api import WorkPackageLookupApi
 from ..ports.work_package_ref import (
     WorkPackageIdResolver,
     WorkPackageProjectAllowedBulkCheck,
-    WorkPackageProjectAllowedCheck,
 )
 from ..ports.work_package_ref import work_package_ref as _validate_work_package_ref
 from ..ports.work_package_resolution import WorkPackageAllowedContext
@@ -148,7 +147,6 @@ class RelationService:
         settings: Settings,
         project_id_to_identifier: Mapping[int, str],
         resolve_work_package_id: WorkPackageIdResolver,
-        work_package_project_allowed: WorkPackageProjectAllowedCheck,
         work_package_project_allowed_bulk: WorkPackageProjectAllowedBulkCheck,
         api_prefix: str,
     ) -> None:
@@ -157,7 +155,6 @@ class RelationService:
         self._settings = settings
         self._project_id_to_identifier = project_id_to_identifier
         self._resolve_work_package_id = resolve_work_package_id
-        self._work_package_project_allowed = work_package_project_allowed
         self._work_package_project_allowed_bulk = work_package_project_allowed_bulk
         self._api_prefix = api_prefix
 

@@ -72,7 +72,7 @@ from ..policies import access, hidden_fields
 from ..policies import scope as scope_policy
 from ..ports.notification_api import NotificationApi, NotificationRecord
 from ..ports.readable_projects import ReadableProjects
-from ..ports.work_package_ref import WorkPackageProjectAllowedBulkCheck, WorkPackageProjectAllowedCheck
+from ..ports.work_package_ref import WorkPackageProjectAllowedBulkCheck
 from ..ports.work_package_resolution import WorkPackageAllowedContext
 
 _NOTIFICATION_READ_DENIED = "OpenProject access to this notification is disabled by OPENPROJECT_READ_PROJECTS."
@@ -88,14 +88,12 @@ class NotificationService:
         api: NotificationApi,
         settings: Settings,
         project_id_to_identifier: Mapping[int, str],
-        work_package_project_allowed: WorkPackageProjectAllowedCheck,
         work_package_project_allowed_bulk: WorkPackageProjectAllowedBulkCheck,
         readable_projects: ReadableProjects,
     ) -> None:
         self._api = api
         self._settings = settings
         self._project_id_to_identifier = project_id_to_identifier
-        self._work_package_project_allowed = work_package_project_allowed
         self._work_package_project_allowed_bulk = work_package_project_allowed_bulk
         self._readable_projects = readable_projects
 

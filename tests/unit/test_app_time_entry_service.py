@@ -230,17 +230,6 @@ class _FakeWorkPackageLookupApi:
         return {"_links": {"project": self._project_link}}
 
 
-def _resolve_work_package_id_ok(resolved_id: int = 42):
-    calls: list[tuple[int | str, bool]] = []
-
-    async def resolve(work_package_ref, *, write: bool = False) -> int:
-        calls.append((work_package_ref, write))
-        return resolved_id
-
-    resolve.calls = calls  # type: ignore[attr-defined]
-    return resolve
-
-
 def _resolve_project_ref_ok(project_id: int = 1, name: str = "Demo"):
     calls: list[tuple[str, bool]] = []
 
@@ -284,7 +273,6 @@ def _service(
     user_api: _FakeUserApi | None = None,
     work_package_lookup_api: _FakeWorkPackageLookupApi | None = None,
     settings=None,
-    resolve_work_package_id=None,
     resolve_project_ref=None,
     resolve_project_id=None,
     resolve_principal_id=None,
@@ -297,7 +285,6 @@ def _service(
         work_package_lookup_api=work_package_lookup_api or _FakeWorkPackageLookupApi(),
         settings=settings or make_settings(),
         project_id_to_identifier=PROJECT_ID_TO_IDENTIFIER,
-        resolve_work_package_id=resolve_work_package_id or _resolve_work_package_id_ok(),
         resolve_project_ref=resolve_project_ref or _resolve_project_ref_ok(),
         resolve_project_id=resolve_project_id or _resolve_project_id_ok(),
         resolve_principal_id=resolve_principal_id or _resolve_principal_id_ok(),

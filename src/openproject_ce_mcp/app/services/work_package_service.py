@@ -148,7 +148,6 @@ from ..ports.work_package_api import WorkPackageApi
 from ..ports.work_package_ref import (
     WorkPackageIdResolver,
     WorkPackageProjectAllowedBulkCheck,
-    WorkPackageProjectAllowedCheck,
     work_package_ref,
 )
 from ..ports.work_package_resolution import WorkPackageAllowedContext
@@ -495,7 +494,6 @@ class WorkPackageService:
         status_api: StatusPriorityTypeApi,
         activity_api: ActivityApi,
         current_user: CurrentUserLookup,
-        work_package_project_allowed: WorkPackageProjectAllowedCheck,
         work_package_project_allowed_bulk: WorkPackageProjectAllowedBulkCheck,
         api_prefix: str,
     ) -> None:
@@ -515,7 +513,6 @@ class WorkPackageService:
         self._status_api = status_api
         self._activity_api = activity_api
         self._current_user = current_user
-        self._work_package_project_allowed = work_package_project_allowed
         self._work_package_project_allowed_bulk = work_package_project_allowed_bulk
         self._api_prefix = api_prefix
         # Shared across every get_batch() call on this Service instance (not

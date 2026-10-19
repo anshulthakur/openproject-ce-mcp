@@ -2,15 +2,12 @@
 
 Depends on `TimeEntryApi`, `ProjectApi` (for the activity-fallback project
 walk AND for `list_time_entries`'s numeric-user-id lookup, via `UserApi`),
-`WorkPackageLookupApi`, `WorkPackageIdResolver`, `ProjectRefResolver`,
-`ProjectIdResolver`, `PrincipalRefResolver`, and `CurrentUserLookup` --
-NOT `WorkPackageProjectAllowedCheck` (unlike Relations): no Time Entries path
+`WorkPackageLookupApi`, `ProjectRefResolver`, `ProjectIdResolver`,
+`PrincipalRefResolver`, and `CurrentUserLookup` -- NOT
+`WorkPackageProjectAllowedBulkCheck` (unlike Relations): no Time Entries path
 dereferences an already-known work-package link the way Relations' from/to
-sides do. `list_all` only needs `resolve_work_package_id` to resolve a
-caller-supplied reference to a numeric id (used for the post-normalize entity
-match -- no allowlist check of its own here); `create` fetches the work
-package itself via
-`WorkPackageLookupApi.get(...)` and checks its OWN `_links.project` directly,
+sides do. `list_all` and `create` fetch the work package themselves via
+`WorkPackageLookupApi.get(...)` and check its OWN `_links.project` directly,
 the same pattern `get`/`update`/`delete` use on the time entry's own project
 link.
 
@@ -75,7 +72,6 @@ from ..ports.project_ref import ProjectIdResolver, ProjectRefResolver
 from ..ports.time_entry_api import TimeEntryApi
 from ..ports.user_api import UserApi
 from ..ports.work_package_lookup_api import WorkPackageLookupApi
-from ..ports.work_package_ref import WorkPackageIdResolver
 from ..resolvers.project_query import fetch_project_page
 from ._write_outcome import _finalize_write
 from .project_scoped_list import SUBJECT_LIMIT
@@ -134,7 +130,6 @@ class TimeEntryService:
         work_package_lookup_api: WorkPackageLookupApi,
         settings: Settings,
         project_id_to_identifier: Mapping[int, str],
-        resolve_work_package_id: WorkPackageIdResolver,
         resolve_project_ref: ProjectRefResolver,
         resolve_project_id: ProjectIdResolver,
         resolve_principal_id: PrincipalRefResolver,
@@ -147,7 +142,6 @@ class TimeEntryService:
         self._work_package_lookup_api = work_package_lookup_api
         self._settings = settings
         self._project_id_to_identifier = project_id_to_identifier
-        self._resolve_work_package_id = resolve_work_package_id
         self._resolve_project_ref = resolve_project_ref
         self._resolve_project_id = resolve_project_id
         self._resolve_principal_id = resolve_principal_id

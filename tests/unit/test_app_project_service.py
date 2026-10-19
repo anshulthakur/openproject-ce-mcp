@@ -22,8 +22,6 @@ from openproject_ce_mcp.app.services.project_service import ProjectAdminService,
 from openproject_ce_mcp.models import ProjectDetail, ProjectPhase, ProjectSummary
 from openproject_ce_mcp.presentation import _to_payload
 
-BASE_URL = "https://op.example.com"
-
 
 def _payload(project_id: int = 6, name: str = "Demo Project", identifier: str = "demo", **extra) -> dict:
     payload = {
@@ -161,7 +159,6 @@ def _service(api: _FakeProjectApi | None = None, *, settings=None) -> ProjectSer
         settings=settings,
         project_id_to_identifier={},
         resolver=_resolver(api, settings=settings),
-        base_url=BASE_URL,
         api_prefix="/api/v3/",
     )
 
@@ -195,7 +192,6 @@ def _admin_service(api: _FakeProjectApi | None = None, *, settings=None) -> Proj
         settings=settings,
         project_id_to_identifier={},
         resolver=_resolver(api, settings=settings),
-        base_url=BASE_URL,
     )
 
 
@@ -659,7 +655,6 @@ async def test_update_builds_parent_href_from_this_service_s_own_api_prefix() ->
         settings=settings,
         project_id_to_identifier={},
         resolver=resolver,
-        base_url=BASE_URL,
         api_prefix="/custom/v9/",
     )
 
@@ -677,7 +672,6 @@ async def test_create_preview_does_not_write_to_the_cache() -> None:
         settings=make_settings(),
         project_id_to_identifier=project_id_to_identifier,
         resolver=_resolver(api),
-        base_url=BASE_URL,
         api_prefix="/api/v3/",
     )
 
@@ -696,7 +690,6 @@ async def test_update_preview_does_not_write_to_the_cache() -> None:
         settings=settings,
         project_id_to_identifier=project_id_to_identifier,
         resolver=_resolver(api, settings=settings),
-        base_url=BASE_URL,
         api_prefix="/api/v3/",
     )
 
@@ -964,7 +957,6 @@ def _scoped_service(record: ProjectRecord, *, read, known=None) -> ProjectServic
         settings=settings,
         project_id_to_identifier={6: "demo", **(known or {})},
         resolver=_resolver(api, settings=settings),
-        base_url=BASE_URL,
         api_prefix="/api/v3/",
     )
 
@@ -1028,7 +1020,6 @@ async def test_admin_context_leaves_out_an_uncovered_parent_of_its_project() -> 
         settings=settings,
         project_id_to_identifier={6: "demo"},
         resolver=_resolver(api, settings=settings),
-        base_url=BASE_URL,
     )
 
     context = await service.get_admin_context("demo")
@@ -1087,7 +1078,6 @@ async def test_admin_context_leaves_out_versions_defined_in_projects_the_read_sc
         settings=settings,
         project_id_to_identifier={6: "demo"},
         resolver=_resolver(api, settings=settings),
-        base_url=BASE_URL,
     )
 
     context = await service.get_admin_context("demo")

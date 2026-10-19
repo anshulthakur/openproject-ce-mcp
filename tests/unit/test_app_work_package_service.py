@@ -468,7 +468,6 @@ def _service(
         status_api=status_api or _FakeStatusApi(),
         activity_api=activity_api or _FakeActivityApi(),
         current_user=current_user,
-        work_package_project_allowed=work_package_project_allowed or _all_project_allowed,
         work_package_project_allowed_bulk=work_package_project_allowed_bulk
         or _bulk_from_single(work_package_project_allowed or _all_project_allowed),
         api_prefix="/api/v3/",
