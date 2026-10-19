@@ -5,8 +5,8 @@ endpoint of its own to diverge from and no separate Detail model: a get-only,
 no-list domain has exactly one method and one result shape, no separate
 summary/detail split at all.
 
-`ActivityRecord.to_summary` is a LAZY callable (`Callable[[int | None],
-ActivitySummary]`, parameterized by `text_limit`), not an eager field: the
+`ActivityRecord.to_summary` is a LAZY callable (`ActivitySummaryFactory`,
+parameterized by `text_limit` and the required `details` decision), not an eager field: the
 Service (not the Adapter) slices to the most recent N elements BEFORE any
 normalization happens (`elements[-effective_limit:]`, then `normalize_activity`
 only on the survivors) -- an eager field would force `normalize_activity`
@@ -29,16 +29,21 @@ work package.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 from ...models import ActivitySummary
 
 
+class ActivitySummaryFactory(Protocol):
+    """`details` has no default: every caller decides whether the change details may be returned."""
+
+    def __call__(self, text_limit: int | None, *, details: bool) -> ActivitySummary: ...
+
+
 @dataclass(frozen=True)
 class ActivityRecord:
-    to_summary: Callable[[int | None], ActivitySummary]
+    to_summary: ActivitySummaryFactory
 
 
 class ActivityApi(Protocol):

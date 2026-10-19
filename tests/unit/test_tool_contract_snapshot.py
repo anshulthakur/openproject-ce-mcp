@@ -202,7 +202,7 @@ def live_catalog() -> dict[str, Any]:
 # change without confirming the new tool-contract shape is actually intended.
 TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
     "add_work_package_comment": {
-        "description_hash": "c4f09252fb5a1fb6ec4e61dc43057749dff607b37f4ed3ade7524dd2016a5205",
+        "description_hash": "889834081023e69e9f2e919e67a8acba67b37a88531c1734fd5e5b048b7d9817",
         "input_schema": {
             "properties": {
                 "work_package_id": {
@@ -5025,7 +5025,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "get_work_package_activities": {
-        "description_hash": "7103c3cdc7c080b8a084ce02026ab02ab85c32346b815cf7f51c40b679c873fe",
+        "description_hash": "cbe56ef5069f2a1cfe870717af9dc09f24de5ea49987d5596ed6022a81c529ce",
         "input_schema": {
             "properties": {
                 "work_package_id": {
@@ -5047,7 +5047,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
-                    "description": "Fields to return; a requested unset field comes back as null. Allowed: comment, comment_length, comment_truncated, created_at, details, details_truncated, id, type, user, version.",
+                    "description": "Fields to return; a requested unset field comes back as null. Allowed: comment, comment_length, comment_truncated, created_at, details, details_omitted, details_truncated, id, type, user, version.",
                     "title": "Select",
                 },
             },
@@ -6935,7 +6935,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_PERSONAL_READ", "OPENPROJECT_ENABLE_PERSONAL_WRITE"),
     },
     "render_text": {
-        "description_hash": "de1e269b742dc43b729016558c44daeb9ff07c685f67eeaf1150ea3427aab86b",
+        "description_hash": "2d58caf2f1ef52118bd781c63e458471b54daafacac687a303f8e753d052b4c8",
         "input_schema": {
             "properties": {
                 "text": {"title": "Text", "type": "string"},
@@ -8490,7 +8490,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
     },
     "update_work_package_comment": {
-        "description_hash": "ab791970e55e34ed36bd63c780b4dc4bc11225f1789d127abd25492ab3df3637",
+        "description_hash": "439b232732d6a40d5e5d9301fe3f73b5408d9f99b875ef5821eb7d3f0af6037e",
         "input_schema": {
             "properties": {
                 "activity_id": {

@@ -46,10 +46,7 @@ async def test_list_project_memberships(client: OpenProjectClient, test_project:
 
 
 async def test_list_users(client: OpenProjectClient) -> None:
-    try:
-        result = await client.user.list_users()
-    except PermissionDeniedError:
-        pytest.skip("Instance requires admin rights to list users")
+    result = await client.user.list_users()
     assert result.count > 0
     assert result.results[0].login
 

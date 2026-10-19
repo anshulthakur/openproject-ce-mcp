@@ -99,6 +99,40 @@ async def test_render_text_returns_stamped_result() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("read_projects", [(), ("demo",), ("team-*",), ("**",)])
+async def test_render_text_is_refused_under_a_restricted_read_scope(read_projects: tuple[str, ...]) -> None:
+    api = _FakeExtendedMetadataApi()
+    service = _service(api, settings=dataclasses.replace(make_settings(), read_projects=read_projects))
+
+    with pytest.raises(PermissionDeniedError, match="OPENPROJECT_READ_PROJECTS"):
+        await service.render_text(text="see #123", format="markdown")
+
+    assert api.render_text_calls == []
+
+
+@pytest.mark.asyncio
+async def test_render_text_is_refused_while_a_field_of_a_macro_entity_is_hidden() -> None:
+    api = _FakeExtendedMetadataApi()
+    settings = dataclasses.replace(make_settings(), read_projects=("*",), hidden_fields={"version": ("name",)})
+
+    with pytest.raises(PermissionDeniedError, match="fields of version are hidden"):
+        await _service(api, settings=settings).render_text(text="version#4", format="plain")
+
+    assert api.render_text_calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("read_projects", [("*",), (" * ",), ("demo", "*")])
+async def test_render_text_renders_when_the_read_scope_allows_all(read_projects: tuple[str, ...]) -> None:
+    api = _FakeExtendedMetadataApi()
+    service = _service(api, settings=dataclasses.replace(make_settings(), read_projects=read_projects))
+
+    await service.render_text(text="see #123", format="plain")
+
+    assert api.render_text_calls == [("see #123", "plain")]
+
+
+@pytest.mark.asyncio
 async def test_render_text_checks_work_package_read_enabled_not_extended() -> None:
     """Regression test: render_text's read gate is a verbatim-preserved
     exception from the other four methods' newly-activated "extended" gate --

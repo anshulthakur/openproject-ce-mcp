@@ -118,9 +118,9 @@ class HttpxTransport:
     ) -> dict[str, Any]:
         return await self._request_json("POST", path, params=params, json_body=json_body)
 
-    async def post_raw_json(self, path: str, *, content: bytes, headers: dict[str, str]) -> dict[str, Any]:
+    async def post_text(self, path: str, *, content: bytes, headers: dict[str, str]) -> str:
         response = await self._request("POST", path, content=content, headers=headers)
-        return self._parse_json(response)
+        return response.text
 
     async def post_multipart(
         self,

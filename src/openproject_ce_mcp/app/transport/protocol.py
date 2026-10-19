@@ -81,10 +81,9 @@ class Transport(Protocol):
         self, path: str, *, params: dict[str, str] | None = None, json_body: dict[str, Any] | None = None
     ) -> dict[str, Any]: ...
 
-    async def post_raw_json(self, path: str, *, content: bytes, headers: dict[str, str]) -> dict[str, Any]:
-        """POST a raw, non-JSON body (e.g. Content-Type: text/plain) and parse a
-        JSON response -- used by render_text, the only endpoint that POSTs raw
-        text rather than a JSON body."""
+    async def post_text(self, path: str, *, content: bytes, headers: dict[str, str]) -> str:
+        """POST a raw body (e.g. Content-Type: text/plain) and return the successful
+        response body as text, unparsed, for an endpoint that answers text/html."""
         ...
 
     async def post_multipart(

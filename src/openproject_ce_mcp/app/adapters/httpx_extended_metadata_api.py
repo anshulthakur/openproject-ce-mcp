@@ -4,9 +4,8 @@ No `httpx` import (depends on the `Transport` Protocol only). `FORMATTABLE_LIMIT
 (value 1_200) is a local constant, not shared via `_text.py`, matching
 Documents/News/Versions/Projects' own local duplication of the same constant.
 
-render_text is the only method that POSTs a raw (non-JSON) body -- it uses
-`Transport.post_raw_json` to POST raw content with custom headers and parse
-a JSON response.
+render_text POSTs a raw (non-JSON) body and gets a text/html answer, so it uses
+`Transport.post_text`; every other method here reads JSON.
 """
 
 from __future__ import annotations
@@ -81,10 +80,10 @@ class HttpxExtendedMetadataApi:
 
     async def render_text(self, *, text: str, format: str) -> RenderedTextRecord:
         endpoint = "render/markdown" if format == "markdown" else "render/plain"
-        data = await self._transport.post_raw_json(
+        html = await self._transport.post_text(
             endpoint, content=text.encode("utf-8"), headers={"Content-Type": "text/plain"}
         )
-        return RenderedTextRecord(summary=RenderedText(format=format, raw=text, html=data.get("html", "")))
+        return RenderedTextRecord(summary=RenderedText(format=format, raw=text, html=html))
 
     async def list_help_texts(self) -> list[HelpTextRecord]:
         payload = await self._transport.get_json("help_texts")

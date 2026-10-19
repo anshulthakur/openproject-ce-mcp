@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import json
-
 import pytest
 
-from openproject_ce_mcp.client import OpenProjectClient, OpenProjectError
+from openproject_ce_mcp.client import OpenProjectClient
 
 pytestmark = pytest.mark.integration
 
@@ -81,13 +79,11 @@ async def test_list_time_entry_activities(client: OpenProjectClient) -> None:
     assert result.results[0].name
 
 
-async def test_render_text(client: OpenProjectClient) -> None:
-    try:
-        result = await client.extended_metadata.render_text(text="**hello**", format="markdown")
-    except (OpenProjectError, json.JSONDecodeError):
-        pytest.skip("render_text endpoint not available on this instance")
-    assert result.html
-    assert "hello" in result.html
+async def test_render_text(start_scoped_client) -> None:
+    everywhere = await start_scoped_client(read_projects=("*",), write_projects=())
+    result = await everywhere.extended_metadata.render_text(text="**hello**", format="markdown")
+    assert "<strong>hello</strong>" in result.html
+    assert result.raw == "**hello**"
 
 
 async def test_list_working_days(client: OpenProjectClient) -> None:

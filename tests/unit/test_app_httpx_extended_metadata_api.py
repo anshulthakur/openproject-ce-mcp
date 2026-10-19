@@ -63,13 +63,18 @@ async def test_render_text_posts_raw_text_plain_body() -> None:
         assert request.url.path == "/api/v3/render/markdown"
         assert request.headers["content-type"] == "text/plain"
         assert request.content.decode("utf-8") == "**Hello**"
-        return httpx.Response(200, json={"html": "<p><strong>Hello</strong></p>"}, request=request)
+        return httpx.Response(
+            200,
+            content=b'<p class="op-uc-p"><strong>Hello</strong></p>',
+            headers={"content-type": "text/html"},
+            request=request,
+        )
 
     async with _client(handler) as http_client:
         api = HttpxExtendedMetadataApi(HttpxTransport(http_client))
         record = await api.render_text(text="**Hello**", format="markdown")
 
-    assert record.summary.html == "<p><strong>Hello</strong></p>"
+    assert record.summary.html == '<p class="op-uc-p"><strong>Hello</strong></p>'
     assert record.summary.raw == "**Hello**"
     assert record.summary.format == "markdown"
 
@@ -78,7 +83,7 @@ async def test_render_text_posts_raw_text_plain_body() -> None:
 async def test_render_text_plain_format_uses_plain_endpoint() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v3/render/plain"
-        return httpx.Response(200, json={"html": "Hello"}, request=request)
+        return httpx.Response(200, content=b"<p>Hello</p>", headers={"content-type": "text/html"}, request=request)
 
     async with _client(handler) as http_client:
         api = HttpxExtendedMetadataApi(HttpxTransport(http_client))

@@ -2484,10 +2484,8 @@ class WorkPackageService:
         # non-aggregated comment, which sacrifices its own correct timestamp
         # too. `comment`/`id` are unaffected by this and still reflect the
         # activities POST response.
-        raw_summary = self._activity_api.to_record(activity).to_summary(FORMATTABLE_LIMIT)
-        normalized_activity = self._replace_and_restamp(
-            "activity", raw_summary, details=None, details_truncated=False, created_at=None
-        )
+        raw_summary = self._activity_api.to_record(activity).to_summary(FORMATTABLE_LIMIT, details=False)
+        normalized_activity = self._replace_and_restamp("activity", raw_summary, created_at=None)
         return ActivityWriteResult(
             action="comment",
             state="confirmed",
@@ -2559,7 +2557,7 @@ class WorkPackageService:
 
         access.ensure_write_enabled("work_package", settings=self._settings)
         updated = await self._activity_api.update_comment(activity_id, comment=comment)
-        summary = self._activity_api.to_record(updated).to_summary(FORMATTABLE_LIMIT)
+        summary = self._activity_api.to_record(updated).to_summary(FORMATTABLE_LIMIT, details=False)
         return ActivityWriteResult(
             action="update_comment",
             state="confirmed",

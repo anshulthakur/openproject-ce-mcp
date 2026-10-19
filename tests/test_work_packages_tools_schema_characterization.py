@@ -996,7 +996,7 @@ def test_add_work_package_comment_schema() -> None:
     tool = _tools(create_app(_make_settings()))["add_work_package_comment"]
     assert (
         tool.description
-        == "Add a comment to a work package.\n\nnotify=false avoids change emails by default.\nThe result never includes `details`/`created_at`, even on an ordinary,\nnon-aggregated comment: OpenProject can aggregate a new comment into an\nexisting, more recent journal entry (e.g. a prior status change) instead\nof always creating a fresh one, which would otherwise surface that\nunrelated change's details and timestamp here, and there is no reliable\nway to tell an aggregated response from a fresh one, so both fields are\nomitted unconditionally rather than only when aggregation is suspected.\n`user` is normally populated, but on rare cases where OpenProject's own\nwrite response omits it, a best-effort follow-up lookup fills it in; if\nthat also comes back empty, `user` stays null even though the comment was\nsaved successfully.\n"
+        == "Add a comment to a work package.\n\nnotify=false avoids change emails by default.\nThe result never includes `details`/`created_at`, even on an ordinary,\nnon-aggregated comment: OpenProject can aggregate a new comment into an\nexisting, more recent journal entry (e.g. a prior status change) instead\nof always creating a fresh one, which would otherwise surface that\nunrelated change's details and timestamp here, and there is no reliable\nway to tell an aggregated response from a fresh one, so both fields are\nomitted unconditionally rather than only when aggregation is suspected;\n`details_omitted` is true.\n`user` is normally populated, but on rare cases where OpenProject's own\nwrite response omits it, a best-effort follow-up lookup fills it in; if\nthat also comes back empty, `user` stays null even though the comment was\nsaved successfully.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
@@ -1029,7 +1029,7 @@ def test_update_work_package_comment_schema() -> None:
     tool = _tools(create_app(_make_settings()))["update_work_package_comment"]
     assert (
         tool.description
-        == "Replace the text of an existing work package comment.\n\ncomment replaces the whole text; it is not appended. Whether the comment\nis internal stays as it was: OpenProject does not change that on edit.\nEditing may notify people; PATCH has no notify=false option. Repeating the\ncall marks recipients' notifications for this comment unread again. The\nold text is overwritten, with no comment-version history or recovery\nthrough OpenProject/API. Activities without an existing non-blank comment\nare rejected, including in preview.\nOpenProject lets the comment's author edit it, and otherwise only a role\nallowed to edit other users' comments; the tool reports that before\nwriting, in preview too.\n"
+        == "Replace the text of an existing work package comment.\n\ncomment replaces the whole text; it is not appended. Whether the comment\nis internal stays as it was: OpenProject does not change that on edit.\nEditing may notify people; PATCH has no notify=false option. Repeating the\ncall marks recipients' notifications for this comment unread again. The\nold text is overwritten, with no comment-version history or recovery\nthrough OpenProject/API. Activities without an existing non-blank comment\nare rejected, including in preview.\nOpenProject lets the comment's author edit it, and otherwise only a role\nallowed to edit other users' comments; the tool reports that before\nwriting, in preview too. The result never includes `details`: an entry\ncan carry change details next to the comment, and `details_omitted` is true.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
@@ -1100,7 +1100,7 @@ def test_get_work_package_activities_schema() -> None:
     tool = _tools(create_app(_make_settings()))["get_work_package_activities"]
     assert (
         tool.description
-        == "Get the activity log for a work package, most recent first.\n\nComments are returned in full by default (this is one work package's own\nhistory, not an open-ended multi-row list; same rationale as\nget_work_package). Pass ``text_limit`` to cap each comment at that many\ncharacters; when a comment is cut, ``comment_truncated`` is true and\n``comment_length`` reports its real length.\n"
+        == "Get the activity log for a work package, most recent first.\n\nComments are returned in full by default (this is one work package's own\nhistory, not an open-ended multi-row list; same rationale as\nget_work_package). Pass ``text_limit`` to cap each comment at that many\ncharacters; when a comment is cut, ``comment_truncated`` is true and\n``comment_length`` reports its real length.\n\nWhen OPENPROJECT_READ_PROJECTS is not `*`, or a work package or custom field\nis hidden, change details are left out and ``details_omitted`` is true:\nOpenProject returns them as text in the API user's language with no\nstructure to check against the read scope or the hidden fields, and the\ntext can name parents, projects and versions of projects outside it and\ncarry the values of hidden fields. Comments, user and time are\nunaffected.\n"
     )
     assert tool.output_schema is None
     assert tool.parameters == {
@@ -1120,7 +1120,7 @@ def test_get_work_package_activities_schema() -> None:
             "select": {
                 "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,
-                "description": "Fields to return; a requested unset field comes back as null. Allowed: comment, comment_length, comment_truncated, created_at, details, details_truncated, id, type, user, version.",
+                "description": "Fields to return; a requested unset field comes back as null. Allowed: comment, comment_length, comment_truncated, created_at, details, details_omitted, details_truncated, id, type, user, version.",
                 "title": "Select",
             },
         },

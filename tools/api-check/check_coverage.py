@@ -195,7 +195,7 @@ def _client_resources() -> set[str]:
     write/delete helpers; the real HTTP-calling code for everything else
     lives in app/adapters/httpx_*.py, which calls one of
     self._transport.get_json/post_json/patch_json/delete_json/delete/
-    post_raw_json/post_multipart(...), or, for the few verbs those don't
+    post_text/post_multipart(...), or, for the few verbs those don't
     cover, self._transport.request_raw("METHOD", path, ...). A resource
     reached only through one of these, with no matching call site in the
     other, would otherwise be silently undercounted as unused.
@@ -223,7 +223,7 @@ def _client_resources() -> set[str]:
         used |= _resource_segments(
             adapter_text,
             (
-                r'self\._transport\.(?:get_json|post_json|patch_json|delete_json|delete|post_raw_json|post_multipart)\(\s*f?"([^"]+)"',
+                r'self\._transport\.(?:get_json|post_json|patch_json|delete_json|delete|get_binary|post_text|post_multipart)\(\s*f?"([^"]+)"',
                 r'self\._transport\.request_raw\(\s*"[A-Z]+",\s*f?"([^"]+)"',
             ),
         )

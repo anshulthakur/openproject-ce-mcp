@@ -159,7 +159,7 @@ async def test_create_wiki_page_link(client: OpenProjectClient, test_project: st
 
 
 async def test_create_wiki_page_link_preview_without_confirm_does_not_write(
-    client: OpenProjectClient, test_project: str, wp_ids: list[int]
+    client: OpenProjectClient, test_project: str, wp_ids: list[int], openproject_version: tuple[int, int]
 ) -> None:
     wp_result = await client.work_package.create(
         project=test_project,
@@ -189,12 +189,9 @@ async def test_create_wiki_page_link_preview_without_confirm_does_not_write(
         pytest.skip("wiki_page_links endpoint not available (requires OpenProject 17.5+)")
     except OpenProjectServerError:
         # Known-broken only on 17.5/17.6 (no relation.any? guard, see module
-        # docstring) -- 17.7 has the guard and should never 500 here. This
-        # except is intentionally version-blind (no version-detection API to
-        # gate on directly, per this project's established pattern), so a
-        # genuine NEW 17.7+ server regression would also be swallowed as a
-        # skip instead of failing loudly; accepted risk, not a silent design
-        # oversight.
+        # docstring); 17.7 has the guard and should never 500 here.
+        if openproject_version not in {(17, 5), (17, 6)}:
+            raise
         pytest.skip(
             "GET work_packages/{id}/wiki_page_links 500s without links on this instance "
             "(known-broken on 17.5/17.6, see module docstring)"

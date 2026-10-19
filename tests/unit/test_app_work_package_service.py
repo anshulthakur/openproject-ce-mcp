@@ -238,7 +238,14 @@ class _FakeWorkPackageApi:
         self.post_comment_calls.append(
             {"work_package_ref": work_package_ref, "comment": comment, "internal": internal, "notify": notify}
         )
-        return {"id": 55, "_type": "Activity", "comment": {"raw": comment}, "_links": {}}
+        # An aggregated journal answers with the details of the other entry it merged into.
+        return {
+            "id": 55,
+            "_type": "Activity",
+            "comment": {"raw": comment},
+            "details": [{"raw": "Parent set to FOREIGN"}],
+            "_links": {},
+        }
 
 
 class _TargetVersionsEchoingWorkPackageApi(_FakeWorkPackageApi):
@@ -318,12 +325,14 @@ class _FakeActivityApi:
     def __init__(self) -> None:
         self.get_raw_calls: list[int] = []
         self.next_get_raw: dict | None = None
+        self.details_requested: list[bool] = []
 
     async def list_for_work_package(self, work_package_id: int):
         return []
 
     def to_record(self, payload: dict) -> ActivityRecord:
-        def to_summary(text_limit):
+        def to_summary(text_limit, *, details):
+            self.details_requested.append(details)
             return ActivitySummary(
                 id=payload["id"],
                 type=payload.get("_type"),
@@ -331,6 +340,8 @@ class _FakeActivityApi:
                 user=payload.get("_links", {}).get("user", {}).get("title"),
                 comment=(payload.get("comment") or {}).get("raw"),
                 created_at=payload.get("createdAt"),
+                details=[{"raw": d["raw"]} for d in payload.get("details", [])] if details else None,
+                details_omitted=not details,
             )
 
         return ActivityRecord(to_summary=to_summary)
@@ -3208,10 +3219,12 @@ async def test_add_comment_commit_posts_and_returns_normalized_result() -> None:
     assert call == {"work_package_ref": "6", "comment": "Hello", "internal": True, "notify": True}
     assert result.result is not None
     assert result.result.comment == "Hello"
-    # Aggregated-journal suppression: details/details_truncated/created_at
+    # Aggregated-journal suppression: details are never requested and created_at is
     # always cleared on the echoed result.
+    assert activity_api.details_requested == [False]
     assert result.result.details is None
     assert result.result.details_truncated is False
+    assert result.result.details_omitted is True
     assert result.result.created_at is None
 
 

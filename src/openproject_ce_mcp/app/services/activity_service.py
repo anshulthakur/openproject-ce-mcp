@@ -14,10 +14,10 @@ hierarchy-filtering subroutine) just to check existence. A
 non-existent/non-numeric reference surfaces the resolver's own enriched
 `NotFoundError` hint message.
 
-No Policy module, no project-scoping infra of its own: the resolver's
-anchor-resolution IS the entire enforcement surface (same shape as File
-Links'/Emoji Reactions' `list_for_work_package`). No write path at all, so
-no `_write_outcome.py` question.
+The resolver's anchor-resolution gates access to the work package (same
+shape as File Links'/Emoji Reactions' `list_for_work_package`);
+`activity_policy.details_allowed` decides whether the change details are
+returned at all. No write path at all, so no `_write_outcome.py` question.
 
 Slicing happens HERE, before normalization -- not in the Adapter: raw
 elements are sliced to the most recent N BEFORE calling `to_summary`,
@@ -36,7 +36,7 @@ from __future__ import annotations
 from ...config import Settings
 from ...models import ActivityListResult, ActivitySummary
 from ..pagination import effective_limit
-from ..policies import access, hidden_fields
+from ..policies import access, activity_policy, hidden_fields
 from ..ports.activity_api import ActivityApi
 from ..ports.work_package_ref import WorkPackageIdResolver
 
@@ -67,5 +67,6 @@ class ActivityService:
         # then reverse. `to_summary` (the actual normalization) is called
         # only on the survivors, preserving slice-before-normalize order.
         sliced = records[-resolved_limit:]
-        results = [self._stamp(record.to_summary(text_limit)) for record in reversed(sliced)]
+        details = activity_policy.details_allowed(self._settings)
+        results = [self._stamp(record.to_summary(text_limit, details=details)) for record in reversed(sliced)]
         return ActivityListResult(count=len(results), results=results)

@@ -163,7 +163,9 @@ async def test_list_meetings(client: OpenProjectClient, test_project: str, meeti
     assert any(m.title == title for m in result.results)
 
 
-async def test_list_meetings_title_filter(client: OpenProjectClient, test_project: str, meeting_ids: list[int]) -> None:
+async def test_list_meetings_title_filter(
+    client: OpenProjectClient, test_project: str, meeting_ids: list[int], openproject_version: tuple[int, int]
+) -> None:
     marker = uuid.uuid4().hex[:8]
     title = f"[integration-test] Title Filter {marker}"
     try:
@@ -176,6 +178,8 @@ async def test_list_meetings_title_filter(client: OpenProjectClient, test_projec
     try:
         matched = await client.meeting.list_all(project=test_project, title=f"title filter {marker}")
     except InvalidInputError:
+        if openproject_version >= (17, 9):
+            raise
         pytest.skip("Meetings title filter requires OpenProject 17.9+ on this instance")
     assert [m.id for m in matched.results] == [create_result.meeting_id]
 

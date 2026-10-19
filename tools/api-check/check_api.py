@@ -489,7 +489,7 @@ def _extract_client_resources() -> set[str]:
             # methods -- found missing when neither the attachment-content
             # endpoint nor the attachment-upload endpoint showed up in --all
             # coverage despite both existing in httpx_attachment_api.py.
-            r'|self\._transport\.(?:get_json|post_json|patch_json|delete_json|delete|get_binary|post_multipart)\(\s*f?"([^"]+)"'
+            r'|self\._transport\.(?:get_json|post_json|patch_json|delete_json|delete|get_binary|post_text|post_multipart)\(\s*f?"([^"]+)"'
             # Generic-verb request shapes -- client.py's self._request("METHOD", ...)
             # and app/'s self._transport.request_raw("METHOD", ...) both take the
             # HTTP verb as a separate first argument, so the path is the SECOND

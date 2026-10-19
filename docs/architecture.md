@@ -366,11 +366,11 @@ tools_<domain>.py (MCP presentation)
   two cross-service-orchestration methods described above) and
   `retry_transport.py` are unaffected and keep importing it directly. The
   `Transport` Protocol (`app/transport/protocol.py`) is extended with a new
-  method when a domain needs a request shape none of the existing methods cover
-  — e.g. `post_raw_json` for a raw, non-JSON request body (`Content-Type:
-  text/plain`), added when a domain's endpoint posts plain text rather than a
-  JSON payload; `post_multipart` for a `multipart/form-data` body (a JSON
-  metadata part plus a file part), added for Attachments' file upload — the
+  method when a domain needs a request shape none of the existing methods cover,
+  such as `post_text` for a raw request body (`Content-Type: text/plain`)
+  answered with `text/html` rather than a JSON payload, or `post_multipart` for
+  a `multipart/form-data` body (a JSON metadata part plus a file part) for
+  Attachments' file upload; the
   metadata part is sent as a plain form field with no filename in its
   Content-Disposition, since a filename would make the server's multipart parser
   treat it as an uploaded file rather than a JSON string.
@@ -819,6 +819,19 @@ Important properties of the current model:
   string, as for `list_work_packages`, so a very large allowlist can exceed
   the server's URL length limit; the request then fails without marking
   anything
+- `get_work_package_activities` serves the change details of an entry only
+  when `OPENPROJECT_READ_PROJECTS` is `*` and no work package or custom field
+  is hidden. OpenProject renders them as text in the API user's language with
+  no structure to check against the allowlist, and the text can name parents,
+  projects and versions of other projects or carry the value of a hidden
+  field, so otherwise the details are left out and `details_omitted` is true;
+  comments, user and time stay
+- `render_text` is refused unless `OPENPROJECT_READ_PROJECTS` is `*` and no
+  field of work packages, projects, versions, documents, meetings, posts,
+  users, groups or views is hidden. OpenProject expands macros such as
+  `#123`, `version#4`, `project#5` or `view#6` into the name or display id of
+  the record they name, in markdown and plain text alike and whatever its
+  project; the request carries no record to check them against
 
 ## Supported scope (Community Edition)
 

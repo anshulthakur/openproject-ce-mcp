@@ -43,9 +43,8 @@ class LearningTransport:
         sent = self._learner.request_sent()
         return await self._learned(await self._inner.post_json(path, params=params, json_body=json_body), sent)
 
-    async def post_raw_json(self, path: str, *, content: bytes, headers: dict[str, str]) -> dict[str, Any]:
-        sent = self._learner.request_sent()
-        return await self._learned(await self._inner.post_raw_json(path, content=content, headers=headers), sent)
+    async def post_text(self, path: str, *, content: bytes, headers: dict[str, str]) -> str:
+        return await self._inner.post_text(path, content=content, headers=headers)
 
     async def post_multipart(
         self,

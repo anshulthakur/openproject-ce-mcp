@@ -1258,7 +1258,8 @@ async def add_work_package_comment(
     of always creating a fresh one, which would otherwise surface that
     unrelated change's details and timestamp here, and there is no reliable
     way to tell an aggregated response from a fresh one, so both fields are
-    omitted unconditionally rather than only when aggregation is suspected.
+    omitted unconditionally rather than only when aggregation is suspected;
+    `details_omitted` is true.
     `user` is normally populated, but on rare cases where OpenProject's own
     write response omits it, a best-effort follow-up lookup fills it in; if
     that also comes back empty, `user` stays null even though the comment was
@@ -1303,7 +1304,8 @@ async def update_work_package_comment(
     are rejected, including in preview.
     OpenProject lets the comment's author edit it, and otherwise only a role
     allowed to edit other users' comments; the tool reports that before
-    writing, in preview too.
+    writing, in preview too. The result never includes `details`: an entry
+    can carry change details next to the comment, and `details_omitted` is true.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_positive_int(activity_id, field_name="activity_id")
@@ -1362,6 +1364,14 @@ async def get_work_package_activities(
     get_work_package). Pass ``text_limit`` to cap each comment at that many
     characters; when a comment is cut, ``comment_truncated`` is true and
     ``comment_length`` reports its real length.
+
+    When OPENPROJECT_READ_PROJECTS is not `*`, or a work package or custom field
+    is hidden, change details are left out and ``details_omitted`` is true:
+    OpenProject returns them as text in the API user's language with no
+    structure to check against the read scope or the hidden fields, and the
+    text can name parents, projects and versions of projects outside it and
+    carry the values of hidden fields. Comments, user and time are
+    unaffected.
     """
     client = _client_from_context(ctx)
     safe_id = _validate_work_package_ref(work_package_id)

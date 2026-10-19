@@ -176,6 +176,24 @@ Thanks to our contributors: [@feci](https://github.com/feci) ([#35](https://gith
   OpenProject adds the subprojects of every project a filter names. Under a
   restricted scope the filter now names the covered subprojects itself and the
   request turns the expansion off. Under `*` nothing changes.
+- `get_work_package_activities` returned the change details OpenProject renders
+  for each journal entry, such as `Parent set to <subject>` or `Project changed
+  from <name> to <name>`, and that text can name a parent, project or version
+  outside `OPENPROJECT_READ_PROJECTS`, or carry the value of a field hidden
+  with `OPENPROJECT_HIDE_WORK_PACKAGE_FIELDS` or `OPENPROJECT_HIDE_CUSTOM_FIELDS`.
+  OpenProject sends it in the API user's language with no structure to check
+  against the allowlist, so the change details are now left out for every
+  read scope other than `*`, identifier lists included, and whenever such a
+  field is hidden, and `details_omitted` is true on the entry. Comments, user
+  and time are unchanged. `add_work_package_comment` never returned details; its
+  result now carries `details_omitted: true` for that.
+- `render_text` rendered macros such as `#123`, `version#4`, `project#5` or
+  `view#6` into the display id (with the project identifier) of any work
+  package or the name of any version, project or view, whatever its project and
+  whether or not `OPENPROJECT_READ_PROJECTS` covered it, in markdown and in plain
+  text. It is now refused unless `OPENPROJECT_READ_PROJECTS` is `*` and no
+  field of work packages, projects, versions, documents, meetings, posts, users,
+  groups or views is hidden.
 
 ### Added
 
@@ -222,6 +240,10 @@ Thanks to our contributors: [@feci](https://github.com/feci) ([#35](https://gith
 
 ### Fixed
 
+- `render_text` failed with `OpenProject returned invalid JSON` on every
+  supported version, because OpenProject answers the render endpoints with
+  `text/html` and the server parsed the answer as JSON. It now returns the
+  rendered markup as `html`.
 - The SBOM built with the package named an `unknown` component without a
   version where the project itself belongs, and listed no dependency edges. It
   is exported from the lock file now, names `openproject-ce-mcp` and its version

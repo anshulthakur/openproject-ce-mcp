@@ -52,6 +52,7 @@ def _handler(activity: dict, patches: list[dict], *, project_href: str = "/api/v
                     "_type": "Activity::Comment",
                     "version": 2,
                     "comment": {"format": "markdown", "raw": body["comment"], "html": ""},
+                    "details": [{"format": "custom", "raw": "Parent set to FOREIGN", "html": ""}],
                     "_links": {"user": {"title": "Alice"}},
                     "createdAt": "2026-03-20T11:00:00Z",
                 },
@@ -75,6 +76,7 @@ async def test_confirmed_update_patches_only_the_comment_and_returns_the_new_tex
     assert result.result is not None
     assert result.result.id == 77
     assert result.result.comment == "<user-content>New text.</user-content>"
+    assert result.result.details is None and result.result.details_omitted is True
     await client.aclose()
 
 
