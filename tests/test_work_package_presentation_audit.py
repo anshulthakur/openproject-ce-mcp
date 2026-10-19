@@ -1,0 +1,60 @@
+"""Every service that returns work package results presents them through one module.
+
+The parent check and the hidden-field masking live in `_work_package_presentation`. A service that
+stamped work packages itself could miss a rule the other one has, as `execute_query` once did for
+hidden custom fields.
+"""
+
+from __future__ import annotations
+
+import ast
+
+from _source_scan import SERVICES, calls_named, matching_nodes
+
+PRESENTATION = "_work_package_presentation.py"
+CONSUMERS = {"work_package_service.py", "query_execution_service.py"}
+STAMPS = ("apply_hidden_fields_with_aliases", "_mask_custom_field_values")
+
+
+def _imports(text: str, module: str) -> set[str]:
+    return {
+        alias.name
+        for node in ast.walk(ast.parse(text))
+        if isinstance(node, ast.ImportFrom) and node.module == module
+        for alias in node.names
+    }
+
+
+def _files_importing(module: str, name: str) -> set[str]:
+    return {p.name for p in sorted(SERVICES.glob("*.py")) if name in _imports(p.read_text(), module)}
+
+
+def _stamping_functions(source: str | None = None) -> dict[str, list[ast.AST]]:
+    found: dict[str, list[ast.AST]] = {}
+    for stamp in STAMPS:
+        for name, nodes in matching_nodes(calls_named(stamp), directories=(SERVICES,), source=source).items():
+            found.setdefault(name, []).extend(nodes)
+    return found
+
+
+def test_only_the_presentation_module_stamps_work_packages() -> None:
+    stamping = _stamping_functions()
+
+    assert stamping, "the scan sees no stamping call at all"
+    assert {name.split(":")[0] for name in stamping} == {PRESENTATION}
+
+
+def test_a_stamping_call_outside_the_presentation_module_is_found() -> None:
+    planted = "def present(summary, settings):\n    return hidden_fields.apply_hidden_fields_with_aliases('work_package', summary)\n"
+
+    assert list(_stamping_functions(planted)) == ["planted.py:present"]
+
+
+def test_every_service_that_reads_work_packages_presents_them_through_the_presentation_module() -> None:
+    readers = _files_importing("ports.work_package_api", "WorkPackageApi")
+    presenters = _files_importing("_work_package_presentation", "present_summaries") | _files_importing(
+        "_work_package_presentation", "stamp_detail"
+    )
+
+    assert readers == CONSUMERS
+    assert readers <= presenters

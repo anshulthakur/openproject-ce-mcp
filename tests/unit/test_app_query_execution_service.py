@@ -119,6 +119,47 @@ async def test_execute_returns_stamped_summaries_when_scope_allows_all() -> None
     assert result.truncated is False
 
 
+class _CustomFieldWorkPackageApi:
+    def to_record(self, payload: dict, *, text_limit: int | None) -> WorkPackageRecord:
+        summary = dataclasses.replace(
+            _summary(payload["id"]),
+            description="body",
+            has_description=True,
+            description_truncated=True,
+            description_length=900,
+            custom_fields={"customField1": "secret", "customField2": "kept"},
+            custom_fields_truncated=True,
+            custom_comments={"customComment1": "secret note", "customComment2": "kept note"},
+        )
+        return WorkPackageRecord(summary=summary, to_detail=lambda: None, payload=payload)
+
+
+@pytest.mark.asyncio
+async def test_execute_masks_hidden_custom_fields_and_their_comments_like_every_other_work_package_read() -> None:
+    settings = dataclasses.replace(make_settings(), hide_custom_fields=("customField1",))
+    service = _service(
+        api=_FakeQueryExecutionApi([[_raw_wp(1)]]), settings=settings, work_package_api=_CustomFieldWorkPackageApi()
+    )
+
+    (row,) = (await service.execute(7)).results
+
+    assert row.custom_fields == {"customField2": "kept"}
+    assert row.custom_comments == {"customComment2": "kept note"}
+
+
+@pytest.mark.asyncio
+async def test_execute_resets_the_metadata_of_a_hidden_description_and_hidden_custom_fields() -> None:
+    settings = dataclasses.replace(make_settings(), hide_work_package_fields=("description", "custom_fields"))
+    service = _service(
+        api=_FakeQueryExecutionApi([[_raw_wp(1)]]), settings=settings, work_package_api=_CustomFieldWorkPackageApi()
+    )
+
+    (row,) = (await service.execute(7)).results
+
+    assert (row.has_description, row.description_truncated, row.description_length) == (False, False, None)
+    assert row.custom_fields_truncated is False
+
+
 @pytest.mark.asyncio
 async def test_execute_denies_when_read_disabled() -> None:
     settings = dataclasses.replace(make_settings(), enable_work_package_read=False)

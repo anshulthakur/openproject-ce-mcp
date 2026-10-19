@@ -159,6 +159,11 @@ development baseline.
 
 ### Fixed
 
+- `execute_query` rows kept the values of custom fields hidden by
+  `OPENPROJECT_HIDE_CUSTOM_FIELDS`, their comments, and the description length
+  and truncation flag when `description` is a hidden field, which every other
+  work package read removes. `execute_query` and the work package reads now
+  apply the same masking.
 - `render_text` failed with `OpenProject returned invalid JSON` on every
   supported version, because OpenProject answers the render endpoints with
   `text/html` and the server parsed the answer as JSON. It now returns the

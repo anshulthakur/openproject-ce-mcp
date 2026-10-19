@@ -62,7 +62,7 @@ have work-package writes enabled with reads entirely disabled, and every
 write method must keep working in that configuration (the same reasoning
 already documented for the auto-derivation's `status_api` bypass above).
 
-`_stamp`/`_stamp_detail` zero `description_truncated`/`description_length`
+`stamp_summary`/`stamp_detail` (`_work_package_presentation`) zero `description_truncated`/`description_length`
 (plus, for `WorkPackageSummary` only, `has_description`) when the
 `description` field itself is hidden -- mirrors `_stamp_project`
 (`app/services/project_service.py`) and `TimeEntryService._stamp`'s
@@ -152,7 +152,8 @@ from ..ports.work_package_ref import (
 )
 from ..ports.work_package_resolution import WorkPackageAllowedContext
 from ..version_gate import call_query_version_gated
-from ._work_package_parents import parent_href, without_parent_unless, without_uncovered_parents
+from ._work_package_parents import parent_href, without_parent_unless
+from ._work_package_presentation import present_summaries, stamp_detail
 from ._work_package_write_helpers import (
     resolve_custom_field_key,
     resolve_custom_field_links,
@@ -348,71 +349,6 @@ def _trim_text(value: Any, *, limit: int = SUBJECT_LIMIT) -> str | None:
 # equivalent comment.
 
 
-def _mask_custom_field_keys(values: dict[str, Any] | None, *, settings: Settings) -> dict[str, Any] | None:
-    """Key-only hide-on-read for a `custom_fields` dict.
-
-    Per the approved strategy, hide-on-read matches ONLY the raw
-    `customField<N>` key/wildcard against `OPENPROJECT_HIDE_CUSTOM_FIELDS`,
-    NEVER the friendly name -- unlike the write path's
-    `ensure_custom_field_writable`, which matches both the resolved schema
-    field name AND the key (a friendly-name-only hide pattern configured for
-    writes has no effect on reads; this is a deliberate, documented
-    asymmetry -- see docs/field-hiding.md). `custom_field_hidden` is called
-    with the SAME raw key as both its `field_name` and `key` arguments
-    (matching `ensure_custom_field_input_writable`'s own key-only-context
-    call shape) so only a pattern actually matching the raw key can hide it.
-
-    Returns the original object unchanged (same identity) when nothing was
-    actually removed -- including when `values` is empty/None -- rather than
-    always rebuilding a new dict; only a genuine removal allocates.
-    """
-    if not values:
-        return values
-    if not settings.hide_custom_fields:
-        return values
-    filtered = {
-        key: value
-        for key, value in values.items()
-        if not hidden_fields.custom_field_hidden(key, key, settings=settings)
-    }
-    if len(filtered) == len(values):
-        return values
-    return filtered or None
-
-
-def _mask_custom_comments_by_hidden_field_ids(
-    comments: dict[str, str] | None,
-    *,
-    custom_fields: dict[str, Any] | None,
-    masked_custom_fields: dict[str, Any] | None,
-) -> dict[str, str] | None:
-    """Hide a `customComment<N>` entry whenever its matching `customField<N>`
-    entry was just removed by `_mask_custom_field_keys` above.
-
-    `custom_comments` is keyed `customComment<N>`, never `customField<N>` --
-    `hidden_fields.custom_field_hidden` patterns are written against the
-    `customField<N>` form (per docs/field-hiding.md), so matching a
-    `customComment<N>` key against them directly would never hide anything.
-    Instead, derive which numeric ids were actually removed from
-    `custom_fields` (comparing before/after) and drop the corresponding
-    `customComment<N>` entries -- this is what "a hidden customField<N> also
-    hides its customComment<N> counterpart" actually requires.
-    """
-    if not comments:
-        return comments
-    if custom_fields is masked_custom_fields:
-        return comments
-    before_ids = {key[len("customField") :] for key in (custom_fields or {})}
-    after_ids = {key[len("customField") :] for key in (masked_custom_fields or {})}
-    removed_ids = before_ids - after_ids
-    if not removed_ids:
-        return comments
-    filtered = {key: value for key, value in comments.items() if key[len("customComment") :] not in removed_ids}
-    if len(filtered) == len(comments):
-        return comments
-    return filtered or None
-
-
 def _bulk_item_result(*, index: int, result: WorkPackageWriteResult) -> BulkWorkPackageItemResult:
     """ "success" is defined purely by `result.ready` (i.e. no OpenProject
     validation errors), not by whether the result was already confirmed -- a
@@ -528,95 +464,6 @@ class WorkPackageService:
         # call, while a nested allowlist check waits on the same semaphore).
         self._batch_read_semaphore = asyncio.Semaphore(10)
 
-    def _stamp(self, summary: WorkPackageSummary) -> WorkPackageSummary:
-        if hidden_fields.field_hidden("work_package", "description", settings=self._settings):
-            summary = dataclasses.replace(
-                summary, description_truncated=False, description_length=None, has_description=False
-            )
-        summary = self._mask_custom_field_values(summary)
-        return self._apply_work_package_hidden_fields(summary)
-
-    def _stamp_detail(self, detail: WorkPackageDetail) -> WorkPackageDetail:
-        if hidden_fields.field_hidden("work_package", "description", settings=self._settings):
-            detail = dataclasses.replace(detail, description_truncated=False, description_length=None)
-        detail = self._mask_custom_field_values(detail)
-        return self._apply_work_package_hidden_fields(detail)
-
-    def _apply_work_package_hidden_fields(self, value: Any) -> Any:
-        """Single entry point for version/target_versions coupled-alias masking
-        AND the generic per-field apply_hidden_fields stamp, in the correct
-        order. version/target_versions read from and write to the same
-        underlying OpenProject data -- hiding either via
-        OPENPROJECT_HIDE_WORK_PACKAGE_FIELDS must hide both, or the other
-        field trivially leaks the "hidden" one back out under a different
-        name. See `hidden_fields.apply_hidden_fields_with_aliases`, shared
-        with QueryExecutionService's own execute() masking so the alias-pair
-        knowledge lives in one place, not duplicated across both call sites.
-        """
-        return hidden_fields.apply_hidden_fields_with_aliases(
-            "work_package", value, settings=self._settings, aliases={"version": None, "target_versions": []}
-        )
-
-    def _mask_custom_field_values(self, value: Any) -> Any:
-        """Key-only hide-on-read masking for `custom_fields`/`custom_comments`,
-        shared by `_stamp`/`_stamp_detail` (both `WorkPackageSummary` and
-        `WorkPackageDetail` carry the same three fields, see models.py).
-
-        `custom_fields` is masked directly against `OPENPROJECT_HIDE_CUSTOM_FIELDS`
-        (its keys ARE `customField<N>`). `custom_comments` is keyed
-        `customComment<N>` instead, so it cannot be matched against the same
-        hide patterns directly -- it is masked by deriving which
-        `customField<N>` ids were actually removed above and dropping the
-        matching `customComment<N>` entries (see
-        `_mask_custom_comments_by_hidden_field_ids`), which is what "a hidden
-        customField<N> also hides its customComment<N> counterpart" requires.
-
-        Also fixes a hidden-field-metadata leak: when the WHOLE `custom_fields`
-        field is hidden via `OPENPROJECT_HIDE_WORK_PACKAGE_FIELDS=custom_fields`
-        (checked separately from the key-only OPENPROJECT_HIDE_CUSTOM_FIELDS
-        match above), `custom_fields_truncated` must also reset to False --
-        mirroring how this method's caller already resets
-        description_truncated/description_length/has_description when
-        `description` itself is hidden (see docstring above); leaving a
-        truncation flag dangling once the field itself is masked would leak
-        metadata about hidden data. Same treatment for
-        custom_comments/custom_comments_truncated. When only SOME keys are
-        masked via the key-only custom-field hide (not the whole field), the
-        truncated flags are left as originally computed (the raw-payload
-        pre-mask truncation signal) -- unlike `_filter_hierarchy_allowlist`'s
-        children_truncated/ancestors_truncated re-derivation (a scope-allowlist
-        visibility concern: leaving that flag stale could disclose the mere
-        existence of hierarchy members outside the caller's project scope),
-        the custom-field key-only hide is a configured field-name redaction,
-        not a scope/visibility signal -- a caller who already knows some
-        custom fields exist (they configured the hide list) learns nothing
-        new from a truncated flag computed before that redaction.
-        """
-        custom_fields = _mask_custom_field_keys(value.custom_fields, settings=self._settings)
-        custom_comments = _mask_custom_comments_by_hidden_field_ids(
-            value.custom_comments, custom_fields=value.custom_fields, masked_custom_fields=custom_fields
-        )
-        custom_fields_truncated = value.custom_fields_truncated
-        custom_comments_truncated = value.custom_comments_truncated
-        if hidden_fields.field_hidden("work_package", "custom_fields", settings=self._settings):
-            custom_fields_truncated = False
-        if hidden_fields.field_hidden("work_package", "custom_comments", settings=self._settings):
-            custom_comments_truncated = False
-        if (
-            custom_fields is value.custom_fields
-            and custom_comments is value.custom_comments
-            and custom_fields_truncated == value.custom_fields_truncated
-            and custom_comments_truncated == value.custom_comments_truncated
-        ):
-            return value
-        return dataclasses.replace(
-            value,
-            custom_fields=custom_fields,
-            custom_comments=custom_comments,
-            custom_fields_truncated=custom_fields_truncated,
-            custom_comments_truncated=custom_comments_truncated,
-        )
-
     def _stamp_activity(self, summary: Any) -> Any:
         return hidden_fields.apply_hidden_fields("activity", summary, settings=self._settings)
 
@@ -639,15 +486,12 @@ class WorkPackageService:
         return WorkPackageResolutionContext(ProjectResolutionContext(self._resolve_project_ref))
 
     async def _present(self, raw_items: builtins.list[dict[str, Any]]) -> builtins.list[WorkPackageSummary]:
-        # Hidden-field stamping must come last: dataclasses.replace drops the dynamic `_hidden_keys`.
-        summaries = [self._api.to_record(item, text_limit=self._settings.text_limit).summary for item in raw_items]
-        covered = await without_uncovered_parents(
-            summaries,
+        return await present_summaries(
+            [self._api.to_record(item, text_limit=self._settings.text_limit).summary for item in raw_items],
             settings=self._settings,
             api_prefix=self._api_prefix,
             project_allowed_bulk=self._work_package_project_allowed_bulk,
         )
-        return [self._stamp(summary) for summary in covered]
 
     def _payload_allowed(self, payload: dict[str, Any]) -> bool:
         return _work_package_policy.work_package_payload_allowed(
@@ -1368,7 +1212,7 @@ class WorkPackageService:
         # work_package field (e.g. description) regardless of whether
         # children/ancestors were even present on that particular work
         # package.
-        return self._stamp_detail(detail)
+        return stamp_detail(detail, settings=self._settings)
 
     async def get_batch(
         self, *, ids: builtins.list[int | str], text_limit: int | None = None
@@ -1730,14 +1574,14 @@ class WorkPackageService:
             # running the same allowlist filter here keeps the masking-order
             # contract identical to get()'s, rather than assuming it can
             # never matter. As in get(): _filter_hierarchy_allowlist must run
-            # BEFORE _stamp_detail, never after -- _filter_hierarchy_allowlist
+            # BEFORE stamp_detail, never after -- _filter_hierarchy_allowlist
             # calls dataclasses.replace() whenever the read scope is
-            # restricted, which would silently drop _stamp_detail's
+            # restricted, which would silently drop stamp_detail's
             # _hidden_keys tag if stamping ran first, leaking hidden fields
             # under a restricted scope. Filter first, stamp last, matching
             # get()'s ordering exactly.
             filtered = await self._filter_hierarchy_allowlist(outcome.detail.to_detail())
-            detail = self._stamp_detail(filtered)
+            detail = stamp_detail(filtered, settings=self._settings)
         return WorkPackageWriteResult(
             action=action,
             state=outcome.state,
@@ -2301,7 +2145,7 @@ class WorkPackageService:
             settings=self._settings,
             project_id_to_identifier=self._project_id_to_identifier,
         )
-        detail = self._stamp_detail(await self._filter_hierarchy_allowlist(record.to_detail()))
+        detail = stamp_detail(await self._filter_hierarchy_allowlist(record.to_detail()), settings=self._settings)
         payload = {"id": detail.id, "subject": detail.subject, "lockVersion": detail.lock_version}
 
         if not confirm:

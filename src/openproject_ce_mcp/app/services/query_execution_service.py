@@ -39,12 +39,12 @@ from collections.abc import Mapping
 from ...config import Settings
 from ...models import WorkPackageListResult, WorkPackageSummary
 from ..pagination import effective_limit, fetch_bounded_and_paginate
-from ..policies import access, hidden_fields
+from ..policies import access
 from ..policies.work_package_policy import work_package_payload_allowed
 from ..ports.query_execution_api import QueryExecutionApi
 from ..ports.work_package_api import WorkPackageApi
 from ..ports.work_package_ref import WorkPackageProjectAllowedBulkCheck
-from ._work_package_parents import without_uncovered_parents
+from ._work_package_presentation import present_summaries
 
 
 class QueryExecutionService:
@@ -96,23 +96,12 @@ class QueryExecutionService:
             offset=offset,
             limit=effective,
         )
-        # Hidden-field stamping comes last: dataclasses.replace drops the dynamic `_hidden_keys`.
-        results = [
-            # version/target_versions are coupled aliases of the same underlying data -- see
-            # WorkPackageService's own _apply_work_package_hidden_fields for the full rationale.
-            hidden_fields.apply_hidden_fields_with_aliases(
-                "work_package",
-                summary,
-                settings=self._settings,
-                aliases={"version": None, "target_versions": []},
-            )
-            for summary in await without_uncovered_parents(
-                results,
-                settings=self._settings,
-                api_prefix=self._api_prefix,
-                project_allowed_bulk=self._work_package_project_allowed_bulk,
-            )
-        ]
+        results = await present_summaries(
+            results,
+            settings=self._settings,
+            api_prefix=self._api_prefix,
+            project_allowed_bulk=self._work_package_project_allowed_bulk,
+        )
         return WorkPackageListResult(
             offset=offset,
             limit=effective,

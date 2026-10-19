@@ -530,7 +530,7 @@ async def test_list_my_open_checks_read_enabled_before_current_user_lookup() -> 
 @pytest.mark.asyncio
 async def test_list_my_open_exposes_custom_fields_via_same_normalize_path() -> None:
     """Smoke-level regression guard: list_my_open_work_packages
-    reuses the same normalize_work_package_summary/WorkPackageService._stamp
+    reuses the same normalize_work_package_summary/stamp_summary
     path as list()/search() -- custom_fields must appear automatically, with
     no list_my_open-specific production code required."""
     summary_with_cf = dataclasses.replace(_summary(6), custom_fields={"customField1": "Acme Corp"})
@@ -1065,7 +1065,7 @@ async def test_get_partial_key_only_hide_leaves_truncated_flag_as_originally_com
     computed (the raw-payload pre-mask truncation signal) -- a documented
     choice, distinct from _filter_hierarchy_allowlist's scope-allowlist
     re-derivation (a different class of leak; see _mask_custom_field_values'
-    docstring)."""
+    docstring in _work_package_presentation)."""
     detail_with_cf = dataclasses.replace(
         _detail(6), custom_fields={"customField1": "a", "customField2": "b"}, custom_fields_truncated=True
     )
@@ -1082,7 +1082,7 @@ async def test_get_partial_key_only_hide_leaves_truncated_flag_as_originally_com
 
 @pytest.mark.asyncio
 async def test_get_no_hide_custom_fields_configured_leaves_dict_identity_unchanged() -> None:
-    """No OPENPROJECT_HIDE_CUSTOM_FIELDS configured -> _mask_custom_field_keys
+    """No OPENPROJECT_HIDE_CUSTOM_FIELDS configured -> _mask_custom_field_keys (in _work_package_presentation)
     returns the original dict object unchanged (no rebuild), per the
     documented no-op-avoidance in _mask_custom_field_keys."""
     original = {"customField1": "a"}
@@ -1219,7 +1219,7 @@ async def test_get_batch_partial_failure() -> None:
 @pytest.mark.asyncio
 async def test_get_batch_exposes_custom_fields_via_same_normalize_path() -> None:
     """Smoke-level regression guard: get_work_packages (batch)
-    reuses the same normalize_work_package_detail/WorkPackageService._stamp
+    reuses the same normalize_work_package_detail/stamp_detail
     path as get() -- custom_fields/custom_comments must appear automatically,
     with no batch-specific production code required."""
     detail_with_cf = dataclasses.replace(_detail(6), custom_fields={"customField1": "Acme Corp"})

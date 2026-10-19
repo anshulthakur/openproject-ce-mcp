@@ -392,7 +392,7 @@ def normalize_work_package_summary(payload: dict[str, Any], *, text_limit: int |
     extraction -- hidden-field masking (including zeroing
     description_truncated/description_length/has_description when the
     description field itself is hidden) is a Service concern, applied after
-    this returns (see WorkPackageService._stamp).
+    this returns (see `stamp_summary` in `_work_package_presentation`).
 
     ``text_limit`` is an explicit parameter since the adapter has no Settings
     access -- the Service passes `settings.text_limit` through, matching
