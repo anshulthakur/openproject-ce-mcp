@@ -276,7 +276,10 @@ async def test_a_non_finite_number_inside_an_untyped_container_is_rejected(
     assert typed_mcp._test_calls == []  # type: ignore[attr-defined]
 
 
-@pytest.mark.parametrize("extra", ['{"a": NaN}', '{"a": [Infinity]}', "[NaN]"])
+@pytest.mark.parametrize(
+    "extra",
+    ['{"a": NaN}', '{"a": [Infinity]}', "[NaN]", '{"a": 1e999}', '{"a": [-1e999]}', '[{"b": 1E400}]', "[1e999]"],
+)
 async def test_a_non_finite_number_in_json_text_is_not_decoded_into_a_value(
     typed_mcp: StrictMCPServer, extra: str
 ) -> None:

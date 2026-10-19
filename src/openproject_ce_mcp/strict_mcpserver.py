@@ -34,6 +34,14 @@ def _reject_constant(constant: str) -> Any:
     raise ValueError(f"{constant} is not a JSON number")
 
 
+def _finite_float(text: str) -> float:
+    """A literal such as 1e999 is valid JSON but overflows to infinity, which `parse_constant` never sees."""
+    number = float(text)
+    if not math.isfinite(number):
+        raise ValueError(f"{text} is not a finite number")
+    return number
+
+
 def _admits_container(schema: dict[str, Any]) -> bool:
     if schema.get("type") in ("array", "object") or "$ref" in schema or "allOf" in schema:
         return True
@@ -55,7 +63,7 @@ class _StrictFuncMetadata(FuncMetadata):
         for key, value in data.items():
             if key in self.container_fields and isinstance(value, str):
                 try:
-                    decoded = json.loads(value, parse_constant=_reject_constant)
+                    decoded = json.loads(value, parse_constant=_reject_constant, parse_float=_finite_float)
                 except (ValueError, RecursionError):
                     continue
                 if isinstance(decoded, list | dict):
