@@ -1980,13 +1980,13 @@ async def test_list_projects_cross_call_pagination_with_allowlist_thinning_acros
 @pytest.mark.asyncio
 async def test_work_package_context_drops_form_values_defined_in_projects_outside_the_read_scope() -> None:
     """A version, sprint or backlog bucket shared into the project can be defined in a project
-    the allowlist does not cover."""
+    the allowlist does not cover, or in one the token cannot see (no defining project link)."""
 
-    def option(option_id: int, name: str, defining: dict | None) -> dict:
+    def option(option_id: int, name: str, defining: dict | None, *, resource_type: str = "Version") -> dict:
         links: dict = {"self": {"href": f"/api/v3/versions/{option_id}", "title": name}}
         if defining is not None:
             links.update(defining)
-        return {"id": option_id, "name": name, "_links": links}
+        return {"_type": resource_type, "id": option_id, "name": name, "_links": links}
 
     allowed = {"definingProject": {"href": "/api/v3/projects/1"}}
     foreign = {"definingProject": {"href": "/api/v3/projects/9"}}
@@ -2004,8 +2004,16 @@ async def test_work_package_context_drops_form_values_defined_in_projects_outsid
             body = {"total": 0, "_embedded": {"elements": []}}
         elif path == "/api/v3/projects/1/work_packages/form":
             values = {
-                "version": [option(11, "Own", allowed), option(12, "Shared in", foreign), option(13, "Unbound", None)],
-                "sprint": [option(21, "Sprint own", allowed), option(22, "Sprint foreign", foreign_workspace)],
+                "version": [option(11, "Own", allowed), option(12, "Shared in", foreign), option(13, "Unlinked", None)],
+                "sprint": [
+                    option(21, "Sprint own", allowed, resource_type="Sprint"),
+                    option(22, "Sprint foreign", foreign_workspace, resource_type="Sprint"),
+                    option(23, "Sprint unlinked", None, resource_type="Sprint"),
+                ],
+                "assignee": [
+                    option(31, "Ada", None, resource_type="User"),
+                    option(32, "Bob", None, resource_type="User"),
+                ],
             }
             body = {
                 "_embedded": {
@@ -2042,6 +2050,6 @@ async def test_work_package_context_drops_form_values_defined_in_projects_outsid
     result = await client.get_project_work_package_context(project="demo", type="Feature")
 
     fields = {field.key: [value.title for value in field.allowed_values] for field in result.fields}
-    assert fields == {"version": ["Own", "Unbound"], "sprint": ["Sprint own"]}
+    assert fields == {"version": ["Own"], "sprint": ["Sprint own"], "assignee": ["Ada", "Bob"]}
 
     await client.aclose()

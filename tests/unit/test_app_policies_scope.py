@@ -398,3 +398,60 @@ def test_a_project_link_is_read_under_the_instances_own_prefix_first() -> None:
 
     assert scope.parse_project_href("/api/api/v3/projects/7", settings=settings) == scope.LinkedProject(7)
     assert scope.parse_project_href("/api/v3/projects/7", settings=settings) == scope.PrefixMismatch("/api/v3/")
+
+
+_ALLOWED_PROJECT = {"href": "/api/v3/projects/1"}
+_FOREIGN_PROJECT = {"href": "/api/v3/projects/9"}
+
+
+def _shared_resource(resource_type: str, links: dict) -> dict:
+    return {"_type": resource_type, "id": 5, "_links": links}
+
+
+@pytest.mark.parametrize(
+    ("resource_type", "key"),
+    [("Version", "definingProject"), ("Sprint", "definingWorkspace"), ("BacklogBucket", "definingWorkspace")],
+)
+def test_a_shared_resource_is_kept_only_when_its_defining_project_is_covered(resource_type: str, key: str) -> None:
+    settings = dataclasses.replace(make_settings(), read_projects=("demo",))
+    ids = {1: "demo"}
+
+    def allowed(links: dict) -> bool:
+        return scope.defining_project_allowed(
+            _shared_resource(resource_type, links), settings=settings, project_id_to_identifier=ids
+        )
+
+    assert allowed({key: _ALLOWED_PROJECT}) is True
+    assert allowed({key: _FOREIGN_PROJECT}) is False
+
+
+@pytest.mark.parametrize("resource_type", ["Version", "Sprint", "BacklogBucket"])
+@pytest.mark.parametrize("read_projects", [("demo",), ("*",)])
+def test_a_shared_resource_without_a_defining_project_link_is_left_out(
+    resource_type: str, read_projects: tuple[str, ...]
+) -> None:
+    """The server omits the link when the defining project is not visible to the token."""
+    settings = dataclasses.replace(make_settings(), read_projects=read_projects)
+
+    assert (
+        scope.defining_project_allowed(
+            _shared_resource(resource_type, {"self": {"href": "/api/v3/versions/5"}}),
+            settings=settings,
+            project_id_to_identifier={1: "demo"},
+        )
+        is False
+    )
+
+
+@pytest.mark.parametrize("resource_type", ["Status", "Priority", "User", "Category", "CustomOption", "Type"])
+def test_a_resource_that_is_not_project_bound_passes_without_a_defining_project_link(resource_type: str) -> None:
+    settings = dataclasses.replace(make_settings(), read_projects=("demo",))
+
+    assert (
+        scope.defining_project_allowed(
+            _shared_resource(resource_type, {"self": {"href": "/api/v3/statuses/5"}}),
+            settings=settings,
+            project_id_to_identifier={1: "demo"},
+        )
+        is True
+    )

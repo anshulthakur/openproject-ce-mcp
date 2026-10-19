@@ -1053,15 +1053,11 @@ async def test_copy_shows_no_title_of_a_link_into_another_project_and_commits_th
 
 @pytest.mark.asyncio
 async def test_admin_context_leaves_out_versions_defined_in_projects_the_read_scope_does_not_cover() -> None:
-    def version(version_id: int, name: str, project_id: int) -> dict:
-        return {
-            "id": version_id,
-            "name": name,
-            "_links": {
-                "self": {"href": f"/api/v3/versions/{version_id}", "title": name},
-                "definingProject": {"href": f"/api/v3/projects/{project_id}"},
-            },
-        }
+    def version(version_id: int, name: str, project_id: int | None) -> dict:
+        links: dict = {"self": {"href": f"/api/v3/versions/{version_id}", "title": name}}
+        if project_id is not None:
+            links["definingProject"] = {"href": f"/api/v3/projects/{project_id}"}
+        return {"_type": "Version", "id": version_id, "name": name, "_links": links}
 
     api = _FakeProjectApi()
     api.schema = {
@@ -1069,7 +1065,9 @@ async def test_admin_context_leaves_out_versions_defined_in_projects_the_read_sc
             "name": "Target",
             "type": "Version",
             "writable": True,
-            "_embedded": {"allowedValues": [version(1, "Own", 6), version(2, "Shared in", 9)]},
+            "_embedded": {
+                "allowedValues": [version(1, "Own", 6), version(2, "Shared in", 9), version(3, "Unlinked", None)]
+            },
         }
     }
     settings = dataclasses.replace(make_settings(), read_projects=("demo",))

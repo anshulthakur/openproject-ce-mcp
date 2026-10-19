@@ -340,21 +340,23 @@ def project_link_payload_allowed(
 
 
 _DEFINING_PROJECT_LINK_KEYS = ("definingProject", "definingWorkspace")
+_PROJECT_BOUND_TYPES = frozenset({"Version", "Sprint", "BacklogBucket"})
 
 
 def defining_project_allowed(
     item: Mapping[str, Any], *, settings: Settings, project_id_to_identifier: Mapping[int, str]
 ) -> bool:
-    """False for an embedded resource (version, sprint, backlog bucket) that names its defining
-    project when the read allowlist does not cover that project. A resource that names none is
-    not project-bound and passes."""
+    """False for an embedded resource (version, sprint, backlog bucket) whose defining project the
+    read allowlist does not cover. Such a resource always carries the project link, except that
+    OpenProject leaves it out when the project is not visible to the token, so a missing link is
+    denied too (required-link contract). Any other resource passes."""
     links = item.get("_links", {})
-    for key in _DEFINING_PROJECT_LINK_KEYS:
-        if key in links:
-            return project_link_allowed(
-                links[key], settings=settings, project_id_to_identifier=project_id_to_identifier
-            )
-    return True
+    key = next((candidate for candidate in _DEFINING_PROJECT_LINK_KEYS if candidate in links), None)
+    if key is None and item.get("_type") not in _PROJECT_BOUND_TYPES:
+        return True
+    return project_link_allowed(
+        links.get(key) if key else None, settings=settings, project_id_to_identifier=project_id_to_identifier
+    )
 
 
 def project_link_allowed(link: Any, *, settings: Settings, project_id_to_identifier: Mapping[int, str]) -> bool:
