@@ -146,13 +146,12 @@ async def test_list_for_work_package_passes_text_limit_through_to_summary() -> N
 
 @pytest.mark.asyncio
 async def test_list_for_work_package_uses_default_page_size_when_limit_none() -> None:
-    api = _FakeActivityApi(count=1)
-    settings = make_settings()
-    service = _service(api=api, settings=settings)
+    settings = dataclasses.replace(make_settings(), default_page_size=2, max_page_size=5, max_results=5)
+    service = _service(api=_FakeActivityApi(count=4), settings=settings)
 
     result = await service.list_for_work_package(9, limit=None)
 
-    assert result.count == 1
+    assert [r.id for r in result.results] == [4, 3]
 
 
 # --- change details under the read scope --------------------------------------
