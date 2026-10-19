@@ -2045,8 +2045,8 @@ class WorkPackageService:
                 # OpenProject's own validation requires the OPPOSITE target
                 # depending on whether an estimate exists: remainingTime must
                 # be exactly "PT0H" when estimatedTime is set, but must be
-                # null/absent when it isn't -- live-verified against real
-                # OpenProject. "Effective" estimate: this same call's own
+                # null/absent when it isn't -- OpenProject
+                # enforces this. "Effective" estimate: this same call's own
                 # estimated_time if it set one, else the work package's
                 # existing value from the pre-write GET.
                 effective_estimated_time = (

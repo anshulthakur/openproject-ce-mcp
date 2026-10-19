@@ -37,8 +37,8 @@ Attachments' exact pattern:
   therefore scans the resolved work package's own links (reusing
   `list_for_work_package`'s scan) and fails closed with `NotFoundError` if
   `link_id` is not actually among them, on both the preview and confirmed
-  paths -- this fixed a real authorization-bypass finding from this
-  domain's step-6.5 review, not a defense-in-depth nicety. The same scan
+  paths -- this closes a real authorization bypass, not a
+  defense-in-depth nicety. The same scan
   shows the link's type: `DELETE wiki_page_links/{id}` finds relation links
   only (`Wikis::RelationPageLink.find`), so `delete()` rejects an inline link
   as invalid input before the DELETE instead of letting its 404 read as a

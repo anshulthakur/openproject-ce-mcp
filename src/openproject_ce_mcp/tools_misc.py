@@ -33,7 +33,7 @@ async def render_text(
     """Render markdown or plain text to HTML using the OpenProject API. format: 'markdown' or 'plain'.
 
     Refused unless OPENPROJECT_READ_PROJECTS is `*` and no field of work packages, projects, versions,
-    documents, meetings, posts, users, groups or views is hidden: OpenProject expands macros such as
+    documents, meetings, posts, users, groups, principals or views is hidden: OpenProject expands macros such as
     #123 or version#4 into the name or display id of any record, whatever its project."""
     client = _client_from_context(ctx)
     safe_text = _validate_required_text(text, field_name="text", max_length=50_000)

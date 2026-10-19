@@ -91,7 +91,7 @@ config to another verbatim:
 | --- | --- | --- | --- | --- |
 | Claude / Claude Code | `.mcp.json` | `~/.claude.json` | JSON | `mcpServers` |
 | Claude Desktop app | — (global only) | `claude_desktop_config.json` | JSON | `mcpServers` |
-| Codex | `.codex/config.toml` | `~/.codex/config.toml` | TOML | `[mcp_servers.openproject]` |
+| Codex | `.codex/config.toml` | `~/.codex/config.toml`, or `$CODEX_HOME/config.toml` when set | TOML | `[mcp_servers.openproject]` |
 | Cursor | `.cursor/mcp.json` | `~/.cursor/mcp.json` | JSON | `mcpServers` |
 | VS Code (GitHub Copilot) | `.vscode/mcp.json` | User `mcp.json` | JSON | `servers` |
 

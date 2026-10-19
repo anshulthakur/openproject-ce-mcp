@@ -381,9 +381,8 @@ async def test_list_all_raises_exception_for_a_record_inside_the_skip_window() -
     skip performing the check itself, so the old one-at-a-time control flow
     would have awaited (and propagated a failure for) every record up to and
     including the (limit+1)-th allowed one, not just the ones actually kept
-    in the returned page. A 2nd-round Codex review caught this: an earlier
-    draft of the fix wrongly treated any failure inside the skip window as
-    "not a match" and silently continued instead of raising."""
+    in the returned page. Treating any failure inside the skip window as
+    "not a match" would silently continue instead of raising."""
     failing = _record(1, resource_link={"href": "/api/v3/work_packages/1"})
     kept = _record(2, resource_link={"href": "/api/v3/work_packages/2"})
     api = _FakeNotificationApi(records=[failing, kept])

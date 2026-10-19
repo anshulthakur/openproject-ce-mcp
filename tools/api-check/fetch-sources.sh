@@ -65,13 +65,11 @@ SPARSE_PATHS=(
     "modules/*/app/models"                     # module-specific models (e.g. Meetings' MeetingSection, Storages)
     "modules/*/app/contracts"                  # module-specific validation contracts
     "modules/*/app/validator"                  # module-specific validators (e.g. Storages' NextcloudCompatibleHostValidator --
-    # singular "validator", unlike core's plural "validators"; found missing
-    # 2026-08-17 while investigating a live host-probe behavior change)
+    # singular "validator", unlike core's plural "validators")
     "modules/*/app/representers" # module-specific API v3 HAL representers (e.g. Boards/Grids widgets)
     "modules/*/app/queries"      # module-specific query/filter objects (mirrors core's app/models/queries)
     "modules/*/app/services"     # module-specific service objects (e.g. Wikis::PageLinkMetadataService --
-    # found missing 2026-08-25 while verifying a live 500-error's root cause
-    # directly against a running container instead of the local sparse checkout)
+    # holds the metadata service behind the wiki page link route)
 )
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

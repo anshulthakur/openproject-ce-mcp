@@ -66,9 +66,8 @@ development baseline.
   now left out per version, as in the list without a project, and
   `get_project_work_package_context` and `get_project_admin_context` leave out
   versions, sprints and backlog buckets of such projects in the allowed values
-  of their fields. A shared
-  version defined outside the allowlist can therefore no longer be assigned
-  by name.
+  of their fields. A shared version defined outside the allowlist can therefore
+  no longer be assigned by name.
 - `list_time_entry_activities` named every project that enables an activity,
   also those outside `OPENPROJECT_READ_PROJECTS`. It now names only the
   projects the read allowlist covers.
@@ -110,7 +109,7 @@ development baseline.
   whether or not `OPENPROJECT_READ_PROJECTS` covered it, in markdown and in plain
   text. It is now refused unless `OPENPROJECT_READ_PROJECTS` is `*` and no
   field of work packages, projects, versions, documents, meetings, posts, users,
-  groups or views is hidden.
+  groups, principals or views is hidden.
 
 ### Added
 
@@ -144,11 +143,15 @@ development baseline.
   broken.
 - `configure` and `doctor` read Codex's configuration from `CODEX_HOME` when
   it is set.
-- When Codex is installed, `doctor` runs `codex mcp list` twice (at most 20
+- When Codex is installed, `doctor` runs `codex mcp list` up to twice (at most 20
   seconds each) to see the configuration Codex applies; Codex may contact
   configured HTTP MCP servers during that call.
 - On Python 3.10 the package depends on `tomli`, which reads Codex's
   configuration.
+- The package declares `pydantic` (2.12 or newer) and `typing-extensions` (4.16
+  or newer), which it imports directly, and installs `httpx` with its SOCKS
+  extra, so a `socks5://` proxy in `ALL_PROXY` starts without a manual install.
+  `httpx` is limited to versions below 0.29.
 - An allowlist pattern like `my-project` now also matches a project named
   "My Project" in the project tools, such as `list_projects`, `get_project`,
   `update_project` and `create_project`, as it already did in the checks on
@@ -309,19 +312,6 @@ development baseline.
   edit that text instead. The tool description and the tool reference say
   that only relation links can be deleted and that deleting needs the "Manage
   wiki page links" permission.
-- The configuration guide listed the sprint tools under
-  `OPENPROJECT_ENABLE_WORK_PACKAGE_READ` and left out the backlog bucket
-  tools; both are switched by `OPENPROJECT_ENABLE_PROJECT_READ`. Several other
-  tool group rows also left out tools they switch, among them news, wiki,
-  views, grids, statuses, time entries, reminders, watchers and project
-  copies. A new table in the guide lists every tool per setting, and another
-  lists the tools that also need a second setting.
-- The README said that the read tools of the projects, work packages,
-  memberships, versions, boards and meetings groups are registered by default.
-  Their project-bound tools are registered only while
-  `OPENPROJECT_READ_PROJECTS` is non-empty; the README, the security policy
-  and the configuration guide now say so, and the guide lists the core read
-  tools registered without it.
 - An invalid `select` error now says that no request was sent, so a rejected
   confirmed bulk write is known to have written nothing. The
   `bulk_create_work_packages` and `bulk_update_work_packages` descriptions say

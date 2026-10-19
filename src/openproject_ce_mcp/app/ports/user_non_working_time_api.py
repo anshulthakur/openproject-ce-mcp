@@ -3,7 +3,7 @@
 Per-user date-range schedule exceptions (vacation etc.) -- OpenProject's
 `/api/v3/users/{user_id}/non_working_times` resource. Requires 17.3+
 (feature-flag-guarded 17.3-17.6 via `guard_feature_flag :user_working_times`,
-generally available 17.7+ -- verified against op-sources: present in
+generally available 17.7+ -- verified against the OpenProject source: present in
 17.3-17.6's `non_working_times_by_user_api.rb`, absent in 17.7's; the route
 itself does not exist at all before 17.3, `lib/api/v3/user_non_working_times/`
 is absent in 17.0-17.2). No client-side version check: server errors pass

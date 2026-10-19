@@ -1326,9 +1326,8 @@ async def test_get_batch_hierarchy_filtering_completes_under_a_timeout_while_f6_
         (and its real, separate `_allowlist_semaphore`) instead of a fake
         bulk callback that never touches the actual F3 semaphore -- a fake
         callback would only prove F6 doesn't deadlock on ITSELF, not that F6
-        and the real F3 semaphore are safe together (2nd Codex review round
-        finding: the original version of this test used a fake bulk hook and
-        so never actually exercised the real semaphore it claims to prove
+        and the real F3 semaphore are safe together (a fake bulk hook
+        would never exercise the real semaphore this test claims to prove
         independence from)."""
 
         async def get(self, work_package_ref: str) -> dict:
@@ -2393,9 +2392,8 @@ async def test_update_version_rejected_against_multi_target_version_work_package
 
 @pytest.mark.asyncio
 async def test_update_version_clear_rejected_against_multi_target_version_work_package() -> None:
-    # Correction from Codex's review: CLEAR_VERSION must NOT be excluded from
-    # the guard -- clearing to zero via the legacy field is exactly as
-    # destructive as collapsing to one.
+    # CLEAR_VERSION must NOT be excluded from the guard -- clearing to zero via
+    # the legacy field is exactly as destructive as collapsing to one.
     from openproject_ce_mcp.app.services.work_package_service import CLEAR_VERSION
 
     api = _FakeWorkPackageApi()

@@ -36,8 +36,8 @@ LIMIT_EXCEPTIONS = {
     "list_recurring_meeting_occurrences",
 }
 
-# Tools whose parameters all carry a description: the ones that scored lowest
-# in the external tool-description review, plus tools added after it.
+# Tools whose parameters all carry a description: the ones whose descriptions
+# were thinnest, plus tools added since.
 FULLY_DESCRIBED_TOOLS = {
     "copy_project",
     "create_board",
@@ -279,6 +279,12 @@ def test_no_em_dash_reaches_the_wire(catalog: dict[str, dict]) -> None:
     with_dash = sorted(name for name, tool in catalog.items() if any("\u2014" in text for text in _all_texts(tool)))
 
     assert with_dash == []
+
+
+def test_no_em_dash_in_the_server_instructions() -> None:
+    from openproject_ce_mcp.server import CE_INSTRUCTIONS
+
+    assert "\u2014" not in CE_INSTRUCTIONS
 
 
 def test_descriptions_name_only_tools_that_exist(catalog: dict[str, dict]) -> None:

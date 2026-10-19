@@ -281,9 +281,8 @@ async def test_project_links_allowed_shares_one_semaphore_across_two_concurrent_
     `project_links_allowed()` call -- two simultaneous top-level calls (e.g.
     a concurrent list_relations + list_reminders in the real Services) on the
     SAME WorkPackageResolver instance must share one combined cap of 10, not
-    each get their own independent 10 (2nd Codex review round requirement:
-    explicitly two DIFFERENT call sites sharing the semaphore, not just two
-    calls to the same one)."""
+    each get their own independent 10 (two DIFFERENT call sites share the
+    semaphore, not just two calls to the same one)."""
     hrefs_a = [f"/api/v3/work_packages/a{i}" for i in range(15)]
     hrefs_b = [f"/api/v3/work_packages/b{i}" for i in range(15)]
     records = {href: _wp_payload(i) for i, href in enumerate(hrefs_a + hrefs_b)}

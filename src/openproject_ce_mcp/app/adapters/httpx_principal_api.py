@@ -24,7 +24,7 @@ def normalize_principal(payload: dict[str, Any]) -> PrincipalSummary:
     No login/status fields: `list_principals` hits `GET /api/v3/principals`
     with no `select` parameter, which always takes the SQL fast-path
     representer (`UserSqlRepresenter`/`GroupSqlRepresenter`/
-    `PlaceholderUserSqlRepresenter`, verified against op-sources 17.7) --
+    `PlaceholderUserSqlRepresenter`, verified against the OpenProject 17.7 source) --
     none of those declare a `login` or `status` property, only
     `_type`/`id`/`name`/`email` (`firstname`/`lastname` conditionally).
     `login`/`status` exist only on the full single-resource `UserRepresenter`

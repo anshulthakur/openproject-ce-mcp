@@ -94,7 +94,7 @@ async def test_get_storage_returns_nextcloud_fields(client: OpenProjectClient) -
     assert detail.provider_type == "Nextcloud"
     assert detail.has_application_password is False
     # forbiddenFileNameCharacters was added to the storage representer in
-    # 17.1 (absent in 16.x/17.0, verified against op-sources) -- an older
+    # 17.1 (absent in 16.x/17.0, verified against the OpenProject source) -- an older
     # instance legitimately reports None here rather than the string.
     if detail.forbidden_file_name_characters is not None:
         assert detail.forbidden_file_name_characters == '<>:"\\/|?*'

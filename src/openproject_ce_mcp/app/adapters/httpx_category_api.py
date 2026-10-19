@@ -31,7 +31,7 @@ def normalize_category(payload: dict[str, Any], *, project_id: int | None, proje
     applied after this returns, not something the adapter does.
 
     No `is_default` field: `CategoryRepresenter` (verified against
-    op-sources 16.1/17.7) renders only `id`, `name`, the `project` link, and
+    the OpenProject 16.1 and 17.7 source) renders only `id`, `name`, the `project` link, and
     `defaultAssignee` (an unrelated concept -- the user auto-assigned to
     work packages in this category, not "is this the project's default
     category"). The `Category` model itself has no such attribute anywhere.

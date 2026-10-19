@@ -119,8 +119,8 @@ browser) — treated as a known, explicitly out-of-scope gap, not a bug.
 OpenProject's core `SecureContextUriValidator` always rejects — and PATCH
 re-validates the whole model, not just the fields the request touched, so
 even a name-only rename fails with `url_not_secure_context`. This is not a
-version regression or a client bug; see `CLAUDE.md`'s "Known API quirks" for
-the full explanation. Write tests against this storage should assert the
+version regression or a client bug: OpenProject re-validates the stored `host`
+on every PATCH. Write tests against this storage should assert the
 expected `InvalidInputError`, not a successful update.
 
 **File link fixtures**: with the `Storages::ProjectStorage` row above in

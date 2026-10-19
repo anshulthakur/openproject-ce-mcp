@@ -1,4 +1,4 @@
-# Recorded deviations from the handbook's local-first CI (03-build/ci.md):
+# Deviations from local-first CI:
 # - lint, test-linux, build and shell-scripts re-run every ./dev ci check
 #   except actionlint, which stays local-only, on pushes to main and the
 #   release branches and on every PR: Actions minutes are free on this

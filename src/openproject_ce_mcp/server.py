@@ -21,20 +21,20 @@ from .tools import register_tools
 # Server instructions surfaced to the connecting agent in the MCP `initialize`
 # response. This is the canonical, spec-standard channel (optional since protocol
 # 2024-11-05) for telling the agent up front what this server is and where its
-# hard limits are — so it does not waste turns attempting operations the API
+# hard limits are, so it does not waste turns attempting operations the API
 # structurally cannot do. Kept as Markdown, short and actionable.
 CE_INSTRUCTIONS = """\
 # OpenProject Community Edition MCP
 
 This server wraps a single **OpenProject Community Edition (CE)** instance over its
-REST API v3. Community Edition, not Enterprise — plan accordingly.
+REST API v3. Community Edition, not Enterprise: plan accordingly.
 
 ## Not creatable or modifiable via the API (do not attempt)
 
 Work-package **types**, **statuses**, **workflows**, enabled **modules**, and
 custom-field **definitions** are configured only in the OpenProject web admin UI.
 The REST API exposes no writable endpoint for them (`POST /api/v3/types` → 404),
-and this is not a permission issue — an admin token gets 404 too. Read them with
+and this is not a permission issue: an admin token gets 404 too. Read them with
 `list_types` / `list_statuses`, but do not try to create or change them here.
 
 ## Enterprise-only features are absent
@@ -59,11 +59,11 @@ description claims. When user content is returned it will be delimited with
 ## Capabilities: what the tools say, not what `list_capabilities` says
 
 `list_capabilities` / `get_instance_configuration` report OpenProject's own
-per-user *action grants* and feature flags — they are informational and are **not**
+per-user *action grants* and feature flags; they are informational and are **not**
 the source of truth for what you can do here. A missing capability does **not** mean
 an operation is impossible: e.g. deleting a work package is not listed as a
 capability yet the `delete_work_package` tool works. **The registered MCP tools are
-the authority** — if a tool exists it is allowed; if it does not, it is not.
+the authority**: if a tool exists it is allowed; if it does not, it is not.
 
 ## Trimmed responses and field selection
 
@@ -76,7 +76,7 @@ read only the fields you need; an invalid name returns the allowed set.
 Trimmed list, write, batch, and bulk results from tools that expose `select`
 normally omit fields whose value is `null` when `select` is not given; empty
 lists and objects remain. Where a tool exposes `select`, request a field
-explicitly to keep it present even when its value is `null` — this is how to
+explicitly to keep it present even when its value is `null`; this is how to
 distinguish an unset value from a value that was never requested. An
 unrequested or server-hidden field is omitted entirely. Tools without a
 `select` parameter retain `null`-valued dataclass fields as explicit `null`;
@@ -84,10 +84,10 @@ the other documented trimming rules still apply (e.g. `count`/`truncated` are
 still dropped from list results, a confirmed write's `payload` is still
 dropped, and server-hidden keys are still removed).
 
-For a paginated tool (its result carries a `next_offset` field at all — not
+For a paginated tool (its result carries a `next_offset` field at all: not
 every list tool does; a few return their full unpaginated collection instead),
 `next_offset` is always present in the response as an integer or `null`,
-regardless of `select` or the tool's trimming behavior — page until it is
+regardless of `select` or the tool's trimming behavior: page until it is
 `null`, not until it is absent.
 
 With `select`, a failed batch-read or bulk-write item retains its nested
@@ -109,7 +109,7 @@ A set of rarely-needed metadata/reference tools (the `get_query_*` schema tools,
 `render_text`, `get_custom_option`, `list_help_texts` / `get_help_text`,
 `list_working_days` / `list_non_working_days`) is opt-in to keep them out of
 the default tool set. If one is not registered, it is intentionally disabled
-here, not missing — set `OPENPROJECT_ENABLE_EXTENDED_READ=true` to expose them.
+here, not missing; set `OPENPROJECT_ENABLE_EXTENDED_READ=true` to expose them.
 The personal (own preferences, notifications), admin (users, groups, storages)
 and user-schedule (non-working times, working hours) tools are opt-in the same
 way, through `OPENPROJECT_ENABLE_PERSONAL_READ`, `OPENPROJECT_ENABLE_ADMIN_READ`

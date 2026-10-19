@@ -81,7 +81,7 @@ from .tools_validation import (
     _validate_work_package_ref,
 )
 
-# Real enum values from MeetingOutcome (op-sources: modules/meeting/app/models/
+# Real enum values from MeetingOutcome (OpenProject source: modules/meeting/app/models/
 # meeting_outcome.rb) -- OpenProject itself rejects any other value with an
 # internal server error (500), not a clean 422, so this must be checked
 # client-side rather than left to the server's own validation.

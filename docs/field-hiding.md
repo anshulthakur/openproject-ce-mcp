@@ -22,7 +22,7 @@ hides `details`, `details_truncated` and `details_omitted`. Any hide setting for
 work package fields or custom fields also makes `get_work_package_activities` leave
 out the change details, because OpenProject renders every changed value into them,
 and hiding fields of work packages, projects, versions, documents, meetings, posts,
-users, groups or views makes `render_text` refuse, because its macros render their names.
+users, groups, principals or views makes `render_text` refuse, because its macros render their names.
 
 ## Custom fields: a read/write asymmetry
 

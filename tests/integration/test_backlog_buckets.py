@@ -8,7 +8,7 @@ both route files mount only Index (and Show, global-only) endpoints, no
 Create/Update/Delete anywhere in the directory.
 
 Requires OpenProject 17.6+: the `backlog_buckets` API directory does not
-exist in 16.6/17.4/17.5 (verified against op-sources). get_backlog_bucket is
+exist in 16.6/17.4/17.5 (verified against the OpenProject source). get_backlog_bucket is
 exercised against a pre-existing bucket sourced via list_backlog_buckets --
 if the test project/instance has none (or the endpoint 404s on an
 older/Backlogs-disabled instance), the tests skip rather than fail, since

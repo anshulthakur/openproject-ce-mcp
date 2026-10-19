@@ -261,7 +261,7 @@ async def test_create_commits_nextcloud_when_confirmed() -> None:
 
     assert result.state == "confirmed"
     # authenticationMethod is a link (link_without_resource on
-    # StorageRepresenter, op-sources), never a top-level property -- its
+    # StorageRepresenter in the OpenProject source), never a top-level property -- its
     # setter reads ONLY _links.authenticationMethod.href (a full URN), so it
     # must be nested under _links, not sent as a bare "authentication_method"
     # key (which the real representer silently drops).

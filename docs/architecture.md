@@ -426,7 +426,9 @@ project link: exactly what OpenProject emits for this instance,
 path or an absolute URL on the instance's origin, without query, fragment,
 parameters, dot segments or percent-encoding, the id within PostgreSQL's
 bigint. The root path comes from `OPENPROJECT_BASE_URL`. Every allowlist check
-classifies a link through it before any wildcard shortcut, so a link to
+classifies a link through it before any wildcard shortcut (the one display-only
+exception is `project_named_by_link_allowed`, which judges the project links of
+a time entry activity, named by identifier and title, against the directory), so a link to
 another host or another resource is denied under every scope; the directory,
 work package writes, capabilities, time entries and embedded projects read
 project ids through it too. A link with the right shape under another root
@@ -828,7 +830,7 @@ Important properties of the current model:
   comments, user and time stay
 - `render_text` is refused unless `OPENPROJECT_READ_PROJECTS` is `*` and no
   field of work packages, projects, versions, documents, meetings, posts,
-  users, groups or views is hidden. OpenProject expands macros such as
+  users, groups, principals or views is hidden. OpenProject expands macros such as
   `#123`, `version#4`, `project#5` or `view#6` into the name or display id of
   the record they name, in markdown and plain text alike and whatever its
   project; the request carries no record to check them against

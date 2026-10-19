@@ -528,9 +528,9 @@ def test_empty_attachment_root_is_accepted_at_config_time() -> None:
 
 # ── legacy project-scope env-var names ──────────────────────────────────────
 #
-# The 0.5.0 line removes this warn-only shim again. See config.py's
-# _LEGACY_PROJECT_SCOPE_ENV_VAR_MAP docstring for why it's back for one more
-# release and scoped to only these 3 names.
+# Warn-only shim: the legacy names have no effect on settings. See config.py's
+# _LEGACY_PROJECT_SCOPE_ENV_VAR_MAP docstring for why it exists and covers only
+# these 3 names.
 
 
 def test_legacy_project_scope_env_vars_have_no_effect_on_settings() -> None:

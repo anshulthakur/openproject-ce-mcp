@@ -167,7 +167,8 @@ The project-scoped write switches register their tools only while both
 `OPENPROJECT_READ_PROJECTS` and `OPENPROJECT_WRITE_PROJECTS` are non-empty.
 The personal, admin, user-schedule and extended switches register their tools
 regardless of either allowlist. `render_text` is refused at call time unless
-`OPENPROJECT_READ_PROJECTS` is `*`.
+`OPENPROJECT_READ_PROJECTS` is `*` and no field of the records its macros name
+is hidden.
 
 | Switch | Tools |
 | --- | --- |

@@ -824,8 +824,7 @@ def _set_multi_target_versions(*, enabled: bool) -> bool:
     write succeeded is what lets callers (multi_target_versions_enabled)
     detect and skip cleanly on 17.7 instead of proceeding as if multi-version
     writes were actually enabled. OpenProject 17.8.0 ships this setting with
-    default: true (verified live, 2026-09-07, against
-    config/constants/settings/definition.rb in the actual image) --
+    default: true (config/constants/settings/definition.rb of the image) --
     docker/test/seed.rb already forces it to a known state on every up.sh
     run (see that script's own comment), but a test must not rely on
     whichever state seed.rb happened to leave it in, since another test in

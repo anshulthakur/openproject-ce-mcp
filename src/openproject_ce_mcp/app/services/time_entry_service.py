@@ -436,7 +436,7 @@ class TimeEntryService:
             # workPackage setter literally calls the entity setter), but the
             # `entity` link key itself doesn't exist before 16.6 and is
             # silently dropped there -- see httpx_time_entry_api.py's
-            # fetch_activities_for_entity for the live-verified detail.
+            # fetch_activities_for_entity for the detail.
             links["workPackage"] = {"href": _api_href(f"work_packages/{work_package_id}", api_prefix=self._api_prefix)}
         elif project is not None:
             hidden_fields.ensure_field_writable("time_entry", "project", settings=self._settings)

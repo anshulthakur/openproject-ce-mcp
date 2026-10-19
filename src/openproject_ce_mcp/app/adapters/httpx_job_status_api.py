@@ -66,7 +66,7 @@ def normalize_job_status(payload: dict[str, Any]) -> JobStatusDetail:
     is not built here, per the "no constructed output URLs" rule.
 
     No `percentage_complete`/`created_at`/`updated_at` fields either:
-    `JobStatusRepresenter` (verified against op-sources 17.7) renders only
+    `JobStatusRepresenter` (verified against the OpenProject 17.7 source) renders only
     `job_id`/`status`/`message`/`payload`/`_type` -- there is no progress
     concept or timestamp property anywhere in the job_status module. A prior
     version of this function read `percentageDone`/`progress`/`createdAt`/

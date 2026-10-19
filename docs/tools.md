@@ -97,7 +97,7 @@ default tool set and save context.
 | Tool | Description |
 | --- | --- |
 | `list_projects` | List visible projects with an optional name/identifier filter |
-| `get_project` | Fetch a compact project summary by id or identifier |
+| `get_project` | Fetch a compact project summary by id, identifier or name |
 | `get_project_admin_context` | Return project admin metadata such as lifecycle statuses, parent project options, and writable fields |
 | `get_project_configuration` | Return project-scoped configuration such as internal comment support |
 | `list_sprints` | List Backlogs sprints (requires Backlogs/OpenProject 17.3+), with an optional project filter and name search filter — omit `project` to list every sprint visible to the current token, or pass it to list only that project's sprints |
@@ -645,7 +645,7 @@ later still). Meeting Outcomes require 17.6+ throughout.
 
 | Tool | Description |
 | --- | --- |
-| `render_text` | Render markdown or plain text to HTML using the OpenProject API; refused unless `OPENPROJECT_READ_PROJECTS` is `*` and no field of work packages, projects, versions, documents, meetings, posts, users, groups or views is hidden, because OpenProject expands macros such as `#123` or `version#4` into the name or display id of any record |
+| `render_text` | Render markdown or plain text to HTML using the OpenProject API; refused unless `OPENPROJECT_READ_PROJECTS` is `*` and no field of work packages, projects, versions, documents, meetings, posts, users, groups, principals or views is hidden, because OpenProject expands macros such as `#123` or `version#4` into the name or display id of any record |
 
 ## Help texts
 
