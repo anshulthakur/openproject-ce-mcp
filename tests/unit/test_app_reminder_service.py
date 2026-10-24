@@ -544,7 +544,7 @@ class _ReminderApiOfOpenProject160(_FakeReminderApi):
 async def test_a_reminder_call_on_a_server_without_the_routes_names_the_version_floor(call) -> None:
     service = _service(api=_ReminderApiOfOpenProject160())
 
-    with pytest.raises(NotFoundError, match=r"Reminders requires OpenProject 16\.1 or newer"):
+    with pytest.raises(NotFoundError, match=r"Reminders: not found, or not available on this instance \(it requires OpenProject 16\.1 or newer\)"):
         await call(service)
 
 

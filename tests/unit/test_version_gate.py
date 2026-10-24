@@ -19,10 +19,14 @@ async def test_call_version_gated_translates_not_found_into_a_version_hint() -> 
     async def call() -> None:
         raise NotFoundError("boom")
 
-    with pytest.raises(
-        NotFoundError, match="Meetings requires OpenProject 17.4 or newer; this instance appears to be older."
-    ):
+    with pytest.raises(NotFoundError) as raised:
         await call_version_gated(call, feature="Meetings", floor="17.4")
+
+    assert str(raised.value) == (
+        "Meetings: not found, or not available on this instance (it requires OpenProject 17.4 or newer)."
+    )
+    # A 404 on a current instance is usually a missing resource: the message must not say otherwise.
+    assert "older" not in str(raised.value)
 
 
 @pytest.mark.asyncio

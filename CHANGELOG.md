@@ -183,6 +183,13 @@ development baseline.
 
 ### Fixed
 
+- A resource that does not exist in a feature gated by an OpenProject version
+  (meetings and their parts, wiki page links, user working hours and non-working
+  times, reminders, project favorites) was reported as "requires OpenProject X
+  or newer; this instance appears to be older", also on a current instance
+  where `get_meeting(999)` simply found no meeting. The error now says that
+  the resource was not found, or that the feature is not available and needs
+  that release.
 - `list_time_entries` with `user` compared the display name of each entry's
   user, so two users with the same name were mixed up. The reference ("me", an
   id or an exact name) is resolved to an id, and entries match by the id in

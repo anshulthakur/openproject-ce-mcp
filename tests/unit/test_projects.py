@@ -1659,7 +1659,7 @@ async def test_add_project_favorite_translates_404_to_version_hint() -> None:
     settings = dataclasses.replace(make_settings(), enable_project_write=True, write_projects=("demo",))
     client = OpenProjectClient(settings, transport=httpx.MockTransport(handler))
 
-    with pytest.raises(NotFoundError, match="Project favorites requires OpenProject 17.0"):
+    with pytest.raises(NotFoundError, match=r"Project favorites: not found, or not available on this instance \(it requires OpenProject 17\.0"):
         await client.add_project_favorite(project="demo", confirm=True)
 
     await client.aclose()
