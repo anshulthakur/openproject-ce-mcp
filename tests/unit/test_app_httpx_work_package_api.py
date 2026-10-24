@@ -18,11 +18,20 @@ from openproject_ce_mcp.app.errors import InvalidInputError
 from openproject_ce_mcp.app.ports.project_resolution import ProjectResolutionContext, WorkPackageResolutionContext
 from openproject_ce_mcp.app.ports.scoped_reference import VisibleReferences
 from openproject_ce_mcp.app.ports.work_package_api import WorkPackageGroupRecord
+from openproject_ce_mcp.app.resource_href import ResourceLinks
 from openproject_ce_mcp.app.transport.httpx_transport import HttpxTransport
 from openproject_ce_mcp.models import SortCriterion
 
-normalize_work_package_summary = partial(normalize_work_package_summary, visible=VisibleReferences.everything())
-normalize_work_package_detail = partial(normalize_work_package_detail, visible=VisibleReferences.everything())
+normalize_work_package_summary = partial(
+    normalize_work_package_summary,
+    visible=VisibleReferences.everything(),
+    resource_links=ResourceLinks("https://op.example.com"),
+)
+normalize_work_package_detail = partial(
+    normalize_work_package_detail,
+    visible=VisibleReferences.everything(),
+    resource_links=ResourceLinks("https://op.example.com"),
+)
 
 BASE_URL = "https://op.example.com"
 

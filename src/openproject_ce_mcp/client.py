@@ -545,6 +545,7 @@ class OpenProjectClient:
         self._scoped_reference_resolver = ScopedReferenceResolver(
             version_api=self._version_api,
             sprint_api=self._sprint_api,
+            backlog_bucket_api=self._backlog_bucket_api,
             settings=settings,
             project_id_to_identifier=self._project_id_to_identifier,
         )

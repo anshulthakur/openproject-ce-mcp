@@ -17,19 +17,20 @@ import pytest
 from _client_test_helpers import make_settings
 from _source_scan import SERVICES, matching_nodes
 
+from openproject_ce_mcp.app.services._work_package_references import HIDDEN_GROUP_LABEL
 from openproject_ce_mcp.client import OpenProjectClient
 
 SECRET_VERSION = "Secret release 7"
 SECRET_SPRINT = "Secret sprint 3"
 OWN_VERSION = "Own release 8"
-ALL = ("list", "search", "get", "get_embedded", "get_batch", "execute_query", "update", "delete_preview")
+ALL = ("list", "search", "get", "get_batch", "execute_query", "update", "delete_preview")
 
 
 def _version_link(version_id: int, title: str) -> dict:
     return {"href": f"/api/v3/versions/{version_id}", "title": title}
 
 
-def _work_package(wp_id: int = 10, *, embed: bool = False) -> dict:
+def _work_package(wp_id: int = 10) -> dict:
     payload = {
         "id": wp_id,
         "subject": "Subject",
@@ -45,24 +46,10 @@ def _work_package(wp_id: int = 10, *, embed: bool = False) -> dict:
             "customField7": {"href": "/api/v3/custom_options/4", "title": "High"},
         },
     }
-    if embed:
-        payload["_embedded"] = {
-            "version": _embedded_version(7, SECRET_VERSION, project_id=9),
-            "targetVersions": [
-                _embedded_version(7, SECRET_VERSION, project_id=9),
-                _embedded_version(8, OWN_VERSION, project_id=1),
-            ],
-            "sprint": {
-                "id": 3,
-                "name": SECRET_SPRINT,
-                "_links": {"self": {"href": "/api/v3/sprints/3"}, "definingWorkspace": {"href": "/api/v3/projects/9"}},
-            },
-            "customField6": _embedded_version(8, OWN_VERSION, project_id=1),
-        }
     return payload
 
 
-def _embedded_version(version_id: int, name: str, *, project_id: int) -> dict:
+def _version_resource(version_id: int, name: str, *, project_id: int) -> dict:
     return {
         "id": version_id,
         "name": name,
@@ -76,7 +63,7 @@ def _embedded_version(version_id: int, name: str, *, project_id: int) -> dict:
 class _Server:
     def __init__(self) -> None:
         self.requests: Counter[str] = Counter()
-        self.embed = False
+        self.group_link = "/api/v3/versions/7"
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         path, method = request.url.path, request.method
@@ -88,9 +75,18 @@ class _Server:
         elif path == "/api/v3/projects/9":
             body = {"_type": "Project", "id": 9, "name": "Secret", "identifier": "secret", "_links": {}}
         elif path == "/api/v3/versions/7":
-            body = _embedded_version(7, SECRET_VERSION, project_id=9)
+            body = _version_resource(7, SECRET_VERSION, project_id=9)
         elif path == "/api/v3/versions/8":
-            body = _embedded_version(8, OWN_VERSION, project_id=1)
+            body = _version_resource(8, OWN_VERSION, project_id=1)
+        elif path == "/api/v3/backlog_buckets/6":
+            body = {
+                "id": 6,
+                "name": SECRET_VERSION,
+                "_links": {
+                    "self": {"href": "/api/v3/backlog_buckets/6"},
+                    "definingWorkspace": {"href": "/api/v3/projects/9"},
+                },
+            }
         elif path == "/api/v3/sprints/3":
             body = {
                 "id": 3,
@@ -106,17 +102,17 @@ class _Server:
                         "value": SECRET_VERSION,
                         "count": 1,
                         "sums": {"estimatedTime": "P1D"},
-                        "_links": {"valueLink": [{"href": "/api/v3/versions/7"}]},
+                        "_links": {"valueLink": [{"href": self.group_link}]},
                     }
                 ],
                 "totalSums": {"estimatedTime": "P1D"},
             }
         elif path == "/api/v3/work_packages/10" and method == "GET":
-            body = _work_package(embed=self.embed)
+            body = _work_package()
         elif path == "/api/v3/work_packages/10/form":
             body = {"_embedded": {"payload": {"subject": "New"}, "validationErrors": {}, "schema": {}}}
         elif path == "/api/v3/work_packages/10" and method == "PATCH":
-            body = _work_package(embed=self.embed)
+            body = _work_package()
         elif path == "/api/v3/queries/5":
             body = {"_embedded": {"results": {"total": 1, "_embedded": {"elements": [_work_package()]}}}}
         else:
@@ -135,12 +131,11 @@ def _client(server: _Server, *, read_projects: tuple[str, ...]) -> OpenProjectCl
 
 async def _read(client: OpenProjectClient, server: _Server, path: str):
     work_package = client.work_package
-    server.embed = path in {"get_embedded", "update", "delete_preview"}
     if path == "list":
         return await work_package.list(project="demo")
     if path == "search":
         return await work_package.search(project="demo", search="Subject")
-    if path in {"get", "get_embedded"}:
+    if path == "get":
         return await work_package.get(10)
     if path == "get_batch":
         return await work_package.get_batch(ids=[10])
@@ -199,13 +194,18 @@ async def test_a_version_is_looked_up_once_per_call_however_many_rows_and_fields
 
 
 @pytest.mark.asyncio
-async def test_a_read_that_embeds_the_versions_and_sprint_needs_no_request_to_judge_them() -> None:
+async def test_a_second_read_judges_the_remembered_projects_without_a_request() -> None:
     server = _Server()
     client = _client(server, read_projects=("demo",))
 
-    await _read(client, server, "get_embedded")
+    await _read(client, server, "get")
+    await _read(client, server, "list")
 
-    assert [key for key in server.requests if "/versions/" in key or "/sprints/" in key] == []
+    assert {key: count for key, count in server.requests.items() if "/versions/" in key or "/sprints/" in key} == {
+        "GET /api/v3/versions/7": 1,
+        "GET /api/v3/versions/8": 1,
+        "GET /api/v3/sprints/3": 1,
+    }
     await client.aclose()
 
 
@@ -222,14 +222,29 @@ async def test_the_version_shown_as_the_alias_is_none_when_the_assignment_has_a_
 
 
 @pytest.mark.asyncio
-async def test_groups_naming_a_hidden_version_are_left_out_and_the_totals_stay() -> None:
+async def test_a_group_named_after_a_hidden_version_keeps_its_totals_under_a_neutral_label() -> None:
     server = _Server()
     client = _client(server, read_projects=("demo",))
 
     result = await client.work_package.list(project="demo", group_by="version", include_sums=True)
 
-    assert result.groups is None
+    assert [(g.value, g.count, g.sums) for g in result.groups or []] == [
+        (HIDDEN_GROUP_LABEL, 1, {"estimatedTime": "P1D"})
+    ]
     assert result.total_sums == {"estimatedTime": "P1D"}
+    assert SECRET_VERSION not in _text(result)
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_a_group_named_after_a_hidden_backlog_bucket_is_judged_like_a_version() -> None:
+    server = _Server()
+    server.group_link = "/api/v3/backlog_buckets/6"
+    client = _client(server, read_projects=("demo",))
+
+    result = await client.work_package.list(project="demo", group_by="backlog_bucket", include_sums=True)
+
+    assert [g.value for g in result.groups or []] == [HIDDEN_GROUP_LABEL]
     await client.aclose()
 
 

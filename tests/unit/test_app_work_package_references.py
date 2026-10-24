@@ -11,6 +11,7 @@ from openproject_ce_mcp.app.errors import TransportError
 from openproject_ce_mcp.app.ports.scoped_reference import ScopedReference, VisibleReferences
 from openproject_ce_mcp.app.ports.work_package_api import WorkPackageGroupRecord, WorkPackageRecord
 from openproject_ce_mcp.app.services._work_package_references import (
+    HIDDEN_GROUP_LABEL,
     groups_for_result,
     hidden_references_replaced,
     visible_references,
@@ -21,12 +22,11 @@ OWN = ScopedReference("version", 8)
 SPRINT = ScopedReference("sprint", 3)
 
 
-def _record(references: dict[str, frozenset[ScopedReference]], seeds=None) -> WorkPackageRecord:
+def _record(references: dict[str, frozenset[ScopedReference]]) -> WorkPackageRecord:
     return WorkPackageRecord(
         id=1,
         project="Demo",
         references=references,
-        seeds=seeds or {},
         payload={},
         summary_factory=lambda _visible: None,  # type: ignore[arg-type,return-value]
         detail_factory=lambda _visible: None,  # type: ignore[arg-type,return-value]
@@ -36,11 +36,11 @@ def _record(references: dict[str, frozenset[ScopedReference]], seeds=None) -> Wo
 class _Check:
     def __init__(self, outcomes: dict[ScopedReference, bool | Exception]) -> None:
         self._outcomes = outcomes
-        self.calls: list[tuple[list[ScopedReference], dict]] = []
+        self.calls: list[list[ScopedReference]] = []
 
-    async def __call__(self, references, *, seeds):
+    async def __call__(self, references):
         asked = list(references)
-        self.calls.append((asked, dict(seeds)))
+        self.calls.append(asked)
         return {reference: self._outcomes[reference] for reference in asked}
 
 
@@ -73,20 +73,16 @@ async def test_only_the_references_the_check_allows_are_visible() -> None:
 
 
 @pytest.mark.asyncio
-async def test_a_reference_of_several_records_is_asked_once_with_the_seeds_of_all() -> None:
-    seed = {"_links": {}}
+async def test_a_reference_of_several_records_is_asked_once() -> None:
     check = _Check({SECRET: True})
 
     await visible_references(
-        records=[
-            _record({"version": frozenset({SECRET})}, {SECRET: seed}),
-            _record({"target_versions": frozenset({SECRET})}),
-        ],
+        records=[_record({"version": frozenset({SECRET})}), _record({"target_versions": frozenset({SECRET})})],
         settings=_settings(),
         check=check,
     )
 
-    assert check.calls == [([SECRET], {SECRET: seed})]
+    assert check.calls == [[SECRET]]
 
 
 @pytest.mark.asyncio
@@ -141,7 +137,7 @@ async def test_a_shown_field_next_to_a_hidden_one_is_still_checked() -> None:
         check=check,
     )
 
-    assert check.calls[0][0] == [OWN]
+    assert check.calls == [[OWN]]
 
 
 @pytest.mark.asyncio
@@ -153,7 +149,7 @@ async def test_the_references_of_groups_are_checked_with_those_of_the_records() 
         records=[_record({"target_versions": frozenset({OWN})})], groups=[group], settings=_settings(), check=check
     )
 
-    assert check.calls[0][0] == [OWN, SECRET]
+    assert check.calls == [[OWN, SECRET]]
     assert not visible.contains(SECRET)
 
 
@@ -166,29 +162,46 @@ def test_groups_are_returned_as_the_server_sent_them_when_every_label_is_visible
         [_group("Own", OWN), _group(None)], group_by="version", visible=VisibleReferences.only([OWN])
     )
 
-    assert [(g.value, g.count, g.sums) for g in groups or []] == [
+    assert [(g.value, g.count, g.sums) for g in groups] == [
         ("Own", 2, {"estimatedTime": "P1D"}),
         (None, 2, {"estimatedTime": "P1D"}),
     ]
 
 
 @pytest.mark.parametrize("group_by", ["version", "target_versions", "sprint", "status", None])
-def test_all_groups_are_dropped_when_one_names_a_reference_that_is_not_visible(group_by) -> None:
-    groups = [_group("Own", OWN), _group("Secret", SECRET)]
+def test_a_group_named_after_a_reference_that_is_not_visible_keeps_its_totals_under_a_neutral_label(group_by) -> None:
+    groups = groups_for_result(
+        [_group("Own", OWN), _group("Secret", SECRET)], group_by=group_by, visible=VisibleReferences.only([OWN])
+    )
 
-    assert groups_for_result(groups, group_by=group_by, visible=VisibleReferences.only([OWN])) is None
+    assert [(g.value, g.count, g.sums) for g in groups] == [
+        ("Own", 2, {"estimatedTime": "P1D"}),
+        (HIDDEN_GROUP_LABEL, 2, {"estimatedTime": "P1D"}),
+    ]
 
 
 @pytest.mark.parametrize("group_by", ["version", "target_versions", "observed_in_versions", "sprint", "backlog_bucket"])
-def test_all_groups_are_dropped_when_a_label_of_a_reference_column_has_no_link_to_check(group_by) -> None:
-    assert groups_for_result([_group("Mystery")], group_by=group_by, visible=VisibleReferences.everything()) is None
+def test_a_label_of_a_reference_column_without_a_link_to_check_is_relabelled(group_by) -> None:
+    (group,) = groups_for_result([_group("Mystery")], group_by=group_by, visible=VisibleReferences.everything())
+
+    assert (group.value, group.count) == (HIDDEN_GROUP_LABEL, 2)
+
+
+@pytest.mark.parametrize("group_by", ["version", "backlog_bucket"])
+def test_nothing_is_relabelled_when_the_label_names_a_visible_reference_or_no_value(group_by) -> None:
+    bucket = ScopedReference("backlog_bucket", 4)
+    groups = groups_for_result(
+        [_group("Bucket", bucket), _group(None)], group_by=group_by, visible=VisibleReferences.only([bucket])
+    )
+
+    assert [g.value for g in groups] == ["Bucket", None]
 
 
 @pytest.mark.parametrize("group_by", ["status", "assignee", "project", "category", None])
-def test_a_label_without_a_link_is_kept_in_a_column_that_names_no_version_or_sprint(group_by) -> None:
+def test_a_label_without_a_link_is_kept_in_a_column_that_names_no_version_sprint_or_bucket(group_by) -> None:
     groups = groups_for_result([_group("Open")], group_by=group_by, visible=VisibleReferences.only([]))
 
-    assert [g.value for g in groups or []] == ["Open"]
+    assert [g.value for g in groups] == ["Open"]
 
 
 def _holding(**references: frozenset[ScopedReference]) -> WorkPackageRecord:
@@ -260,3 +273,26 @@ async def test_version_and_target_versions_write_the_same_data_so_either_link_re
     record = _holding(**{carried: frozenset({SECRET})})
 
     assert await hidden_references_replaced(record, [link], settings=_settings(), check=_Check({SECRET: False})) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("hidden", "link", "field"),
+    [
+        ({"hide_work_package_fields": ("custom_fields",)}, "customField5", "customField5"),
+        ({"hide_custom_fields": ("customField5",)}, "customField5", "customField5"),
+        ({"hide_work_package_fields": ("sprint",)}, "sprint", "sprint"),
+    ],
+)
+async def test_the_write_check_does_not_depend_on_what_a_hide_setting_removes_from_results(hidden, link, field) -> None:
+    """A field the results do not show can still be written, and writing it still removes the assignment."""
+    record = _holding(**{field: frozenset({SECRET})})
+
+    count = await hidden_references_replaced(
+        record, [link], settings=_settings(**hidden), check=_Check({SECRET: False})
+    )
+    covered = await hidden_references_replaced(
+        record, [link], settings=_settings(**hidden), check=_Check({SECRET: True})
+    )
+
+    assert (count, covered) == (1, 0)

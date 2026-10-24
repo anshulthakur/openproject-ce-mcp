@@ -325,9 +325,10 @@ async def list_work_packages(
     either way (a sum over the whole filtered result set even without
     grouping). Same scope-safety rule as total above: groups/total_sums
     come back null whenever the query cannot be proven restricted to
-    OPENPROJECT_READ_PROJECTS server-side. groups is also null when a
-    group is named after a version or sprint defined in a project that
-    OPENPROJECT_READ_PROJECTS does not cover.
+    OPENPROJECT_READ_PROJECTS server-side. A group named after a version,
+    sprint or backlog bucket defined in a project that
+    OPENPROJECT_READ_PROJECTS does not cover keeps its count and sums under
+    the label [outside read scope].
 
     Version rollup recipe: group_by="status", version="<version id or
     name>", include_sums=true returns per-status progress/time sums for one

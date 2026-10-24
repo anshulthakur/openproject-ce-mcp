@@ -113,15 +113,13 @@ class WorkPackageRecord:
     """A work package as read from the API, presentable only with a decision on its references.
 
     `references` maps the result field that shows a reference (`version`, `target_versions`,
-    `observed_in_versions`, `sprint`, `customField<N>`) to the references it names, so a field a
-    hide setting removes costs no lookup. `seeds` are the embedded resources the response carries,
-    keyed by their own self link.
+    `sprint`, `customField<N>`) to the references it names, so a field a
+    hide setting removes costs no lookup.
     """
 
     id: int
     project: str | None
     references: Mapping[str, frozenset[ScopedReference]]
-    seeds: Mapping[ScopedReference, Mapping[str, Any]]
     payload: dict[str, Any]  # raw HAL payload, _links included (allowlist checks,
     # hierarchy-allowlist filtering need the raw children/ancestors links)
     summary_factory: Callable[[VisibleReferences], WorkPackageSummary]

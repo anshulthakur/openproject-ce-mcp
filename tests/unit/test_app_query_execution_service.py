@@ -70,14 +70,13 @@ def _record(summary: WorkPackageSummary, payload: dict) -> WorkPackageRecord:
         id=summary.id,
         project=summary.project,
         references={},
-        seeds={},
         payload=payload,
         summary_factory=lambda _visible: summary,
         detail_factory=lambda _visible: None,  # type: ignore[arg-type,return-value]
     )
 
 
-async def _all_references_allowed(references, *, seeds):
+async def _all_references_allowed(references):
     return dict.fromkeys(references, True)
 
 

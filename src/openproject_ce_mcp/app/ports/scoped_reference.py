@@ -1,6 +1,6 @@
-"""A version or sprint a work package result may name.
+"""A version, sprint or backlog bucket a work package result may name.
 
-Both are shared into projects other than the one that defines them, and the link a work package
+They are shared into projects other than the one that defines them, and the link a work package
 carries names the resource without its defining project. A result names one only when it is in the
 `VisibleReferences` the service decided on, so a reference the adapter does not recognize loses its
 title instead of leaking it.
@@ -8,11 +8,11 @@ title instead of leaking it.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Iterable, Mapping
+from collections.abc import Awaitable, Iterable
 from dataclasses import dataclass
-from typing import Any, Literal, Protocol
+from typing import Literal, Protocol
 
-ReferenceKind = Literal["version", "sprint"]
+ReferenceKind = Literal["version", "sprint", "backlog_bucket"]
 
 
 @dataclass(frozen=True)
@@ -45,11 +45,8 @@ class VisibleReferences:
 class ScopedReferencesAllowedBulkCheck(Protocol):
     """Narrow seam onto `ScopedReferenceResolver.references_allowed`.
 
-    `seeds` are the resources the server embedded in the response, which carry the defining project
-    and need no request. Returns `bool | Exception` per reference, so the caller re-raises the first
-    failure only for a reference it needs.
+    Returns `bool | Exception` per reference, so the caller re-raises the first failure only for a
+    reference it needs.
     """
 
-    def __call__(
-        self, references: Iterable[ScopedReference], *, seeds: Mapping[ScopedReference, Mapping[str, Any]]
-    ) -> Awaitable[dict[ScopedReference, bool | Exception]]: ...
+    def __call__(self, references: Iterable[ScopedReference]) -> Awaitable[dict[ScopedReference, bool | Exception]]: ...

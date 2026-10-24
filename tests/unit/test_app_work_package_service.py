@@ -127,7 +127,6 @@ def _record(wp_id: int = 6, *, summary=None, detail=None, payload=None, referenc
         id=s.id,
         project=s.project,
         references=references or {},
-        seeds={},
         payload=payload or _payload(wp_id),
         summary_factory=lambda _visible: s,
         detail_factory=lambda _visible: d,
@@ -376,7 +375,7 @@ async def _no_project_allowed(href: str, *, context: WorkPackageAllowedContext |
     return False
 
 
-async def _all_references_allowed(references, *, seeds):
+async def _all_references_allowed(references):
     return dict.fromkeys(references, True)
 
 
@@ -3660,7 +3659,7 @@ _HIDDEN_VERSION = ScopedReference("version", 7)
 _HIDDEN_SPRINT = ScopedReference("sprint", 3)
 
 
-async def _only_visible(references, *, seeds):
+async def _only_visible(references):
     return {reference: reference not in {_HIDDEN_VERSION, _HIDDEN_SPRINT} for reference in references}
 
 

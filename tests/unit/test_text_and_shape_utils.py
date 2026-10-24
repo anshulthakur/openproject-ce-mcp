@@ -34,6 +34,7 @@ from openproject_ce_mcp.app.adapters.httpx_work_package_api import (
 )
 from openproject_ce_mcp.app.origin import origin_from_url as _origin_from_url
 from openproject_ce_mcp.app.ports.scoped_reference import VisibleReferences
+from openproject_ce_mcp.app.resource_href import ResourceLinks
 from openproject_ce_mcp.app.services.work_package_service import _narrow_cleared
 from openproject_ce_mcp.client import (
     CLEAR,
@@ -43,8 +44,16 @@ from openproject_ce_mcp.client import (
     _trim_text,
 )
 
-normalize_work_package_summary = partial(normalize_work_package_summary, visible=VisibleReferences.everything())
-normalize_work_package_detail = partial(normalize_work_package_detail, visible=VisibleReferences.everything())
+normalize_work_package_summary = partial(
+    normalize_work_package_summary,
+    visible=VisibleReferences.everything(),
+    resource_links=ResourceLinks("https://op.example.com"),
+)
+normalize_work_package_detail = partial(
+    normalize_work_package_detail,
+    visible=VisibleReferences.everything(),
+    resource_links=ResourceLinks("https://op.example.com"),
+)
 
 
 def test_extract_formattable_text_trims_large_payloads() -> None:

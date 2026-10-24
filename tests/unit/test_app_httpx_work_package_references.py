@@ -8,13 +8,14 @@ from openproject_ce_mcp.app.adapters.httpx_work_package_api import (
     CUSTOM_FIELD_LIST_ITEM_LIMIT,
     HttpxWorkPackageApi,
     collect_references,
-    collect_seeds,
     normalize_work_package_summary,
     reference_of_link,
 )
 from openproject_ce_mcp.app.ports.scoped_reference import ScopedReference, VisibleReferences
+from openproject_ce_mcp.app.resource_href import ResourceLinks
 from openproject_ce_mcp.app.transport.httpx_transport import HttpxTransport
 
+LINKS = ResourceLinks("https://op.example.com")
 SECRET = ScopedReference("version", 7)
 OWN = ScopedReference("version", 8)
 SPRINT = ScopedReference("sprint", 3)
@@ -30,25 +31,47 @@ def _payload(**links: object) -> dict:
 
 
 def _summary(payload: dict, visible: VisibleReferences):
-    return normalize_work_package_summary(payload, text_limit=None, visible=visible)
+    return normalize_work_package_summary(payload, text_limit=None, visible=visible, resource_links=LINKS)
 
 
 @pytest.mark.parametrize(
     ("href", "expected"),
     [
         ("/api/v3/versions/7", SECRET),
-        ("/openproject/api/v3/versions/7", SECRET),
-        ("https://op.example.com/api/v3/versions/7?x=1", SECRET),
-        ("/api/v3/sprints/3/", SPRINT),
+        ("https://op.example.com/api/v3/versions/7", SECRET),
+        ("/api/v3/sprints/3", SPRINT),
+        ("/api/v3/backlog_buckets/4", ScopedReference("backlog_bucket", 4)),
         ("/api/v3/versions/no_version", None),
+        ("/api/v3/versions/07", None),
+        ("/api/v3/versions/7/", None),
+        ("/api/v3/versions/7?x=1", None),
+        ("/api/v3/versions/7#x", None),
+        ("/api/v3/versions/%37", None),
+        ("/api/v3/../v3/versions/7", None),
+        ("/api/v3/projects/7/versions/7", None),
+        ("/openproject/api/v3/versions/7", None),
+        ("/api/v4/versions/7", None),
+        ("/xxxxxxxx/versions/7", None),
+        ("https://evil.example.com/api/v3/versions/7", None),
+        ("http://op.example.com/api/v3/versions/7", None),
+        ("https://user@op.example.com/api/v3/versions/7", None),
         ("/api/v3/projects/7", None),
         ("/api/v3/statuses/1", None),
+        ("/api/v3/versions/99999999999999999999", None),
+        ("versions/7", None),
         ("versions", None),
         (None, None),
     ],
 )
-def test_a_link_is_a_reference_by_the_namespace_and_id_at_the_end_of_its_href(href, expected) -> None:
-    assert reference_of_link({"href": href, "title": "x"}) == expected
+def test_a_link_is_a_reference_only_in_the_exact_shape_of_this_instance(href, expected) -> None:
+    assert reference_of_link({"href": href, "title": "x"}, LINKS) == expected
+
+
+def test_a_link_follows_the_root_path_of_the_instance() -> None:
+    links = ResourceLinks("https://op.example.com/openproject")
+
+    assert reference_of_link({"href": "/openproject/api/v3/versions/7"}, links) == SECRET
+    assert reference_of_link({"href": "/api/v3/versions/7"}, links) is None
 
 
 def test_a_target_version_title_is_kept_only_for_a_visible_reference_and_in_server_order() -> None:
@@ -146,26 +169,12 @@ def test_the_references_of_a_payload_are_listed_per_result_field() -> None:
         customField6={"href": "/api/v3/custom_options/4", "title": "High"},
     )
 
-    assert collect_references(payload) == {
+    assert collect_references(payload, LINKS) == {
         "version": frozenset({SECRET}),
         "target_versions": frozenset({SECRET, OWN}),
         "sprint": frozenset({SPRINT}),
         "customField5": frozenset({ScopedReference("version", 9)}),
     }
-
-
-def test_the_embedded_resources_are_seeds_keyed_by_their_own_self_link() -> None:
-    embedded_version = {"id": 7, "_links": {"self": {"href": "/api/v3/versions/7"}}}
-    payload = _payload(version=_version(8, "Own"))
-    payload["_embedded"] = {
-        "version": embedded_version,
-        "targetVersions": [embedded_version, {"id": 3, "_links": {}}, "not a resource"],
-        "customField5": {"id": 9, "_links": {"self": {"href": "/api/v3/versions/9"}}},
-        "project": {"id": 1, "_links": {"self": {"href": "/api/v3/projects/1"}}},
-    }
-
-    assert set(collect_seeds(payload)) == {SECRET, ScopedReference("version", 9)}
-    assert collect_seeds(payload)[SECRET] is embedded_version
 
 
 def test_a_record_names_nothing_until_it_is_asked_for_a_summary_with_a_decision() -> None:

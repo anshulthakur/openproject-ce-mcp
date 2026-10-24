@@ -2019,7 +2019,7 @@ class WorkPackageService:
         if hidden_replaced:
             raise InvalidInputError(
                 f"Work package {ref} has {hidden_replaced} version or sprint assignment(s) in a project "
-                "OPENPROJECT_READ_PROJECTS does not cover, which this change would replace or remove. "
+                "OPENPROJECT_READ_PROJECTS does not cover or the token cannot see, which this change would replace or remove. "
                 "Leave the version, target versions, sprint or version custom fields unchanged."
             )
 

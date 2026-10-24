@@ -13,6 +13,7 @@ import uuid
 import pytest
 
 from openproject_ce_mcp.app.errors import InvalidInputError
+from openproject_ce_mcp.app.services._work_package_references import HIDDEN_GROUP_LABEL
 from openproject_ce_mcp.app.services.work_package_service import CLEAR_VERSION
 from openproject_ce_mcp.client import OpenProjectClient
 from openproject_ce_mcp.models import SortCriterion
@@ -192,7 +193,7 @@ async def test_work_package_results_leave_out_a_version_defined_outside_the_read
     for path, result in reads.items():
         assert secret not in _text(result), path
     assert wp_id in [row.id for row in reads["list"].results]
-    assert reads["grouped"].groups is None
+    assert HIDDEN_GROUP_LABEL in [g.value for g in reads["grouped"].groups or []]
     assert reads["grouped"].total_sums is not None
 
     open_detail = await everywhere.work_package.get(wp_id)
