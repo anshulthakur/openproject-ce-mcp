@@ -24,6 +24,14 @@ out the change details, because OpenProject renders every changed value into the
 and hiding fields of work packages, projects, versions, documents, meetings, posts,
 users, groups, principals or views makes `render_text` refuse, because its macros render their names.
 
+A hidden work package field is also closed as a query. `list_work_packages` and
+`search_work_packages` refuse a filter, a `sort_by` column or a `group_by` column that
+orders or labels by a hidden field (`version` and `target_versions` close together, and
+`assigned_to` and `assignee` are one field), `list_my_open_work_packages` is refused while
+`assignee` or `status` is hidden, and the aggregates of `include_sums` leave out the sums of
+`estimated_time`, `remaining_time`, `percentage_done` and of a hidden custom field. Without
+this, the values would show up one query at a time.
+
 ## Custom fields: a read/write asymmetry
 
 `OPENPROJECT_HIDE_CUSTOM_FIELDS` behaves differently on reads than on writes:

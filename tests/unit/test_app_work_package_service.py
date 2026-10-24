@@ -29,6 +29,7 @@ from openproject_ce_mcp.app.services.work_package_service import CLEAR_VERSION, 
 from openproject_ce_mcp.models import (
     ActivitySummary,
     CurrentUser,
+    SortCriterion,
     StatusSummary,
     WorkPackageDetail,
     WorkPackageGroupSums,
@@ -3731,3 +3732,94 @@ async def test_bulk_update_reports_the_refusal_for_the_item_and_updates_the_othe
     assert [(item.success, item.error is not None) for item in result.items] == [(False, True), (True, False)]
     assert "assignment(s)" in (result.items[0].error or "")
     assert [ref for ref, _ in api.commit_update_calls] == ["7"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("hidden", "call"),
+    [
+        ("version", {"group_by": "version", "include_sums": True}),
+        ("target_versions", {"group_by": "version", "include_sums": True}),
+        ("status", {"group_by": "status"}),
+        ("assignee", {"sort_by": [SortCriterion(field="assigned_to", direction="asc")]}),
+        ("due_date", {"due_between": ["2026-01-01", "2026-12-31"]}),
+        ("status", {"open_only": True}),
+        ("assignee", {"assignee_me": True}),
+    ],
+)
+async def test_list_refuses_to_query_by_a_hidden_field(hidden: str, call: dict) -> None:
+    settings = dataclasses.replace(make_settings(), hidden_fields={"work_package": (hidden,)})
+    service, api = _service(settings=settings)
+
+    with pytest.raises(PermissionDeniedError, match="is hidden by OPENPROJECT_HIDE_WORK_PACKAGE_FIELDS"):
+        await service.list(**call)
+
+    assert api.list_calls == []
+
+
+@pytest.mark.asyncio
+async def test_search_refuses_to_query_by_a_hidden_field() -> None:
+    settings = dataclasses.replace(make_settings(), hidden_fields={"work_package": ("priority",)})
+    service, api = _service(settings=settings)
+
+    with pytest.raises(PermissionDeniedError, match="'priority' is hidden"):
+        await service.search(search="x", priority="High")
+
+    assert api.list_calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("hidden", ["assignee", "status"])
+async def test_list_my_open_is_refused_while_the_assignee_or_the_status_is_hidden(hidden: str) -> None:
+    settings = dataclasses.replace(make_settings(), hidden_fields={"work_package": (hidden,)})
+    service, api = _service(settings=settings)
+
+    with pytest.raises(PermissionDeniedError, match=f"'{hidden}' is hidden"):
+        await service.list_my_open()
+
+    assert api.list_calls == []
+
+
+@pytest.mark.asyncio
+async def test_list_queries_by_a_field_that_is_not_hidden_while_another_one_is() -> None:
+    settings = dataclasses.replace(make_settings(), hidden_fields={"work_package": ("description",)})
+    service, api = _service(settings=settings)
+
+    await service.list(group_by="status", sort_by=[SortCriterion(field="priority", direction="desc")], open_only=True)
+
+    assert len(api.list_calls) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("hidden", ["version", "target_versions"])
+@pytest.mark.parametrize("column", ["version", "target_versions"])
+async def test_the_two_names_of_the_version_column_close_together(hidden: str, column: str) -> None:
+    settings = dataclasses.replace(make_settings(), hidden_fields={"work_package": (hidden,)})
+    service, _ = _service(settings=settings)
+
+    with pytest.raises(PermissionDeniedError, match="cannot be used to group"):
+        await service.list(group_by=column)
+
+
+@pytest.mark.asyncio
+async def test_a_filter_set_to_zero_is_still_a_filter_on_the_hidden_field() -> None:
+    settings = dataclasses.replace(make_settings(), hidden_fields={"work_package": ("due_date",)})
+    service, _ = _service(settings=settings)
+
+    with pytest.raises(PermissionDeniedError, match="'due_date' is hidden"):
+        await service.list(due_within_days=0)
+
+
+@pytest.mark.asyncio
+async def test_list_leaves_the_sums_of_a_hidden_field_out_of_the_totals_and_the_groups() -> None:
+    raw_groups = [{"value": "New", "count": 3, "sums": {"estimatedTime": "P1D", "storyPoints": 5}}]
+    api = _FakeWorkPackageApi(
+        raw_groups=raw_groups, raw_total_sums={"estimatedTime": "P2D", "storyPoints": 9, "remainingTime": "PT1H"}
+    )
+    settings = dataclasses.replace(make_settings(), hidden_fields={"work_package": ("estimated_time",)})
+    service, _ = _service(api, settings=settings)
+
+    result = await service.list(group_by="status", include_sums=True)
+
+    assert result.total_sums == {"storyPoints": 9, "remainingTime": "PT1H"}
+    assert [g.sums for g in result.groups or []] == [{"storyPoints": 5}]

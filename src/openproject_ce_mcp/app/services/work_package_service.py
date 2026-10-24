@@ -121,7 +121,7 @@ from ..errors import (
     PermissionDeniedError,
 )
 from ..pagination import effective_limit, paginate_server
-from ..policies import access, hidden_fields
+from ..policies import access, hidden_fields, work_package_query_policy
 from ..policies import work_package_policy as _work_package_policy
 from ..policies.scope import (
     ensure_project_link_allowed,
@@ -412,6 +412,11 @@ def _log_bulk_cancellation(
     )
 
 
+def _requested(**parameters: Any) -> list[str]:
+    """The names of the filter parameters a call actually set."""
+    return [name for name, value in parameters.items() if value is not None and value is not False and value != []]
+
+
 class WorkPackageService:
     def __init__(
         self,
@@ -626,12 +631,22 @@ class WorkPackageService:
             truncated = len(allowed_items) > limit
             next_offset = (offset + 1) if truncated else None
         groups = (
-            groups_for_result(page.groups, group_by=group_by, visible=visible)
+            [
+                dataclasses.replace(
+                    group,
+                    sums=work_package_query_policy.sums_without_hidden_fields(group.sums, settings=self._settings),
+                )
+                for group in groups_for_result(page.groups, group_by=group_by, visible=visible)
+            ]
             if requested_sums and aggregates_hold and page.groups is not None
             else None
         )
         # The server computed them over the rows it returned, which include the dropped ones.
-        total_sums = page.raw_total_sums if requested_sums and aggregates_hold else None
+        total_sums = (
+            work_package_query_policy.sums_without_hidden_fields(page.raw_total_sums, settings=self._settings)
+            if requested_sums and aggregates_hold
+            else None
+        )
         return WorkPackageListResult(
             offset=offset,
             limit=limit,
@@ -892,6 +907,26 @@ class WorkPackageService:
         custom_field_filters: dict[str, dict[str, Any]] | None = None,
     ) -> WorkPackageListResult:
         access.ensure_read_enabled("work_package", settings=self._settings)
+        work_package_query_policy.ensure_query_allowed(
+            settings=self._settings,
+            filters=_requested(
+                status=status,
+                open_only=open_only,
+                assignee_me=assignee_me,
+                assignee=assignee,
+                priority=priority,
+                created_on=created_on,
+                created_between=created_between,
+                updated_on=updated_on,
+                updated_between=updated_between,
+                due_on=due_on,
+                due_between=due_between,
+                overdue_only=overdue_only,
+                due_within_days=due_within_days,
+            ),
+            sort_fields=[criterion.field for criterion in sort_by or []],
+            group_by=group_by,
+        )
         effective = effective_limit(limit, settings=self._settings)
         if not self._settings.read_projects:
             return _empty_list_result(offset=offset, limit=effective)
@@ -1020,6 +1055,29 @@ class WorkPackageService:
         custom_field_filters: dict[str, dict[str, Any]] | None = None,
     ) -> WorkPackageListResult:
         access.ensure_read_enabled("work_package", settings=self._settings)
+        work_package_query_policy.ensure_query_allowed(
+            settings=self._settings,
+            filters=_requested(
+                type=type,
+                version=version,
+                version_status=version_status,
+                open_only=open_only,
+                assignee_me=assignee_me,
+                assignee=assignee,
+                status=status,
+                priority=priority,
+                created_on=created_on,
+                created_between=created_between,
+                updated_on=updated_on,
+                updated_between=updated_between,
+                due_on=due_on,
+                due_between=due_between,
+                overdue_only=overdue_only,
+                due_within_days=due_within_days,
+            ),
+            sort_fields=[criterion.field for criterion in sort_by or []],
+            group_by=group_by,
+        )
         effective = effective_limit(limit, settings=self._settings)
         if not self._settings.read_projects:
             return _empty_list_result(offset=offset, limit=effective)
@@ -1106,6 +1164,9 @@ class WorkPackageService:
 
     async def list_my_open(self, *, offset: int = 1, limit: int | None = None) -> WorkPackageListResult:
         access.ensure_read_enabled("work_package", settings=self._settings)
+        work_package_query_policy.ensure_query_allowed(
+            settings=self._settings, filters=["assignee_me", "open_only"], sort_fields=[], group_by=None
+        )
         effective = effective_limit(limit, settings=self._settings)
         if not self._settings.read_projects:
             return _empty_list_result(offset=offset, limit=effective)

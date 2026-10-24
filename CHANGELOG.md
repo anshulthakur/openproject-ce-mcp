@@ -11,6 +11,13 @@ development baseline.
 
 ### Security
 
+- A work package field hidden with `OPENPROJECT_HIDE_WORK_PACKAGE_FIELDS` was
+  left out of the results but could still be read through a query: a filter
+  such as `status` or `assignee`, `sort_by`, `group_by` (whose group labels
+  are the values) and the sums of `include_sums` showed it. `list_work_packages`
+  and `search_work_packages` now refuse a filter, an ordering or a grouping by
+  a hidden field, `list_my_open_work_packages` is refused while `assignee` or
+  `status` is hidden, and the sums of a hidden field are left out.
 - A work package of a covered project can carry a version shared into its
   project from a project that `OPENPROJECT_READ_PROJECTS` does not cover, and
   from OpenProject 17.3 a sprint, and from 17.6 a backlog bucket, shared the
