@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 from _client_test_helpers import make_settings
 
@@ -202,3 +204,16 @@ async def test_resolve_id_reads_non_ascii_digits_as_a_name(name: str) -> None:
         api=api, resolve_project_ref=_resolve_project_ref, settings=make_settings(), project_id_to_identifier={}
     )
     assert await resolver.resolve_id(name, project="demo") == "11"
+
+
+@pytest.mark.asyncio
+async def test_resolve_id_by_name_works_with_project_reads_disabled() -> None:
+    """A work package write resolves a sprint name; the project read gate is the project tools'."""
+    resolver = SprintResolver(
+        api=_FakeSprintApi(pages=[([_record(9, "Sprint 9", defining_workspace_id=1)], 1)]),
+        resolve_project_ref=_resolve_project_ref,
+        settings=dataclasses.replace(make_settings(), enable_project_read=False),
+        project_id_to_identifier={1: "demo"},
+    )
+
+    assert await resolver.resolve_id("Sprint 9", project="demo") == "9"

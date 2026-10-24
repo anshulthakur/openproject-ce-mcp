@@ -29,7 +29,7 @@ from ...config import Settings
 from ...work_package_reference import is_numeric_ref
 from ..errors import InvalidInputError, NotFoundError
 from ..pagination import paginate_server
-from ..policies import access, sprint_policy
+from ..policies import sprint_policy
 from ..ports.project_ref import ProjectRefResolver
 from ..ports.project_resolution import ProjectResolutionContext
 from ..ports.sprint_api import SprintApi
@@ -71,7 +71,6 @@ class SprintResolver:
         # Page-walk real server pages via list_for_project directly, trusting
         # its reported `total` (mirrors VersionResolver.resolve_id's genuine
         # server-paginated project path).
-        access.ensure_read_enabled("project", settings=self._settings)
         project_payload = await self._resolve_project_ref(project, context=context)
         project_id = int(project_payload["id"])
         page_size = self._settings.max_page_size

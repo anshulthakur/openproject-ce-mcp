@@ -19,7 +19,6 @@ from collections.abc import Awaitable, Callable, Mapping
 from ...config import Settings
 from ...models import VersionSummary
 from ..pagination import paginate_client, scan_records_and_paginate
-from ..policies import access
 from ..policies.version_policy import version_payload_allowed
 from ..ports.project_ref import ProjectRefResolver
 from ..ports.project_resolution import ProjectResolutionContext
@@ -75,12 +74,9 @@ async def fetch_visible_version_records(
     `VersionResolver` (which needs `VersionRecord.lookup_name`, not just
     `.summary`, for exact-name matching) both build on.
 
-    access.ensure_read_enabled is called HERE (not by callers) so every caller gets
-    the identical, redundant-per-page check -- this redundancy is intentional,
-    tested behavior, not something to "fix" away.
+    The version read gate belongs to the tool's service, not to this lookup, which a write of
+    another domain also uses to resolve a version name.
     """
-    access.ensure_read_enabled("version", settings=settings)
-
     if project:
         # GET /api/v3/versions has no project filter; use the project-scoped endpoint.
         # Its collection is the project's own versions plus every version shared into it
@@ -176,7 +172,6 @@ async def fetch_version_page(
             results = [item for item in results if search_key in (item.name or "").casefold()]
         return paginate_client(offset=offset, limit=effective_limit, results=results)
 
-    access.ensure_read_enabled("version", settings=settings)
     global_search_key = search.casefold() if search else None
 
     def _record_allowed(record: VersionRecord) -> bool:

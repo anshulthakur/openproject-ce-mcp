@@ -176,6 +176,12 @@ development baseline.
 
 ### Fixed
 
+- `assignee: "me"` in a work package write failed with a permission error when
+  `OPENPROJECT_ENABLE_MEMBERSHIP_READ` was false, and a version, sprint or
+  project given by name failed the same way when the version or project reads
+  were off, although work package writes do not depend on those reads. The
+  lookups behind them no longer check another tool group's read gate; the
+  tools of that group still do.
 - `OPENPROJECT_TIMEOUT`, `OPENPROJECT_RETRY_BASE_DELAY` and
   `OPENPROJECT_RETRY_MAX_DELAY` accepted `nan` and `inf`, which passed the
   minimum check and reached the HTTP client; they are now rejected at start.

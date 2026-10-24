@@ -1108,3 +1108,13 @@ async def test_an_ancestor_without_an_id_stays_under_every_project_scope() -> No
 
     assert project.ancestors is not None
     assert len(project.ancestors) == 1
+
+
+@pytest.mark.asyncio
+async def test_list_checks_read_enabled() -> None:
+    settings = dataclasses.replace(make_settings(), enable_project_read=False)
+    api = _FakeProjectApi()
+    service = _service(api, settings=settings)
+
+    with pytest.raises(PermissionDeniedError, match="OPENPROJECT_ENABLE_PROJECT_READ"):
+        await service.list()

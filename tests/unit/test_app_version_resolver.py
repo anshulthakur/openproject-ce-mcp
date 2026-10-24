@@ -212,3 +212,16 @@ async def test_a_numeric_version_without_a_defining_project_link_follows_the_und
     else:
         with pytest.raises(PermissionDeniedError):
             await resolver.resolve_id("8", project=None)
+
+
+@pytest.mark.asyncio
+async def test_resolve_by_name_works_with_version_reads_disabled() -> None:
+    """A work package write resolves a version name; the version read gate is the version tools'."""
+    resolver = VersionResolver(
+        api=_FakeVersionApi([_record(8, "v1.0")]),
+        resolve_project_ref=_resolve_project_ref,
+        settings=dataclasses.replace(make_settings(), enable_version_read=False),
+        project_id_to_identifier={6: "demo"},
+    )
+
+    assert await resolver.resolve_id("v1.0", project="demo") == "8"

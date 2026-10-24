@@ -63,6 +63,7 @@ class VersionService:
         limit: int | None = None,
         context: ProjectResolutionContext | None = None,
     ) -> VersionListResult:
+        access.ensure_read_enabled("version", settings=self._settings)
         # limit must be clamped HERE, matching the original _resolve_limit contract
         # (min(requested, max_page_size, max_results)) -- fetch_version_page clamps
         # its own internal copy for the actual pagination math, but that clamped

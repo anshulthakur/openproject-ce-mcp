@@ -1,12 +1,8 @@
 from __future__ import annotations
 
-import dataclasses
-
 import pytest
-from _client_test_helpers import make_settings
 
 from openproject_ce_mcp.app.caches import SingletonCache
-from openproject_ce_mcp.app.errors import PermissionDeniedError
 from openproject_ce_mcp.app.ports.current_user_api import CurrentUserRecord
 from openproject_ce_mcp.app.resolvers.current_user_resolver import CurrentUserResolver
 from openproject_ce_mcp.models import CurrentUser
@@ -25,7 +21,7 @@ class _FakeCurrentUserApi:
 @pytest.mark.asyncio
 async def test_call_returns_the_current_user() -> None:
     api = _FakeCurrentUserApi()
-    resolver = CurrentUserResolver(api=api, settings=make_settings(), cache=SingletonCache())
+    resolver = CurrentUserResolver(api=api, cache=SingletonCache())
 
     current_user = await resolver()
 
@@ -36,33 +32,22 @@ async def test_call_returns_the_current_user() -> None:
 
 
 @pytest.mark.asyncio
-async def test_call_checks_principal_read_enabled() -> None:
-    settings = dataclasses.replace(make_settings(), enable_membership_read=False)
+async def test_call_returns_the_current_user_whatever_the_user_read_gate_and_hide_settings_say() -> None:
+    """An internal lookup for assignee="me": the gate and the masking belong to the tool."""
     api = _FakeCurrentUserApi()
-    resolver = CurrentUserResolver(api=api, settings=settings, cache=SingletonCache())
-
-    with pytest.raises(PermissionDeniedError):
-        await resolver()
-
-    assert api.get_current_user_calls == 0
-
-
-@pytest.mark.asyncio
-async def test_call_masks_hidden_fields() -> None:
-    settings = dataclasses.replace(make_settings(), hidden_fields={"current_user": ("login",)})
-    api = _FakeCurrentUserApi()
-    resolver = CurrentUserResolver(api=api, settings=settings, cache=SingletonCache())
+    resolver = CurrentUserResolver(api=api, cache=SingletonCache())
 
     current_user = await resolver()
 
-    assert current_user._hidden_keys == frozenset({"login"})  # type: ignore[attr-defined]
+    assert (current_user.id, current_user.login) == (99, "alice")
+    assert not hasattr(current_user, "_hidden_keys")
 
 
 @pytest.mark.asyncio
 async def test_call_uses_cache_on_second_invocation() -> None:
     api = _FakeCurrentUserApi()
     cache: SingletonCache = SingletonCache()
-    resolver = CurrentUserResolver(api=api, settings=make_settings(), cache=cache)
+    resolver = CurrentUserResolver(api=api, cache=cache)
 
     await resolver()
     await resolver()
@@ -74,7 +59,7 @@ async def test_call_uses_cache_on_second_invocation() -> None:
 async def test_call_shares_a_pre_populated_cache_without_calling_the_api() -> None:
     api = _FakeCurrentUserApi()
     cache: SingletonCache = SingletonCache(value=CurrentUserRecord(summary=CurrentUser(id=1, name="Bob", login="bob")))
-    resolver = CurrentUserResolver(api=api, settings=make_settings(), cache=cache)
+    resolver = CurrentUserResolver(api=api, cache=cache)
 
     current_user = await resolver()
 

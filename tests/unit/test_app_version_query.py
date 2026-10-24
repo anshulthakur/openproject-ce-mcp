@@ -274,21 +274,20 @@ async def test_project_scoped_with_search_branch_passes_write_false_to_resolve_p
 
 
 @pytest.mark.asyncio
-async def test_read_gate_enforced_even_without_project() -> None:
-    from openproject_ce_mcp.app.errors import PermissionDeniedError
-
+async def test_the_lookup_checks_no_read_gate_because_a_write_of_another_domain_uses_it() -> None:
     api = _FakeVersionApi([])
     settings = dataclasses.replace(make_settings(), enable_version_read=False)
 
-    with pytest.raises(PermissionDeniedError, match="OPENPROJECT_ENABLE_VERSION_READ"):
-        await fetch_version_page(
-            api=api,
-            resolve_project_ref=_resolve_project_ref,
-            settings=settings,
-            project_id_to_identifier={},
-            project=None,
-            search=None,
-            offset=1,
-            limit=10,
-            context=None,
-        )
+    results, total, _next, _truncated = await fetch_version_page(
+        api=api,
+        resolve_project_ref=_resolve_project_ref,
+        settings=settings,
+        project_id_to_identifier={},
+        project=None,
+        search=None,
+        offset=1,
+        limit=10,
+        context=None,
+    )
+
+    assert (results, total) == ([], 0)

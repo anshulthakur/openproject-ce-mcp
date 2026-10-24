@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from ...config import Settings
 from ...models import ProjectSummary
-from ..policies import access, project_policy
+from ..policies import project_policy
 from ..policies.scope import payload_allowed
 from ..ports.project_api import FORMATTABLE_LIMIT, ProjectApi, ProjectRecord
 
@@ -39,10 +39,9 @@ async def fetch_project_page(
 ) -> tuple[list[ProjectSummary], int, int | None, bool]:
     """Raw, unmasked project-summary page: (page_results, total, next_offset, truncated).
 
-    access.ensure_read_enabled is called HERE (not by callers), matching
-    fetch_version_page's convention.
+    The project read gate belongs to the tool's service, not to this lookup, which a write of
+    another domain also uses to resolve a project name.
     """
-    access.ensure_read_enabled("project", settings=settings)
     effective_limit = min(limit, settings.max_page_size, settings.max_results)
 
     skip_count = (offset - 1) * effective_limit

@@ -163,6 +163,7 @@ class ProjectService:
         return _stamp_project(value, settings=self._settings, project_id_to_identifier=self._project_id_to_identifier)
 
     async def list(self, *, search: str | None = None, offset: int = 1, limit: int | None = None) -> ProjectListResult:
+        access.ensure_read_enabled("project", settings=self._settings)
         effective_limit = clamp_limit(
             limit,
             default_page_size=self._settings.default_page_size,

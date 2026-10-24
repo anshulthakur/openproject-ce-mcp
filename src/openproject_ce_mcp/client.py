@@ -338,9 +338,7 @@ class OpenProjectClient:
         self._current_user_service = CurrentUserService(
             api=self._current_user_api, settings=settings, cache=self._current_user_cache
         )
-        self._current_user_resolver = CurrentUserResolver(
-            api=self._current_user_api, settings=settings, cache=self._current_user_cache
-        )
+        self._current_user_resolver = CurrentUserResolver(api=self._current_user_api, cache=self._current_user_cache)
 
         self._principal_api: PrincipalApi = HttpxPrincipalApi(self._transport)
         self._principal_service = PrincipalService(api=self._principal_api, settings=settings)

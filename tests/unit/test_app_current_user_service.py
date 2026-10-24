@@ -100,7 +100,7 @@ async def test_get_current_user_shares_its_cache_with_the_resolver() -> None:
     api = _FakeCurrentUserApi()
     cache: SingletonCache = SingletonCache()
     service = _service(api, cache=cache)
-    resolver = CurrentUserResolver(api=api, settings=make_settings(), cache=cache)
+    resolver = CurrentUserResolver(api=api, cache=cache)
 
     await service.get_current_user()
     await resolver()

@@ -404,3 +404,12 @@ async def test_delete_checks_project_write_allowlist() -> None:
         await service.delete(version_id=8, confirm=False)
 
     assert api.delete_calls == []
+
+
+@pytest.mark.asyncio
+async def test_list_checks_read_enabled() -> None:
+    settings = dataclasses.replace(make_settings(), enable_version_read=False)
+    service = _service(settings=settings)
+
+    with pytest.raises(PermissionDeniedError, match="OPENPROJECT_ENABLE_VERSION_READ"):
+        await service.list()
