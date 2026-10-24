@@ -46,6 +46,7 @@ A numeric `user` filters via `UserApi.get_user(user_ref)` instead.
 from __future__ import annotations
 
 import dataclasses
+import math
 import re
 from collections.abc import Mapping
 from typing import Any
@@ -109,7 +110,8 @@ def _duration_to_seconds(value: str) -> float | None:
     match = _ISO8601_DURATION_PARSE_RE.fullmatch(value)
     if match is None:
         return None
-    return sum(float(v) * _SECONDS_PER_UNIT[unit] for unit, v in match.groupdict().items() if v is not None)
+    seconds = sum(float(v) * _SECONDS_PER_UNIT[unit] for unit, v in match.groupdict().items() if v is not None)
+    return seconds if math.isfinite(seconds) else None
 
 
 def _seconds_to_duration(total_seconds: float) -> str:

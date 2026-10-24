@@ -919,3 +919,13 @@ async def test_list_activities_matches_a_numeric_read_scope_through_the_director
     result = await service.list_activities()
 
     assert result.results[0].projects == ["Demo Project"]
+
+
+@pytest.mark.parametrize(
+    ("value", "seconds"),
+    [("PT1H30M", 5400.0), ("P1DT2H", 93600.0), ("PT0.5S", 0.5), ("PT" + "9" * 400 + "H", None), ("junk", None)],
+)
+def test_an_iso_duration_becomes_finite_seconds_or_nothing(value: str, seconds: float | None) -> None:
+    from openproject_ce_mcp.app.services.time_entry_service import _duration_to_seconds
+
+    assert _duration_to_seconds(value) == seconds

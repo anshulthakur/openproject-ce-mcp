@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import random
 import time
 from email.utils import parsedate_to_datetime
@@ -163,9 +164,11 @@ class RetryTransport(httpx.AsyncBaseTransport):
             Delay in seconds, or None if parsing fails
         """
         try:
-            return float(value)
+            seconds = float(value)
         except ValueError:
-            pass
+            seconds = math.nan
+        if math.isfinite(seconds):
+            return seconds
 
         try:
             retry_date = parsedate_to_datetime(value)

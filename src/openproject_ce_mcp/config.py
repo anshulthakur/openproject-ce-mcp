@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -623,6 +624,8 @@ def _parse_float(value: str | None, name: str, *, default: float, minimum: float
         parsed = float(value.strip())
     except ValueError as exc:
         raise ConfigError(f"{name} must be a number.") from exc
+    if not math.isfinite(parsed):
+        raise ConfigError(f"{name} must be a finite number.")
     if parsed < minimum:
         raise ConfigError(f"{name} must be at least {minimum}.")
     return parsed

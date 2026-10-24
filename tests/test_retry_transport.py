@@ -372,3 +372,10 @@ async def test_retryable_response_closed_before_retry():
     assert response.status_code == 200
     assert mock_transport.handle_async_request.call_count == 2
     assert close_called, "Response should have been closed before retry"
+
+
+@pytest.mark.parametrize("value", ["nan", "NaN", "inf", "-inf", "1e999"])
+def test_a_retry_after_that_is_not_a_finite_number_is_ignored(value: str) -> None:
+    retry_transport = RetryTransport(AsyncMock(spec=httpx.AsyncBaseTransport), max_retries=3)
+
+    assert retry_transport._parse_retry_after(value) is None

@@ -176,6 +176,11 @@ development baseline.
 
 ### Fixed
 
+- `OPENPROJECT_TIMEOUT`, `OPENPROJECT_RETRY_BASE_DELAY` and
+  `OPENPROJECT_RETRY_MAX_DELAY` accepted `nan` and `inf`, which passed the
+  minimum check and reached the HTTP client; they are now rejected at start.
+  A `Retry-After` header that is not a finite number is ignored, and a
+  time entry duration too large for a float no longer becomes infinity.
 - `update_work_package` and `bulk_update_work_packages` now refuse a change of
   `version`, `target_versions`, `sprint` or a version custom field while the
   work package holds such an assignment in a project outside
