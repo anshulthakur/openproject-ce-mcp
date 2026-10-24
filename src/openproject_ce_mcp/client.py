@@ -665,14 +665,12 @@ class OpenProjectClient:
         self._time_entry_service = TimeEntryService(
             api=self._time_entry_api,
             project_api=self._project_api,
-            user_api=self._user_api,
             work_package_lookup_api=self._work_package_lookup_api,
             settings=settings,
             project_id_to_identifier=self._project_id_to_identifier,
             resolve_project_ref=self._get_project_payload,
             resolve_project_id=self._resolve_project_id,
             resolve_principal_id=self._resolve_principal_id,
-            get_current_user=self._current_user_resolver,
             api_prefix=self._api_prefix,
         )
 

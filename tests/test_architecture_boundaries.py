@@ -1706,18 +1706,15 @@ def test_time_entry_service_binds_its_dependencies_to_the_right_protocols() -> N
     (WorkPackageIdResolver), and create()/update()/delete() check the time
     entry's own or its work package's project link directly via
     WorkPackageLookupApi/ProjectRefResolver, never via
-    WorkPackageProjectAllowedCheck. All 8 Protocol dependencies must be
+    WorkPackageProjectAllowedCheck. Its Protocol dependencies must be
     pinned."""
     from openproject_ce_mcp.app.adapters.httpx_project_api import HttpxProjectApi
     from openproject_ce_mcp.app.adapters.httpx_time_entry_api import HttpxTimeEntryApi
-    from openproject_ce_mcp.app.adapters.httpx_user_api import HttpxUserApi
     from openproject_ce_mcp.app.adapters.httpx_work_package_lookup_api import HttpxWorkPackageLookupApi
-    from openproject_ce_mcp.app.ports.current_user import CurrentUserLookup
     from openproject_ce_mcp.app.ports.principal_ref import PrincipalRefResolver
     from openproject_ce_mcp.app.ports.project_api import ProjectApi
     from openproject_ce_mcp.app.ports.project_ref import ProjectIdResolver, ProjectRefResolver
     from openproject_ce_mcp.app.ports.time_entry_api import TimeEntryApi
-    from openproject_ce_mcp.app.ports.user_api import UserApi
     from openproject_ce_mcp.app.ports.work_package_lookup_api import WorkPackageLookupApi
     from openproject_ce_mcp.app.resolvers.project_resolver import ProjectResolver
     from openproject_ce_mcp.app.services.time_entry_service import TimeEntryService
@@ -1732,11 +1729,6 @@ def test_time_entry_service_binds_its_dependencies_to_the_right_protocols() -> N
     assert hints["project_api"] is ProjectApi, "TimeEntryService.__init__'s project_api param must be typed ProjectApi"
     assert hints["project_api"] is not HttpxProjectApi, (
         "TimeEntryService.__init__'s project_api param must not be the concrete adapter"
-    )
-
-    assert hints["user_api"] is UserApi, "TimeEntryService.__init__'s user_api param must be typed UserApi"
-    assert hints["user_api"] is not HttpxUserApi, (
-        "TimeEntryService.__init__'s user_api param must not be the concrete adapter"
     )
 
     assert hints["work_package_lookup_api"] is WorkPackageLookupApi, (
@@ -1762,10 +1754,6 @@ def test_time_entry_service_binds_its_dependencies_to_the_right_protocols() -> N
 
     assert hints["resolve_principal_id"] is PrincipalRefResolver, (
         "TimeEntryService.__init__'s resolve_principal_id param must be typed PrincipalRefResolver"
-    )
-
-    assert hints["get_current_user"] is CurrentUserLookup, (
-        "TimeEntryService.__init__'s get_current_user param must be typed CurrentUserLookup"
     )
 
 

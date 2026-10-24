@@ -1,9 +1,8 @@
 """Application Service for the Time Entries domain.
 
 Depends on `TimeEntryApi`, `ProjectApi` (for the activity-fallback project
-walk AND for `list_time_entries`'s numeric-user-id lookup, via `UserApi`),
-`WorkPackageLookupApi`, `ProjectRefResolver`, `ProjectIdResolver`,
-`PrincipalRefResolver`, and `CurrentUserLookup` -- NOT
+walk), `WorkPackageLookupApi`, `ProjectRefResolver`, `ProjectIdResolver` and
+`PrincipalRefResolver` -- NOT
 `WorkPackageProjectAllowedBulkCheck` (unlike Relations): no Time Entries path
 dereferences an already-known work-package link the way Relations' from/to
 sides do. `list_all` and `create` fetch the work package themselves via
@@ -36,11 +35,8 @@ through to `TimeEntryApi.fetch_activities_for_entity`, which sends the
 `entity` link (not `project`) whenever a work package is already known --
 this ordering must survive byte-for-byte; see that adapter's implementation.
 
-`list_all`'s `user="me"` filter uses `CurrentUserLookup` (bound to
-`self.get_current_user`, gates on the `"principal"` scope, returns the RAW
-name) rather than `UserApi.get_user("me")` -- deliberately not
-interchangeable (different scope gate, different name-truncation behavior).
-A numeric `user` filters via `UserApi.get_user(user_ref)` instead.
+`list_all` filters by the user's id: `PrincipalRefResolver` turns "me", an id or an exact name into
+one, and an entry matches by the id in its user link, never by a display name two users can share.
 """
 
 from __future__ import annotations
@@ -53,7 +49,6 @@ from typing import Any
 
 from ...config import Settings
 from ...models import (
-    CurrentUser,
     TimeEntryActivityListResult,
     TimeEntryActivitySummary,
     TimeEntryListResult,
@@ -66,12 +61,10 @@ from ..errors import InvalidInputError, NotFoundError, OpenProjectServerError, P
 from ..pagination import effective_limit, fetch_bounded_and_paginate
 from ..policies import access, hidden_fields
 from ..policies import scope as scope_policy
-from ..ports.current_user import CurrentUserLookup
 from ..ports.principal_ref import PrincipalRefResolver
 from ..ports.project_api import ProjectApi
 from ..ports.project_ref import ProjectIdResolver, ProjectRefResolver
 from ..ports.time_entry_api import TimeEntryApi
-from ..ports.user_api import UserApi
 from ..ports.work_package_lookup_api import WorkPackageLookupApi
 from ..resolvers.project_query import fetch_project_page
 from ._write_outcome import _finalize_write
@@ -128,26 +121,22 @@ class TimeEntryService:
         *,
         api: TimeEntryApi,
         project_api: ProjectApi,
-        user_api: UserApi,
         work_package_lookup_api: WorkPackageLookupApi,
         settings: Settings,
         project_id_to_identifier: Mapping[int, str],
         resolve_project_ref: ProjectRefResolver,
         resolve_project_id: ProjectIdResolver,
         resolve_principal_id: PrincipalRefResolver,
-        get_current_user: CurrentUserLookup,
         api_prefix: str,
     ) -> None:
         self._api = api
         self._project_api = project_api
-        self._user_api = user_api
         self._work_package_lookup_api = work_package_lookup_api
         self._settings = settings
         self._project_id_to_identifier = project_id_to_identifier
         self._resolve_project_ref = resolve_project_ref
         self._resolve_project_id = resolve_project_id
         self._resolve_principal_id = resolve_principal_id
-        self._get_current_user = get_current_user
         self._api_prefix = api_prefix
 
     def _stamp(self, summary: TimeEntrySummary) -> TimeEntrySummary:
@@ -264,16 +253,7 @@ class TimeEntryService:
             project_payload = await self._resolve_project_ref(project)
             filter_project_id = int(project_payload["id"])
 
-        user_name: str | None = None
-        if user is not None:
-            if user.casefold() == "me":
-                current_user: CurrentUser = await self._get_current_user()
-                user_name = current_user.name
-            elif is_numeric_ref(user):
-                user_record = await self._user_api.get_user(user)
-                user_name = user_record.summary.name
-            else:
-                user_name = user
+        user_id = int(await self._resolve_principal_id(user)) if user is not None else None
 
         resolved_limit = effective_limit(limit, settings=self._settings)
 
@@ -301,8 +281,10 @@ class TimeEntryService:
                 normalized.entity_type == "WorkPackage" and normalized.entity_id == resolved_work_package_id
             ):
                 return False
-            if user_name is not None and (normalized.user or "").casefold() != user_name.casefold():
-                return False
+            if user_id is not None:
+                user_link = item.get("_links", {}).get("user")
+                if scope_policy.id_from_href(user_link.get("href") if isinstance(user_link, dict) else None) != user_id:
+                    return False
             if spent_on_from is not None and (normalized.spent_on is None or normalized.spent_on < spent_on_from):
                 return False
             return not (spent_on_to is not None and (normalized.spent_on is None or normalized.spent_on > spent_on_to))

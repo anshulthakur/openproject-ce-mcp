@@ -66,8 +66,10 @@ class _FakeTimeEntryApi:
         activities: list[TimeEntryActivitySummary] | None = None,
         fetch_activities_result: dict | None = None,
         form_payload_overrides: dict | None = None,
+        user_ids: list[int] | None = None,
     ) -> None:
         self._list_summaries = records if records is not None else [_summary()]
+        self._user_ids = user_ids
         self._project_link = project_link or {"href": "/api/v3/projects/1", "title": "Demo"}
         self._by_id = {time_entry_id: self._list_summaries[0]} if len(self._list_summaries) == 1 else None
         self._activities = activities if activities is not None else [_activity_summary()]
@@ -104,19 +106,24 @@ class _FakeTimeEntryApi:
 
     async def fetch_page(self, *, offset: int, page_size: int) -> dict:
         self.fetch_page_calls.append((offset, page_size))
-        elements = [
-            {"id": i, "__summary__": s, "_links": {"project": self._project_link}}
+        return {"_embedded": {"elements": self._elements()}}
+
+    def _elements(self) -> list[dict]:
+        return [
+            {
+                "id": i,
+                "__summary__": s,
+                "_links": {
+                    "project": self._project_link,
+                    "user": {"href": f"/api/v3/users/{self._user_ids[i] if self._user_ids else 9}"},
+                },
+            }
             for i, s in enumerate(self._list_summaries)
         ]
-        return {"_embedded": {"elements": elements}}
 
     async def fetch_page_by_href(self, href: str, *, offset: int, page_size: int) -> dict:
         self.fetch_page_by_href_calls.append((href, offset, page_size))
-        elements = [
-            {"id": i, "__summary__": s, "_links": {"project": self._project_link}}
-            for i, s in enumerate(self._list_summaries)
-        ]
-        return {"_embedded": {"elements": elements}}
+        return {"_embedded": {"elements": self._elements()}}
 
     async def get_raw(self, time_entry_id: int) -> dict:
         self.get_raw_calls.append(time_entry_id)
@@ -270,25 +277,21 @@ def _service(
     *,
     api: _FakeTimeEntryApi | None = None,
     project_api: _FakeProjectApi | None = None,
-    user_api: _FakeUserApi | None = None,
     work_package_lookup_api: _FakeWorkPackageLookupApi | None = None,
     settings=None,
     resolve_project_ref=None,
     resolve_project_id=None,
     resolve_principal_id=None,
-    get_current_user=None,
 ) -> TimeEntryService:
     return TimeEntryService(
         api=api or _FakeTimeEntryApi(),
         project_api=project_api or _FakeProjectApi(),
-        user_api=user_api or _FakeUserApi(),
         work_package_lookup_api=work_package_lookup_api or _FakeWorkPackageLookupApi(),
         settings=settings or make_settings(),
         project_id_to_identifier=PROJECT_ID_TO_IDENTIFIER,
         resolve_project_ref=resolve_project_ref or _resolve_project_ref_ok(),
         resolve_project_id=resolve_project_id or _resolve_project_id_ok(),
         resolve_principal_id=resolve_principal_id or _resolve_principal_id_ok(),
-        get_current_user=get_current_user or _get_current_user_ok(),
         api_prefix="/api/v3/",
     )
 
@@ -429,27 +432,26 @@ async def test_list_all_rejects_work_package_outside_read_scope() -> None:
 
 
 @pytest.mark.asyncio
-async def test_list_all_filters_by_user_me() -> None:
-    api = _FakeTimeEntryApi(records=[_summary(1, user="Current User"), _summary(2, user="Someone Else")])
-    settings = dataclasses.replace(make_settings(), read_projects=("*",))
-    service = _service(api=api, settings=settings, get_current_user=_get_current_user_ok("Current User"))
+@pytest.mark.parametrize("reference", ["me", "9", "Ada", "²"])
+async def test_list_all_filters_by_the_user_id_the_principal_resolver_returns(reference: str) -> None:
+    api = _FakeTimeEntryApi(records=[_summary(1, user="Ada"), _summary(2, user="Bob")], user_ids=[9, 3])
+    resolve = _resolve_principal_id_ok("9")
+    service = _service(api=api, resolve_principal_id=resolve)
 
-    result = await service.list_all(user="me")
+    result = await service.list_all(user=reference)
 
+    assert resolve.calls == [reference]  # type: ignore[attr-defined]
     assert [r.id for r in result.results] == [1]
 
 
 @pytest.mark.asyncio
-async def test_list_all_filters_by_numeric_user_id() -> None:
-    api = _FakeTimeEntryApi(records=[_summary(1, user="Numeric User"), _summary(2, user="Someone Else")])
-    settings = dataclasses.replace(make_settings(), read_projects=("*",))
-    user_api = _FakeUserApi(name="Numeric User")
-    service = _service(api=api, settings=settings, user_api=user_api)
+async def test_list_all_does_not_mix_up_two_users_of_the_same_name() -> None:
+    api = _FakeTimeEntryApi(records=[_summary(1, user="Ada"), _summary(2, user="Ada")], user_ids=[5, 6])
+    service = _service(api=api, resolve_principal_id=_resolve_principal_id_ok("6"))
 
-    result = await service.list_all(user="9")
+    result = await service.list_all(user="6")
 
-    assert user_api.get_user_calls == ["9"]
-    assert [r.id for r in result.results] == [1]
+    assert [r.id for r in result.results] == [2]
 
 
 @pytest.mark.asyncio
@@ -838,20 +840,6 @@ async def test_list_all_project_filter_matches_the_project_id_not_its_name() -> 
     result = await service.list_all(project="demo-two")
 
     assert [entry.id for entry in result.results] == [8]
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("name", ["²", "٣"])
-async def test_list_all_reads_a_non_ascii_digit_user_as_a_name(name: str) -> None:
-    api = _FakeTimeEntryApi(records=[_summary(1, user=name), _summary(2, user="Someone Else")])
-    settings = dataclasses.replace(make_settings(), read_projects=("*",))
-    user_api = _FakeUserApi(name="Numeric User")
-    service = _service(api=api, settings=settings, user_api=user_api)
-
-    result = await service.list_all(user=name)
-
-    assert user_api.get_user_calls == []
-    assert [r.id for r in result.results] == [1]
 
 
 @pytest.mark.asyncio

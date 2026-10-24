@@ -473,14 +473,12 @@ def test_time_entry_comment_hidden_by_time_entry_scope_not_activity_scope():
         return TimeEntryService(
             api=None,
             project_api=None,
-            user_api=None,
             work_package_lookup_api=None,
             settings=settings,
             project_id_to_identifier={},
             resolve_project_ref=None,
             resolve_project_id=None,
             resolve_principal_id=None,
-            get_current_user=None,
             api_prefix="/api/v3/",
         )
 

@@ -86,6 +86,35 @@ async def test_list_time_entries(
     assert any(te.id == result.time_entry_id for te in listed.results)
 
 
+async def test_list_time_entries_filters_by_the_id_of_the_user(
+    client: OpenProjectClient, test_project: str, wp_ids: list[int], time_entry_ids: list[int]
+) -> None:
+    activity = await _first_activity_name(client)
+    wp_result = await client.work_package.create(
+        project=test_project, type="Task", subject="Integration test WP for the user filter", confirm=True
+    )
+    assert wp_result.ready, wp_result.validation_errors
+    wp_ids.append(wp_result.work_package_id)
+    created = await client.time_entry.create(
+        activity=activity,
+        hours="PT1H",
+        spent_on=datetime.date.today().isoformat(),
+        work_package_id=wp_result.work_package_id,
+        confirm=True,
+    )
+    assert created.ready, created.validation_errors
+    time_entry_ids.append(created.time_entry_id)
+    me = await client.current_user.get_current_user()
+
+    by_me = await client.time_entry.list_all(project=test_project, user="me")
+    by_id = await client.time_entry.list_all(project=test_project, user=str(me.id))
+    by_other = await client.time_entry.list_all(project=test_project, user=str(me.id + 1000))
+
+    assert created.time_entry_id in [entry.id for entry in by_me.results]
+    assert [entry.id for entry in by_me.results] == [entry.id for entry in by_id.results]
+    assert by_other.results == []
+
+
 async def test_create_get_update_delete_time_entry(
     client: OpenProjectClient, test_project: str, time_entry_ids: list[int]
 ) -> None:
