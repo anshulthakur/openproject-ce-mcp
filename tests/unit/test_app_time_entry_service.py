@@ -106,7 +106,8 @@ class _FakeTimeEntryApi:
 
     async def fetch_page(self, *, offset: int, page_size: int) -> dict:
         self.fetch_page_calls.append((offset, page_size))
-        return {"_embedded": {"elements": self._elements()}}
+        elements = self._elements()
+        return {"total": len(elements), "_embedded": {"elements": elements}}
 
     def _elements(self) -> list[dict]:
         return [
@@ -123,7 +124,8 @@ class _FakeTimeEntryApi:
 
     async def fetch_page_by_href(self, href: str, *, offset: int, page_size: int) -> dict:
         self.fetch_page_by_href_calls.append((href, offset, page_size))
-        return {"_embedded": {"elements": self._elements()}}
+        elements = self._elements()
+        return {"total": len(elements), "_embedded": {"elements": elements}}
 
     async def get_raw(self, time_entry_id: int) -> dict:
         self.get_raw_calls.append(time_entry_id)

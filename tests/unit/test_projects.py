@@ -1254,10 +1254,14 @@ async def test_list_work_package_attachments_walks_every_server_page_when_allowl
             assert request.url.params["pageSize"] == "2"
             if page == "1":
                 return httpx.Response(
-                    200, json={"_embedded": {"elements": [_attachment(1), _attachment(2)]}}, request=request
+                    200,
+                    json={"total": 3, "_embedded": {"elements": [_attachment(1), _attachment(2)]}},
+                    request=request,
                 )
             if page == "2":
-                return httpx.Response(200, json={"_embedded": {"elements": [_attachment(3)]}}, request=request)
+                return httpx.Response(
+                    200, json={"total": 3, "_embedded": {"elements": [_attachment(3)]}}, request=request
+                )
         raise AssertionError(f"Unexpected request: {request.method} {request.url}")
 
     import dataclasses
@@ -1659,7 +1663,10 @@ async def test_add_project_favorite_translates_404_to_version_hint() -> None:
     settings = dataclasses.replace(make_settings(), enable_project_write=True, write_projects=("demo",))
     client = OpenProjectClient(settings, transport=httpx.MockTransport(handler))
 
-    with pytest.raises(NotFoundError, match=r"Project favorites: not found, or not available on this instance \(it requires OpenProject 17\.0"):
+    with pytest.raises(
+        NotFoundError,
+        match=r"Project favorites: not found, or not available on this instance \(it requires OpenProject 17\.0",
+    ):
         await client.add_project_favorite(project="demo", confirm=True)
 
     await client.aclose()

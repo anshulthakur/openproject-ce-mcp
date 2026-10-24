@@ -24,6 +24,14 @@ from openproject_ce_mcp.client import (
 from openproject_ce_mcp.config import Settings
 
 
+def _hidden_matches(count: int) -> list[dict]:
+    """Matches of a project the read scope does not cover, which the server counts in its total."""
+    return [
+        {"id": 1000 + i, "subject": "hidden", "_links": {"project": {"href": "/api/v3/projects/2", "title": "secret"}}}
+        for i in range(count)
+    ]
+
+
 @pytest.mark.asyncio
 async def test_search_work_packages_uses_supported_subject_or_id_operator() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
@@ -614,19 +622,24 @@ async def test_search_work_packages_pagination_hints_do_not_leak_untrusted_total
             json={
                 "total": 50,
                 "_embedded": {
-                    "elements": [
-                        {
-                            "id": 1,
-                            "subject": "A",
-                            "_links": {"project": {"href": "/api/v3/projects/1", "title": "demo"}},
-                        },
-                    ]
+                    "elements": (
+                        [
+                            {
+                                "id": 1,
+                                "subject": "A",
+                                "_links": {"project": {"href": "/api/v3/projects/1", "title": "demo"}},
+                            },
+                        ]
+                        + _hidden_matches(50 - 1)
+                    )
                 },
             },
             request=request,
         )
 
-    client = await started_client(_base_settings(read_projects=("demo",)), handler, [(1, "demo", "Demo")])
+    client = await started_client(
+        _base_settings(read_projects=("demo",)), handler, [(1, "demo", "Demo"), (2, "secret", "Secret")]
+    )
     result = await client.work_package.search(search="A", limit=5)
 
     assert result.total == 1
@@ -705,24 +718,29 @@ async def test_search_work_packages_does_not_report_truncated_when_page_full_but
             json={
                 "total": 50,
                 "_embedded": {
-                    "elements": [
-                        {
-                            "id": 1,
-                            "subject": "A",
-                            "_links": {"project": {"href": "/api/v3/projects/1", "title": "demo"}},
-                        },
-                        {
-                            "id": 2,
-                            "subject": "B",
-                            "_links": {"project": {"href": "/api/v3/projects/1", "title": "demo"}},
-                        },
-                    ]
+                    "elements": (
+                        [
+                            {
+                                "id": 1,
+                                "subject": "A",
+                                "_links": {"project": {"href": "/api/v3/projects/1", "title": "demo"}},
+                            },
+                            {
+                                "id": 2,
+                                "subject": "B",
+                                "_links": {"project": {"href": "/api/v3/projects/1", "title": "demo"}},
+                            },
+                        ]
+                        + _hidden_matches(50 - 2)
+                    )
                 },
             },
             request=request,
         )
 
-    client = await started_client(_base_settings(read_projects=("demo",)), handler, [(1, "demo", "Demo")])
+    client = await started_client(
+        _base_settings(read_projects=("demo",)), handler, [(1, "demo", "Demo"), (2, "secret", "Secret")]
+    )
     result = await client.work_package.search(search="A", offset=1, limit=2)
 
     assert result.total == 2
@@ -745,19 +763,24 @@ async def test_search_work_packages_falls_back_to_page_count_without_explicit_pr
             json={
                 "total": 50,
                 "_embedded": {
-                    "elements": [
-                        {
-                            "id": 1,
-                            "subject": "A",
-                            "_links": {"project": {"href": "/api/v3/projects/1", "title": "demo"}},
-                        },
-                    ]
+                    "elements": (
+                        [
+                            {
+                                "id": 1,
+                                "subject": "A",
+                                "_links": {"project": {"href": "/api/v3/projects/1", "title": "demo"}},
+                            },
+                        ]
+                        + _hidden_matches(50 - 1)
+                    )
                 },
             },
             request=request,
         )
 
-    client = await started_client(_base_settings(read_projects=("demo",)), handler, [(1, "demo", "Demo")])
+    client = await started_client(
+        _base_settings(read_projects=("demo",)), handler, [(1, "demo", "Demo"), (2, "secret", "Secret")]
+    )
     result = await client.work_package.search(search="A", limit=5)
 
     assert result.total == 1
@@ -815,19 +838,24 @@ async def test_list_my_open_work_packages_falls_back_to_page_count_under_restric
             json={
                 "total": 50,
                 "_embedded": {
-                    "elements": [
-                        {
-                            "id": 1,
-                            "subject": "A",
-                            "_links": {"project": {"href": "/api/v3/projects/1", "title": "demo"}},
-                        },
-                    ]
+                    "elements": (
+                        [
+                            {
+                                "id": 1,
+                                "subject": "A",
+                                "_links": {"project": {"href": "/api/v3/projects/1", "title": "demo"}},
+                            },
+                        ]
+                        + _hidden_matches(50 - 1)
+                    )
                 },
             },
             request=request,
         )
 
-    client = await started_client(_base_settings(read_projects=("demo",)), handler, [(1, "demo", "Demo")])
+    client = await started_client(
+        _base_settings(read_projects=("demo",)), handler, [(1, "demo", "Demo"), (2, "secret", "Secret")]
+    )
     result = await client.work_package.list_my_open(limit=5)
 
     assert result.total == 1

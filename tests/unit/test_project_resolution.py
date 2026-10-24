@@ -778,9 +778,9 @@ async def test_resolve_version_id_project_less_name_match_beyond_first_filtered_
             assert request.url.params["pageSize"] == str(make_settings().max_page_size)
             page = request.url.params["offset"]
             if page == "1":
-                return httpx.Response(200, json={"_embedded": {"elements": decoys}}, request=request)
+                return httpx.Response(200, json={"total": 51, "_embedded": {"elements": decoys}}, request=request)
             if page == "2":
-                return httpx.Response(200, json={"_embedded": {"elements": [exact]}}, request=request)
+                return httpx.Response(200, json={"total": 51, "_embedded": {"elements": [exact]}}, request=request)
         raise AssertionError(f"Unexpected request: {request.method} {request.url}")
 
     client = OpenProjectClient(make_settings(), transport=httpx.MockTransport(handler))

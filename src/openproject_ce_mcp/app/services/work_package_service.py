@@ -120,7 +120,7 @@ from ..errors import (
     OpenProjectServerError,
     PermissionDeniedError,
 )
-from ..pagination import effective_limit, paginate_server
+from ..pagination import collection_exhausted, effective_limit, paginate_server
 from ..policies import access, hidden_fields, work_package_query_policy
 from ..policies import work_package_policy as _work_package_policy
 from ..policies.scope import (
@@ -681,12 +681,13 @@ class WorkPackageService:
         first `(offset - 1) * limit` already-seen allowed matches, then
         collect up to `limit + 1` allowed matches (the +1st proves a further
         match exists, rather than assuming it from a full raw page) before
-        stopping, either because enough were found or because the server
-        ran out of raw elements (`len(raw_elements) < server_page_size`,
-        never from `total`, which is not trustworthy under a restricted
-        scope -- server_total below reflects only what this scan collected
-        and observed, not the true global total, matching every other
-        restricted-scope pagination path in this codebase).
+        stopping, either because enough were found or because the raw
+        elements fetched reach the server's `total` (`collection_exhausted`;
+        a short page proves nothing, the server cuts the page size). That
+        `total` only ends the scan: it is never reported, because under a
+        restricted scope it counts records outside the scope -- the total
+        below reflects only what this scan collected, matching every other
+        restricted-scope pagination path in this codebase.
 
         No aggregates here: `include_sums`/`groups` are computed by
         OpenProject over the whole query, independent of this method's
@@ -700,6 +701,7 @@ class WorkPackageService:
         results: list[dict[str, Any]] = []
         server_offset = 1
         server_page_size = min(self._settings.max_page_size, self._settings.max_results)
+        fetched = 0
 
         while len(results) <= limit:
             page = await self._api.list(
@@ -724,7 +726,8 @@ class WorkPackageService:
 
             if len(results) > limit:
                 break
-            if len(page.raw_elements) < server_page_size:
+            fetched += len(page.raw_elements)
+            if collection_exhausted(page.server_total, fetched):
                 break
             server_offset += 1
 

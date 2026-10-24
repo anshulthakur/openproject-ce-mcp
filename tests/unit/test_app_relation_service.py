@@ -96,7 +96,7 @@ class _FakeRelationApi:
         start = (offset - 1) * page_size
         page_records = self._list_records[start : start + page_size]
         elements = [{"id": start + i, "__record__": r} for i, r in enumerate(page_records)]
-        return {"_embedded": {"elements": elements}}
+        return {"total": len(self._list_records), "_embedded": {"elements": elements}}
 
     async def get(self, relation_id: int) -> RelationRecord:
         self.get_calls.append(relation_id)

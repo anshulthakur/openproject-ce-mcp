@@ -726,7 +726,8 @@ async def test_search_pagination_hints_do_not_leak_untrusted_total() -> None:
     """search() has no restricted-scope project_id filter branch at all --
     next_offset/truncated must NOT be derived from the server's secret total,
     only from whether the raw page came back full."""
-    api = _FakeWorkPackageApi(raw_elements=[_payload(1)], server_total=50)
+    hidden = [_payload(100 + n, project_href="/api/v3/projects/2", project_title="Secret") for n in range(49)]
+    api = _FakeWorkPackageApi(raw_elements=[_payload(1), *hidden], server_total=50)
     service, _ = _service(api, settings=dataclasses.replace(make_settings(), read_projects=("demo",)))
 
     result = await service.search(search="foo", limit=5)

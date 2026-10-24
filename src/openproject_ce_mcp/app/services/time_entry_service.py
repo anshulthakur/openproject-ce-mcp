@@ -58,7 +58,7 @@ from ...models import (
 from ...work_package_reference import is_numeric_ref
 from ..api_href import api_href as _api_href
 from ..errors import InvalidInputError, NotFoundError, OpenProjectServerError, PermissionDeniedError
-from ..pagination import effective_limit, fetch_bounded_and_paginate
+from ..pagination import collection_exhausted, effective_limit, fetch_bounded_and_paginate
 from ..policies import access, hidden_fields
 from ..policies import scope as scope_policy
 from ..ports.principal_ref import PrincipalRefResolver
@@ -344,6 +344,7 @@ class TimeEntryService:
         walk_offset = 1
         page_size = self._settings.max_page_size
         seen_ids: set[Any] = set()
+        fetched = 0
         for _ in range(_TOTAL_HOURS_MAX_PAGES):
             raw_page = await fetch_page(walk_offset, page_size)
             elements = [item for item in raw_page.get("_embedded", {}).get("elements", []) if isinstance(item, dict)]
@@ -361,7 +362,8 @@ class TimeEntryService:
                 seconds = _duration_to_seconds(summary.hours) if summary.hours else None
                 if seconds is not None:
                     total_seconds += seconds
-            if len(elements) < page_size:
+            fetched += len(elements)
+            if collection_exhausted(raw_page.get("total"), fetched):
                 return _seconds_to_duration(total_seconds), False
             walk_offset += 1
         return _seconds_to_duration(total_seconds), True

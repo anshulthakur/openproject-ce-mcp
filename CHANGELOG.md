@@ -190,6 +190,16 @@ development baseline.
   where `get_meeting(999)` simply found no meeting. The error now says that
   the resource was not found, or that the feature is not available and needs
   that release.
+- Collections were treated as read to their end when a page came back shorter
+  than the page size that was asked for. OpenProject cuts a requested page size
+  to its configured maximum, so on an instance with a lower maximum the first
+  page already looked like the last one and every later element was silently
+  missing: versions, relations, time entry hour sums, reminder lookups,
+  notifications, project searches, and the scanned results of
+  `search_work_packages` and `list_my_open_work_packages` under a restricted
+  project scope. A collection now counts as read to its end when the elements
+  fetched reach the `total` the server reports, or when a page is empty; where
+  only the page number is known, the page size the server reports is used.
 - `list_time_entries` with `user` compared the display name of each entry's
   user, so two users with the same name were mixed up. The reference ("me", an
   id or an exact name) is resolved to an id, and entries match by the id in

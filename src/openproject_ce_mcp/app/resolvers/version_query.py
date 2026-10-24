@@ -18,40 +18,33 @@ from collections.abc import Awaitable, Callable, Mapping
 
 from ...config import Settings
 from ...models import VersionSummary
-from ..pagination import paginate_client, scan_records_and_paginate
+from ..pagination import collection_exhausted, paginate_client, scan_records_and_paginate
 from ..policies.version_policy import version_payload_allowed
 from ..ports.project_ref import ProjectRefResolver
 from ..ports.project_resolution import ProjectResolutionContext
 from ..ports.version_api import FORMATTABLE_LIMIT, VersionApi, VersionPage, VersionRecord
 
 
-async def _fetch_all_pages(
-    fetch_page: Callable[[int], Awaitable[VersionPage]], *, page_size: int
-) -> list[VersionRecord]:
+async def _fetch_all_pages(fetch_page: Callable[[int], Awaitable[VersionPage]]) -> list[VersionRecord]:
     """Walk every server page of a VersionPage-returning fetcher to completion.
 
-    Terminates on a short page (fewer records than requested page_size), not on
-    a possibly-absent/inconsistent server_total -- a single bounded fetch
-    (this function's predecessor) silently hid any version beyond
-    settings.max_results once the endpoint's real result count exceeded it.
-
-    Some project-scoped sub-collection endpoints (verified live: a project's
-    versions endpoint) silently ignore both offset and page size and always
-    return every element -- without the seen-ids check below, the
-    short-page break above never triggers and this loops forever, re-fetching
-    the same full page.
+    Terminates when the records fetched reach the server's total. A collection that ignores offset
+    and page size returns every element at once, so its total is reached on the first page; the
+    seen-ids check below ends a walk whose server repeats a page and reports no total.
     """
     records: list[VersionRecord] = []
     seen_ids: set[int] = set()
     offset = 1
     while True:
         page = await fetch_page(offset)
+        if not page.records:
+            break
         page_ids = {r.summary.id for r in page.records}
         if records and page_ids and page_ids <= seen_ids:
             break
         seen_ids.update(page_ids)
         records.extend(page.records)
-        if len(page.records) < page_size:
+        if collection_exhausted(page.server_total, len(records)):
             break
         offset += 1
     return records
@@ -98,8 +91,7 @@ async def fetch_visible_version_records(
         records = await _fetch_all_pages(
             lambda offset: api.list_for_project(
                 project_id, offset=offset, page_size=settings.max_page_size, text_limit=text_limit
-            ),
-            page_size=settings.max_page_size,
+            )
         )
     else:
         # The global endpoint has no project filter, so results are filtered
@@ -107,8 +99,7 @@ async def fetch_visible_version_records(
         # server page is required, or any version beyond a single bounded
         # fetch's cap would be silently hidden.
         records = await _fetch_all_pages(
-            lambda offset: api.list_global(offset=offset, page_size=settings.max_page_size, text_limit=text_limit),
-            page_size=settings.max_page_size,
+            lambda offset: api.list_global(offset=offset, page_size=settings.max_page_size, text_limit=text_limit)
         )
     return [
         r

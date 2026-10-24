@@ -410,3 +410,19 @@ async def test_list_narrows_to_the_descendants_of_one_project() -> None:
 
     assert json.loads(seen[0]["filters"]) == [{"ancestor": {"operator": "=", "values": ["7"]}}]
     assert json.loads(seen[1]["filters"]) == []
+
+
+@pytest.mark.asyncio
+async def test_list_is_not_exhausted_while_a_server_that_cut_the_page_size_has_more_pages() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"total": 100, "pageSize": 20, "_embedded": {"elements": [_project_payload()]}},
+            request=request,
+        )
+
+    async with _client(handler) as http_client:
+        api = HttpxProjectApi(HttpxTransport(http_client), base_url=BASE_URL)
+        page = await api.list(server_offset=2, server_page_size=100, search=None)
+
+    assert page.exhausted is False  # 2 * 20 = 40 < 100, although 2 * 100 >= 100

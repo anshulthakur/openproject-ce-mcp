@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from openproject_ce_mcp.app.pagination import paginate_all, scan_and_paginate, scan_records_and_paginate
+from openproject_ce_mcp.app.pagination import (
+    fetch_bounded_and_paginate,
+    paginate_all,
+    scan_and_paginate,
+    scan_records_and_paginate,
+)
 
 
 @pytest.mark.asyncio
@@ -40,7 +45,7 @@ async def test_scan_and_paginate_stops_after_limit_plus_one_allowed_matches() ->
 async def test_scan_and_paginate_not_truncated_when_exactly_limit_matches_exist() -> None:
     async def fetch_page(offset: int, page_size: int) -> dict:
         if offset == 1:
-            return {"_embedded": {"elements": [{"id": 1}]}}
+            return {"total": 1, "_embedded": {"elements": [{"id": 1}]}}
         raise AssertionError(f"unexpected offset {offset}")
 
     async def item_allowed(item: dict) -> bool:
@@ -136,32 +141,88 @@ async def test_scan_records_and_paginate_does_not_evaluate_item_allowed_past_the
     assert checked == [1, 2]
 
 
+ELEMENTS = [{"id": i} for i in range(1, 8)]
+
+
+def _clamping_server(maximum: int, *, with_total: bool = True):
+    """Serves ELEMENTS but cuts any requested page size to `maximum`, as OpenProject does."""
+    requests: list[tuple[int, int]] = []
+
+    async def fetch_page(offset: int, page_size: int) -> dict:
+        requests.append((offset, page_size))
+        start = (offset - 1) * maximum
+        page = ELEMENTS[start : start + maximum]
+        payload: dict = {"_embedded": {"elements": page}}
+        if with_total:
+            payload["total"] = len(ELEMENTS)
+        return payload
+
+    return fetch_page, requests
+
+
+async def _allowed(item: dict) -> bool:
+    return True
+
+
 @pytest.mark.asyncio
-async def test_scan_records_and_paginate_ignores_reported_total_for_exhaustion() -> None:
-    """Regression: an earlier draft used server_offset * server_page_size >=
-    total as an additional exhaustion signal, which is unsafe when an
-    adapter falls back to total = len(records) for a response with no
-    server-reported total (verified against httpx_sprint_api.py) -- that
-    would make a full first page look exhausted even when a genuine second
-    page of matches exists. Exhaustion must be judged purely by a short
-    page, never by a caller-supplied total value."""
+async def test_a_server_that_cuts_the_page_size_is_still_read_to_its_end_by_fetch_bounded_and_paginate() -> None:
+    fetch_page, requests = _clamping_server(maximum=2)
 
-    async def fetch_page(offset: int, page_size: int) -> tuple[list[int], int]:
-        if offset == 1:
-            # total == len(page) here, exactly the "adapter fell back"
-            # shape -- server_offset(1) * server_page_size(2) = 2 >= total(2)
-            # would have looked exhausted under the removed check.
-            return [1, 2], 2
-        if offset == 2:
-            return [3], 3
-        raise AssertionError(f"unexpected offset {offset}")
-
-    results, truncated = await scan_records_and_paginate(
-        fetch_page, item_allowed=lambda item: True, server_page_size=2, offset=1, limit=10, key=lambda item: item
+    results, total, next_offset, truncated = await fetch_bounded_and_paginate(
+        fetch_page=fetch_page, normalize=lambda raw: raw["id"], server_page_size=50, offset=1, limit=100
     )
 
-    assert results == [1, 2, 3], "page 2's real match must not be hidden by a misleading reported total"
-    assert truncated is False
+    assert (results, truncated, next_offset) == ([1, 2, 3, 4, 5, 6, 7], False, None)
+    assert [offset for offset, _ in requests] == [1, 2, 3, 4]
+
+
+@pytest.mark.asyncio
+async def test_a_server_that_cuts_the_page_size_is_still_read_to_its_end_by_scan_and_paginate() -> None:
+    fetch_page, requests = _clamping_server(maximum=3)
+
+    results, truncated = await scan_and_paginate(
+        fetch_page=fetch_page, item_allowed=_allowed, server_page_size=50, offset=1, limit=100
+    )
+
+    assert ([r["id"] for r in results], truncated) == ([1, 2, 3, 4, 5, 6, 7], False)
+    assert [offset for offset, _ in requests] == [1, 2, 3]
+
+
+@pytest.mark.asyncio
+async def test_a_server_that_cuts_the_page_size_is_still_read_to_its_end_by_scan_records_and_paginate() -> None:
+    clamped, requests = _clamping_server(maximum=2)
+
+    async def fetch_page(offset: int, page_size: int) -> tuple[list[int], int]:
+        payload = await clamped(offset, page_size)
+        return [e["id"] for e in payload["_embedded"]["elements"]], payload["total"]
+
+    results, truncated = await scan_records_and_paginate(
+        fetch_page, item_allowed=lambda item: True, server_page_size=50, offset=1, limit=100, key=lambda item: item
+    )
+
+    assert (results, truncated) == ([1, 2, 3, 4, 5, 6, 7], False)
+    assert len(requests) == 4
+
+
+@pytest.mark.asyncio
+async def test_a_collection_without_a_total_is_read_until_an_empty_page() -> None:
+    fetch_page, requests = _clamping_server(maximum=3, with_total=False)
+
+    results, truncated = await scan_and_paginate(
+        fetch_page=fetch_page, item_allowed=_allowed, server_page_size=50, offset=1, limit=100
+    )
+
+    assert ([r["id"] for r in results], truncated) == ([1, 2, 3, 4, 5, 6, 7], False)
+    assert [offset for offset, _ in requests] == [1, 2, 3, 4]
+
+
+@pytest.mark.parametrize(
+    ("total", "fetched", "expected"), [(7, 7, True), (7, 8, True), (7, 6, False), (None, 100, False), ("7", 7, False)]
+)
+def test_a_collection_is_exhausted_when_the_fetched_elements_reach_its_total(total, fetched, expected) -> None:
+    from openproject_ce_mcp.app.pagination import collection_exhausted
+
+    assert collection_exhausted(total, fetched) is expected
 
 
 @pytest.mark.asyncio
@@ -242,3 +303,33 @@ async def test_scan_records_without_a_filter_scans_unfiltered() -> None:
 
     assert results == [1, 2, 3]
     assert truncated is False
+
+
+def test_page_is_last_uses_the_page_size_the_server_reports() -> None:
+    from openproject_ce_mcp.app.pagination import page_is_last
+
+    # asked for 100, the server cut it to 20: page 2 of 100 elements is not the last one
+    assert page_is_last({"pageSize": 20}, offset=2, requested_page_size=100, total=100) is False
+    assert page_is_last({"pageSize": 20}, offset=5, requested_page_size=100, total=100) is True
+
+
+@pytest.mark.parametrize("payload", [{}, {"pageSize": None}, {"pageSize": 0}, {"pageSize": "20"}])
+def test_page_is_last_falls_back_to_the_requested_size_without_a_usable_report(payload: dict) -> None:
+    from openproject_ce_mcp.app.pagination import page_is_last
+
+    assert page_is_last(payload, offset=1, requested_page_size=20, total=21) is False
+    assert page_is_last(payload, offset=2, requested_page_size=20, total=21) is True
+
+
+@pytest.mark.asyncio
+async def test_a_server_that_cuts_the_page_size_is_still_read_to_its_end_by_paginate_all() -> None:
+    clamped, requests = _clamping_server(maximum=2)
+
+    async def fetch_page(offset: int, page_size: int) -> tuple[list[int], int]:
+        payload = await clamped(offset, page_size)
+        return [e["id"] for e in payload["_embedded"]["elements"]], payload["total"]
+
+    items = await paginate_all(fetch_page, page_size=50, key=lambda item: item)
+
+    assert items == [1, 2, 3, 4, 5, 6, 7]
+    assert len(requests) == 4

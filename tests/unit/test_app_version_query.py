@@ -6,7 +6,7 @@ import pytest
 from _client_test_helpers import make_settings
 
 from openproject_ce_mcp.app.ports.version_api import VersionPage, VersionRecord
-from openproject_ce_mcp.app.resolvers.version_query import fetch_version_page
+from openproject_ce_mcp.app.resolvers.version_query import fetch_version_page, fetch_visible_version_records
 from openproject_ce_mcp.models import VersionSummary
 
 
@@ -291,3 +291,39 @@ async def test_the_lookup_checks_no_read_gate_because_a_write_of_another_domain_
     )
 
     assert (results, total) == ([], 0)
+
+
+class _ClampingVersionApi(_FakeVersionApi):
+    """A server that cuts every requested page size down to `server_cap`, as OpenProject does with
+    its configured maximum page size."""
+
+    def __init__(self, records: list[VersionRecord], *, server_cap: int) -> None:
+        super().__init__(records)
+        self._server_cap = server_cap
+
+    async def list_global(self, *, offset: int, page_size: int, text_limit: int | None = None) -> VersionPage:
+        self.list_global_calls.append((offset, page_size))
+        start = (offset - 1) * self._server_cap
+        return VersionPage(records=self._records[start : start + self._server_cap], server_total=len(self._records))
+
+
+@pytest.mark.asyncio
+async def test_a_server_that_cuts_the_page_size_is_read_to_its_end() -> None:
+    records = [
+        VersionRecord(
+            summary=_summary(i, f"v{i}.0"), defining_project_link={"href": "/api/v3/projects/6"}, lookup_name=f"v{i}.0"
+        )
+        for i in range(1, 6)
+    ]
+    api = _ClampingVersionApi(records, server_cap=2)
+
+    fetched = await fetch_visible_version_records(
+        api=api,
+        resolve_project_ref=_resolve_project_ref,
+        settings=dataclasses.replace(make_settings(), read_projects=("*",)),
+        project_id_to_identifier={},
+        project=None,
+        context=None,
+    )
+
+    assert [r.summary.id for r in fetched] == [1, 2, 3, 4, 5]

@@ -92,7 +92,8 @@ class HttpxVersionApi:
             for item in payload.get("_embedded", {}).get("elements", [])
             if _has_usable_id(item)
         ]
-        return VersionPage(records=records, server_total=None)
+        total = payload.get("total")
+        return VersionPage(records=records, server_total=total if isinstance(total, int) else None)
 
     async def get(self, version_id: int, *, text_limit: int | None = FORMATTABLE_LIMIT) -> VersionRecord:
         return self._record(await self._transport.get_json(f"versions/{version_id}"), text_limit=text_limit)

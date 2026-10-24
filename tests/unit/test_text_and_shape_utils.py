@@ -711,6 +711,7 @@ async def test_work_package_relations_use_canonical_involved_filter_shape() -> N
             return httpx.Response(
                 200,
                 json={
+                    "total": 1,
                     "_embedded": {
                         "elements": [
                             {
@@ -722,7 +723,7 @@ async def test_work_package_relations_use_canonical_involved_filter_shape() -> N
                                 },
                             }
                         ]
-                    }
+                    },
                 },
                 request=request,
             )
@@ -910,6 +911,7 @@ async def test_get_work_package_relations_paginates_allowed_results() -> None:
             return httpx.Response(
                 200,
                 json={
+                    "total": 3,
                     "_embedded": {
                         "elements": [
                             {
@@ -922,7 +924,7 @@ async def test_get_work_package_relations_paginates_allowed_results() -> None:
                             }
                             for i in (11, 12, 13)
                         ]
-                    }
+                    },
                 },
                 request=request,
             )
