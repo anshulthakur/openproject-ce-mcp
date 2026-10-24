@@ -347,15 +347,36 @@ def defining_project_allowed(
     item: Mapping[str, Any], *, settings: Settings, project_id_to_identifier: Mapping[int, str]
 ) -> bool:
     """False for an embedded resource (version, sprint, backlog bucket) whose defining project the
-    read allowlist does not cover. Such a resource always carries the project link, except that
-    OpenProject leaves it out when the project is not visible to the token, so a missing link is
-    denied too (required-link contract). Any other resource passes."""
+    read scope does not cover; any other resource passes."""
     links = item.get("_links", {})
     key = next((candidate for candidate in _DEFINING_PROJECT_LINK_KEYS if candidate in links), None)
     if key is None and item.get("_type") not in _PROJECT_BOUND_TYPES:
         return True
-    return project_link_allowed(
+    return defining_project_link_allowed(
         links.get(key) if key else None, settings=settings, project_id_to_identifier=project_id_to_identifier
+    )
+
+
+def ensure_defining_project_link_allowed(
+    link: Any, *, settings: Settings, project_id_to_identifier: Mapping[int, str]
+) -> None:
+    """Project link of a version, sprint or backlog bucket. OpenProject leaves the link out (16.x)
+    or renders the undisclosed placeholder (17.x) when the defining project is not visible to the
+    token, so both mean the same: covered under `*`, not covered under a restricted scope."""
+    if classify_project_link(link, settings=settings) is LinkState.MISSING:
+        if scope_allows_all(settings.read_projects):
+            return
+        raise PermissionDeniedError("OpenProject access to this project is disabled by OPENPROJECT_READ_PROJECTS.")
+    ensure_project_link_allowed(link, settings=settings, project_id_to_identifier=project_id_to_identifier)
+
+
+def defining_project_link_allowed(
+    link: Any, *, settings: Settings, project_id_to_identifier: Mapping[int, str]
+) -> bool:
+    return payload_allowed(
+        lambda: ensure_defining_project_link_allowed(
+            link, settings=settings, project_id_to_identifier=project_id_to_identifier
+        )
     )
 
 

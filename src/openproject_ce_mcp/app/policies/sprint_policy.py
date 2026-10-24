@@ -10,7 +10,7 @@ the workspace-allowlist check has TWO branches, not one.
   embedded form exists without a top-level link -- see
   `httpx_sprint_api.py`'s `_defining_workspace_link`).
 
-The link branch maps 1:1 onto `scope.ensure_project_link_allowed`. The
+The link branch maps 1:1 onto `scope.ensure_defining_project_link_allowed`. The
 embedded-object branch first requires the object's own self link to name
 its id (`scope.ensure_embedded_project_consistent`), then is composed from
 `scope.project_payload_candidates(...)` + `scope.scope_matches_candidates(...)`.
@@ -48,7 +48,7 @@ def ensure_sprint_workspace_allowed(
         if not scope.scope_matches_candidates(settings.read_projects, candidates):
             raise PermissionDeniedError("OpenProject access to this project is disabled by OPENPROJECT_READ_PROJECTS.")
         return
-    scope.ensure_project_link_allowed(
+    scope.ensure_defining_project_link_allowed(
         defining_workspace_link, settings=settings, project_id_to_identifier=project_id_to_identifier
     )
 
