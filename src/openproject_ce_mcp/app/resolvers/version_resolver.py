@@ -112,7 +112,7 @@ class VersionResolver:
             # all. Do not add one without checking every caller that relies on this
             # asymmetry.
             record = await self._api.get(int(version_ref))
-            scope_policy.ensure_project_link_allowed(
+            scope_policy.ensure_defining_project_link_allowed(
                 record.defining_project_link,
                 settings=self._settings,
                 project_id_to_identifier=self._project_id_to_identifier,

@@ -370,6 +370,18 @@ def ensure_defining_project_link_allowed(
     ensure_project_link_allowed(link, settings=settings, project_id_to_identifier=project_id_to_identifier)
 
 
+def ensure_defining_project_write_link_allowed(
+    link: Any, *, settings: Settings, project_id_to_identifier: Mapping[int, str]
+) -> None:
+    """Write counterpart of `ensure_defining_project_link_allowed`."""
+    ensure_defining_project_link_allowed(link, settings=settings, project_id_to_identifier=project_id_to_identifier)
+    if classify_project_link(link, settings=settings) is LinkState.MISSING:
+        if scope_allows_all(settings.write_projects):
+            return
+        raise PermissionDeniedError("OpenProject writes to this project are disabled by OPENPROJECT_WRITE_PROJECTS.")
+    ensure_project_write_link_allowed(link, settings=settings, project_id_to_identifier=project_id_to_identifier)
+
+
 def defining_project_link_allowed(
     link: Any, *, settings: Settings, project_id_to_identifier: Mapping[int, str]
 ) -> bool:

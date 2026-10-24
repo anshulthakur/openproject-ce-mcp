@@ -492,3 +492,21 @@ def test_the_version_sprint_and_bucket_policies_share_the_rule_for_a_missing_lin
     assert version_payload_allowed({"_links": {}}, settings=settings, project_id_to_identifier=ids) is expected
     assert sprint_payload_allowed(**workspace, settings=settings, project_id_to_identifier=ids) is expected
     assert backlog_bucket_payload_allowed(**workspace, settings=settings, project_id_to_identifier=ids) is expected
+
+
+@pytest.mark.parametrize(
+    ("read_projects", "write_projects", "expected"),
+    [(("*",), ("*",), True), (("*",), ("demo",), False), (("demo",), ("*",), False), (("demo",), ("demo",), False)],
+)
+def test_a_write_to_a_resource_without_a_defining_project_link_needs_the_wildcard_scope_on_both_sides(
+    read_projects: tuple[str, ...], write_projects: tuple[str, ...], expected: bool
+) -> None:
+    settings = dataclasses.replace(make_settings(), read_projects=read_projects, write_projects=write_projects)
+
+    try:
+        scope.ensure_defining_project_write_link_allowed(None, settings=settings, project_id_to_identifier={1: "demo"})
+        allowed = True
+    except PermissionDeniedError:
+        allowed = False
+
+    assert allowed is expected
