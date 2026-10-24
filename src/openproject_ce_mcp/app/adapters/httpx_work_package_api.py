@@ -50,13 +50,13 @@ imported from `app/ports/work_package_ref.py`, shared with
 from __future__ import annotations
 
 import json
-from typing import Any, Literal
+from typing import Any
 from urllib.parse import urlparse
 
 from ...models import SortCriterion, WorkPackageDetail, WorkPackageSummary
 from ..errors import OpenProjectServerError
 from ..ports.project_resolution import WorkPackageResolutionContext
-from ..ports.scoped_reference import ScopedReference, VisibleReferences
+from ..ports.scoped_reference import ScopedReference, VisibleReferences, reference_of_link
 from ..ports.work_package_api import (
     WorkPackageFormResult,
     WorkPackageGroupRecord,
@@ -130,18 +130,6 @@ def _link_title_with_meta(link: dict[str, Any]) -> tuple[str | None, bool]:
 # The namespaces whose resources are not bound to a project: a custom field link into one of them
 # keeps its title. Any other link in a custom field loses it.
 _UNBOUND_LINK_NAMESPACES = frozenset({"custom_options", "users", "groups", "placeholder_users", "custom_field_items"})
-_REFERENCE_KINDS: dict[str, Literal["version", "sprint", "backlog_bucket"]] = {
-    "versions": "version",
-    "sprints": "sprint",
-    "backlog_buckets": "backlog_bucket",
-}
-
-
-def reference_of_link(link: Any, links: ResourceLinks) -> ScopedReference | None:
-    parsed = links.parse(link)
-    if parsed is None or parsed.namespace not in _REFERENCE_KINDS:
-        return None
-    return ScopedReference(_REFERENCE_KINDS[parsed.namespace], parsed.id)
 
 
 class _ScopedTitles:

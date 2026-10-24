@@ -50,11 +50,12 @@ from enum import Enum, auto
 from fnmatch import fnmatch
 from functools import lru_cache
 from typing import Any
-from urllib.parse import unquote, urlsplit
+from urllib.parse import unquote
 
 from ...config import Settings
 from ..errors import PermissionDeniedError, ProjectLinkPrefixError
 from ..origin import api_prefix_from_url, strict_origin
+from ..resource_href import BIGINT_MAX, instance_path
 
 SUBJECT_LIMIT = 255
 
@@ -68,11 +69,6 @@ _PROJECT_TARGET = re.compile(r"(?:projects|programs|portfolios|workspaces)/(?P<i
 # Only for naming another root path; the instance's own prefix is matched
 # first and exactly.
 _PROJECT_UNDER_ANY_ROOT = re.compile(r"(?P<root>/(?:[A-Za-z0-9._~!$&'()*+,=:@/-]*/)?)api/v3/" + _PROJECT_TARGET.pattern)
-_BIGINT_MAX = 2**63 - 1
-# urlsplit silently drops tabs, newlines and leading control characters, so
-# anything outside printable ASCII is rejected before it can be normalized
-# into a valid-looking link.
-_PRINTABLE_ASCII = re.compile(r"[!-~]+")
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,26 +94,16 @@ def parse_project_href(href: Any, *, settings: Settings) -> LinkedProject | Pref
     this instance. Accepts exactly what OpenProject emits: a relative path, or
     an absolute URL on the instance's origin, without query, fragment,
     parameters, dot segments or percent-encoding."""
-    if not isinstance(href, str) or not _PRINTABLE_ASCII.fullmatch(href):
-        return None
-    if any(char in href for char in "?#;%"):
-        return None
     origin, api_prefix = _instance(settings.base_url)
-    try:
-        parts = urlsplit(href)
-    except ValueError:
-        return None
-    if (parts.scheme or parts.netloc) and (origin is None or strict_origin(href) != origin):
-        return None
-    path = parts.path
-    if any(segment in (".", "..") for segment in path.split("/")):
+    path = instance_path(href, origin=origin)
+    if path is None:
         return None
     target = _PROJECT_TARGET.fullmatch(path[len(api_prefix) :]) if path.startswith(api_prefix) else None
     if target is not None:
         project_id = int(target.group("id"))
-        return LinkedProject(project_id) if project_id <= _BIGINT_MAX else None
+        return LinkedProject(project_id) if project_id <= BIGINT_MAX else None
     other = _PROJECT_UNDER_ANY_ROOT.fullmatch(path)
-    if other is None or int(other.group("id")) > _BIGINT_MAX:
+    if other is None or int(other.group("id")) > BIGINT_MAX:
         return None
     return PrefixMismatch(f"{other.group('root')}api/v3/")
 
@@ -328,12 +314,9 @@ def payload_allowed(ensure: Callable[[], None]) -> bool:
 def project_link_payload_allowed(
     payload: dict[str, Any], *, link_key: str, settings: Settings, project_id_to_identifier: Mapping[int, str]
 ) -> bool:
-    """Shared body for every domain's `<domain>_payload_allowed(payload, ...)`
-    wrapper (`document_policy.py`, `news_policy.py`, `version_policy.py`,
-    `work_package_policy.py`): each one only differs in which `_links` key
-    carries the project reference (`"project"` for Documents/News/Work
-    Packages, `"definingProject"` for Versions).
-    """
+    """Shared body for every `<domain>_payload_allowed(payload, ...)` wrapper and for the services
+    that judge a payload's project link directly: each one only differs in which `_links` key
+    carries the project reference."""
     return project_link_allowed(
         payload.get("_links", {}).get(link_key), settings=settings, project_id_to_identifier=project_id_to_identifier
     )
@@ -374,12 +357,12 @@ def ensure_defining_project_write_link_allowed(
     link: Any, *, settings: Settings, project_id_to_identifier: Mapping[int, str]
 ) -> None:
     """Write counterpart of `ensure_defining_project_link_allowed`."""
+    if classify_project_link(link, settings=settings) is not LinkState.MISSING:
+        ensure_project_write_link_allowed(link, settings=settings, project_id_to_identifier=project_id_to_identifier)
+        return
     ensure_defining_project_link_allowed(link, settings=settings, project_id_to_identifier=project_id_to_identifier)
-    if classify_project_link(link, settings=settings) is LinkState.MISSING:
-        if scope_allows_all(settings.write_projects):
-            return
+    if not scope_allows_all(settings.write_projects):
         raise PermissionDeniedError("OpenProject writes to this project are disabled by OPENPROJECT_WRITE_PROJECTS.")
-    ensure_project_write_link_allowed(link, settings=settings, project_id_to_identifier=project_id_to_identifier)
 
 
 def defining_project_link_allowed(

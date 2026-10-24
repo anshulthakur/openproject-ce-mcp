@@ -152,6 +152,9 @@ COLUMNS_WITHOUT_RESULT_FIELD = frozenset({"id", "observed_in_versions", "story_p
 
 # The same for the filter parameters of the list and search tools.
 FILTER_RESULT_FIELDS: dict[str, tuple[str, ...]] = {
+    "project": ("project",),
+    "search": ("subject",),
+    "custom_field_filters": ("custom_fields",),
     "type": ("type",),
     "version": ("version", "target_versions"),
     "version_status": ("version", "target_versions"),

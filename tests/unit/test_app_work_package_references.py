@@ -10,8 +10,10 @@ from _client_test_helpers import make_settings
 from openproject_ce_mcp.app.errors import TransportError
 from openproject_ce_mcp.app.ports.scoped_reference import ScopedReference, VisibleReferences
 from openproject_ce_mcp.app.ports.work_package_api import WorkPackageGroupRecord, WorkPackageRecord
+from openproject_ce_mcp.app.resource_href import ResourceLinks
 from openproject_ce_mcp.app.services._work_package_references import (
     HIDDEN_GROUP_LABEL,
+    field_with_visible_options,
     groups_for_result,
     hidden_references_replaced,
     visible_references,
@@ -296,3 +298,61 @@ async def test_the_write_check_does_not_depend_on_what_a_hide_setting_removes_fr
     )
 
     assert (count, covered) == (1, 0)
+
+
+def _option(href: str, name: str) -> dict:
+    return {"name": name, "_links": {"self": {"href": href}}}
+
+
+def _version_field(*options: dict) -> dict:
+    return {"name": "Target", "location": "_links", "_embedded": {"allowedValues": list(options)}}
+
+
+_LINKS = ResourceLinks("https://op.example.com")
+_OPTIONS = (
+    _option("/api/v3/versions/7", "Secret release"),
+    _option("/api/v3/versions/8", "Own release"),
+    _option("/api/v3/custom_options/5", "Plain option"),
+)
+
+
+@pytest.mark.asyncio
+async def test_a_field_loses_the_allowed_values_naming_a_reference_outside_the_scope() -> None:
+    check = _Check({SECRET: False, OWN: True})
+
+    field = await field_with_visible_options(_version_field(*_OPTIONS), links=_LINKS, settings=_settings(), check=check)
+
+    assert [option["name"] for option in field["_embedded"]["allowedValues"]] == ["Own release", "Plain option"]
+    assert check.calls == [[SECRET, OWN]]
+
+
+@pytest.mark.asyncio
+async def test_a_field_is_unchanged_under_a_wildcard_scope_and_without_a_request() -> None:
+    check = _Check({})
+    original = _version_field(*_OPTIONS)
+
+    field = await field_with_visible_options(
+        original, links=_LINKS, settings=dataclasses.replace(make_settings(), read_projects=("*",)), check=check
+    )
+
+    assert field is original
+    assert check.calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_field_without_references_among_its_values_asks_for_no_check() -> None:
+    check = _Check({})
+    original = _version_field(_OPTIONS[2])
+
+    field = await field_with_visible_options(original, links=_LINKS, settings=_settings(), check=check)
+
+    assert field is original
+    assert check.calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_failed_check_of_an_option_is_raised() -> None:
+    check = _Check({SECRET: TransportError("down"), OWN: True})
+
+    with pytest.raises(TransportError):
+        await field_with_visible_options(_version_field(*_OPTIONS), links=_LINKS, settings=_settings(), check=check)

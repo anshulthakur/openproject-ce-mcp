@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import inspect
 from collections.abc import Iterable
 
 import pytest
@@ -35,6 +36,7 @@ from openproject_ce_mcp.models import (
     WorkPackageGroupSums,
     WorkPackageSummary,
 )
+from openproject_ce_mcp.work_package_columns import FILTER_RESULT_FIELDS
 
 PROJECT_ID_TO_IDENTIFIER = {1: "demo", 20: "other"}
 
@@ -3824,3 +3826,82 @@ async def test_list_leaves_the_sums_of_a_hidden_field_out_of_the_totals_and_the_
 
     assert result.total_sums == {"storyPoints": 9, "remainingTime": "PT1H"}
     assert [g.sums for g in result.groups or []] == [{"storyPoints": 5}]
+
+
+_FILTER_SAMPLES: dict[str, object] = {
+    "project": "demo",
+    "search": "needle",
+    "custom_field_filters": {"cf_1": {"operator": "=", "values": ["a"]}},
+    "type": "Task",
+    "version": "v1",
+    "version_status": "open",
+    "open_only": True,
+    "assignee_me": True,
+    "assignee": "me",
+    "status": "New",
+    "priority": "High",
+    "created_on": "2026-01-01",
+    "created_between": ["2026-01-01", "2026-02-01"],
+    "updated_on": "2026-01-01",
+    "updated_between": ["2026-01-01", "2026-02-01"],
+    "due_on": "2026-01-01",
+    "due_between": ["2026-01-01", "2026-02-01"],
+    "overdue_only": True,
+    "due_within_days": 3,
+}
+
+
+def _filter_cases() -> list[tuple[str, str, str]]:
+    cases = []
+    for method in ("list", "search"):
+        accepted = inspect.signature(getattr(WorkPackageService, method)).parameters
+        for parameter, fields in FILTER_RESULT_FIELDS.items():
+            if parameter in accepted:
+                cases.extend((method, parameter, field) for field in fields)
+    return cases
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("method", "parameter", "field"), _filter_cases())
+async def test_a_filter_on_a_hidden_field_is_refused_by_the_list_and_search_tools(
+    method: str, parameter: str, field: str
+) -> None:
+    api = _FakeWorkPackageApi()
+    settings = dataclasses.replace(make_settings(), read_projects=("*",), hidden_fields={"work_package": (field,)})
+    service, _ = _service(api, settings=settings)
+    arguments: dict[str, object] = {parameter: _FILTER_SAMPLES[parameter]}
+    if method == "search":
+        arguments.setdefault("search", "needle")
+
+    with pytest.raises(PermissionDeniedError, match="cannot be used to filter"):
+        await getattr(service, method)(**arguments)
+
+    assert api.list_calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("hidden_name", ["Secret release", "Invented release"])
+async def test_a_version_custom_field_cannot_be_set_to_or_probed_for_a_version_outside_the_read_scope(
+    hidden_name: str,
+) -> None:
+    restricted = dataclasses.replace(make_settings(), read_projects=("demo",), write_projects=("demo",))
+    service, _ = _service(settings=restricted, references_allowed=_only_visible)
+    schema = {
+        "customField3": {
+            "name": "Target",
+            "location": "_links",
+            "_embedded": {
+                "allowedValues": [
+                    {"name": "Secret release", "_links": {"self": {"href": "/api/v3/versions/7"}}},
+                    {"name": "Own release", "_links": {"self": {"href": "/api/v3/versions/8"}}},
+                ]
+            },
+        }
+    }
+
+    with pytest.raises(InvalidInputError, match=f"'{hidden_name}' is not allowed"):
+        await service._apply_custom_fields({}, {}, schema, {"Target": hidden_name})
+
+    links: dict = {}
+    await service._apply_custom_fields({}, links, schema, {"Target": "Own release"})
+    assert links == {"customField3": {"href": "/api/v3/versions/8"}}

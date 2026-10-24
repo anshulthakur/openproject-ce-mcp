@@ -21,7 +21,7 @@ from openproject_ce_mcp.work_package_columns import (
     SORTABLE_FIELDS,
 )
 
-NOT_FILTERS = {"self", "project", "sort_by", "group_by", "offset", "limit", "include_sums", "custom_field_filters"}
+NOT_FILTERS = {"self", "sort_by", "group_by", "offset", "limit", "include_sums"}
 
 
 def _hiding(*fields: str):
@@ -34,16 +34,11 @@ def test_every_sort_column_is_classified_as_a_result_field_or_as_without_one() -
     assert GROUPABLE_FIELDS <= SORTABLE_FIELDS
 
 
-def test_every_filter_parameter_of_the_list_tool_is_classified() -> None:
-    parameters = set(inspect.signature(WorkPackageService.list).parameters) - NOT_FILTERS
+def test_every_filter_parameter_of_the_list_and_search_tools_is_classified() -> None:
+    list_parameters = set(inspect.signature(WorkPackageService.list).parameters) - NOT_FILTERS
+    search_parameters = set(inspect.signature(WorkPackageService.search).parameters) - NOT_FILTERS
 
-    assert set(FILTER_RESULT_FIELDS) == parameters
-
-
-def test_the_search_tool_filters_are_classified_too() -> None:
-    parameters = set(inspect.signature(WorkPackageService.search).parameters) - NOT_FILTERS - {"search"}
-
-    assert parameters <= set(FILTER_RESULT_FIELDS)
+    assert set(FILTER_RESULT_FIELDS) == list_parameters | search_parameters
 
 
 def test_every_named_result_field_exists() -> None:

@@ -10,15 +10,30 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Iterable
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
+
+from ..resource_href import ResourceLinks
 
 ReferenceKind = Literal["version", "sprint", "backlog_bucket"]
+_KIND_OF_NAMESPACE: dict[str, ReferenceKind] = {
+    "versions": "version",
+    "sprints": "sprint",
+    "backlog_buckets": "backlog_bucket",
+}
 
 
 @dataclass(frozen=True)
 class ScopedReference:
     kind: ReferenceKind
     id: int
+
+
+def reference_of_link(link: Any, links: ResourceLinks) -> ScopedReference | None:
+    """The version, sprint or backlog bucket a link names, or None for any other link."""
+    parsed = links.parse(link)
+    if parsed is None or parsed.namespace not in _KIND_OF_NAMESPACE:
+        return None
+    return ScopedReference(_KIND_OF_NAMESPACE[parsed.namespace], parsed.id)
 
 
 class VisibleReferences:

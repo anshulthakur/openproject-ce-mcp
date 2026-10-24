@@ -67,7 +67,7 @@ class _FakeNotificationApi:
 
     async def list_all(self, *, unread_only: bool, offset: int, limit: int) -> NotificationPage:
         self.list_all_calls.append((unread_only, offset, limit))
-        return NotificationPage(records=list(self._records), total=self._total, exhausted=True)
+        return NotificationPage(records=list(self._records), total=self._total, exhausted=offset * limit >= self._total)
 
     async def get(self, notification_id: int, **kwargs) -> NotificationRecord:
         self.get_calls.append(notification_id)
@@ -300,6 +300,24 @@ async def test_list_all_reports_truncated_and_next_offset_under_wide_open_scope(
 
     assert exhausted_result.truncated is False
     assert exhausted_result.next_offset is None
+
+
+@pytest.mark.asyncio
+async def test_list_all_is_truncated_while_the_page_reports_it_is_not_the_last() -> None:
+    """The page itself says whether it is the last: the server may have cut the page size the
+    service asked for, which `offset * limit` cannot know."""
+
+    class _ClampedApi(_FakeNotificationApi):
+        async def list_all(self, *, unread_only: bool, offset: int, limit: int) -> NotificationPage:
+            return NotificationPage(records=[_record(1)], total=1, exhausted=False)
+
+    settings = dataclasses.replace(make_settings(), enable_personal_read=True, read_projects=("*",))
+    service = _service(api=_ClampedApi(), settings=settings)
+
+    result = await service.list_all(limit=100, offset=1)
+
+    assert result.truncated is True
+    assert result.next_offset == 2
 
 
 @pytest.mark.asyncio

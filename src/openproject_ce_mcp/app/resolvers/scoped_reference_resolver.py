@@ -4,7 +4,9 @@ A work package carries a version, sprint or bucket shared into its project from 
 defines it, and the link names the resource without that project. The defining project comes from
 one request per reference, remembered for a while. A reference counts as visible only if its
 defining project is covered by the read scope; that verdict is computed on every call from the
-remembered project, so a changed scope or a renamed project takes effect at once.
+remembered project, so a changed scope or a project identifier takes effect at once. What a link
+titles the project is remembered with the project, so a name pattern notices a rename only after
+the entry expires.
 
 Depends on the `VersionApi`, `SprintApi` and `BacklogBucketApi` Ports only. It does not check that
 version, sprint or bucket reads are enabled: this is a scope check on a result of another domain,
@@ -17,6 +19,7 @@ import asyncio
 import time
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
+from functools import partial
 from typing import Any
 
 from ...config import Settings
@@ -41,8 +44,7 @@ _MAX_ENTRIES = 4096
 
 @dataclass(frozen=True)
 class _DefiningProject:
-    """What the server said about a resource's defining project; None for a resource the token
-    cannot see."""
+    """What the server said about a resource's defining project."""
 
     link: Any
     embedded: dict[str, Any] | None = None
@@ -68,6 +70,7 @@ class ScopedReferenceResolver:
         self._known: TtlCache[ScopedReference, _DefiningProject | None] = TtlCache(
             ttl_seconds=_FRESHNESS_SECONDS, max_entries=_MAX_ENTRIES, clock=clock
         )
+        self._in_flight: dict[ScopedReference, asyncio.Task[_DefiningProject | None]] = {}
 
     async def references_allowed(
         self, references: Iterable[ScopedReference]
@@ -85,19 +88,40 @@ class ScopedReferenceResolver:
                 outcomes[reference] = self._verdict(reference, remembered[0])
 
         async def look_up(reference: ScopedReference) -> None:
-            async with self._semaphore:
-                try:
-                    project = await self._fetch(reference)
-                except NotFoundError:
-                    project = None
-                except Exception as exc:  # noqa: BLE001 -- returned as a deferred outcome, see docstring
-                    outcomes[reference] = exc
-                    return
-            self._known.put(reference, project)
+            try:
+                project = await self._defining_project(reference)
+            except Exception as exc:  # noqa: BLE001 -- returned as a deferred outcome, see docstring
+                outcomes[reference] = exc
+                return
             outcomes[reference] = self._verdict(reference, project)
 
         await asyncio.gather(*(look_up(reference) for reference in lookups))
         return outcomes
+
+    async def _defining_project(self, reference: ScopedReference) -> _DefiningProject | None:
+        """The defining project of a reference, shared by every caller that asks while the request
+        for it is in flight: a batch read of many work packages names the same version in each."""
+        task = self._in_flight.get(reference)
+        if task is None:
+            task = asyncio.create_task(self._read(reference))
+            self._in_flight[reference] = task
+            task.add_done_callback(partial(self._settled, reference))
+        return await asyncio.shield(task)
+
+    async def _read(self, reference: ScopedReference) -> _DefiningProject | None:
+        async with self._semaphore:
+            try:
+                project = await self._fetch(reference)
+            except NotFoundError:
+                project = None
+        self._known.put(reference, project)
+        return project
+
+    def _settled(self, reference: ScopedReference, task: asyncio.Task[_DefiningProject | None]) -> None:
+        if self._in_flight.get(reference) is task:
+            del self._in_flight[reference]
+        if not task.cancelled():
+            task.exception()  # read here too, so a failure no caller is left to await is not reported as lost
 
     async def _fetch(self, reference: ScopedReference) -> _DefiningProject:
         if reference.kind == "version":

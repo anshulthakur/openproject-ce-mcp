@@ -117,7 +117,7 @@ class NotificationService:
                 is not scope_policy.LinkState.MALFORMED
             ]
             total = page.total
-            truncated = total > offset * resolved_limit
+            truncated = not page.exhausted
         else:
             records, total, truncated = await self._rescan_and_skip(
                 unread_only=unread_only, offset=offset, limit=resolved_limit

@@ -18,11 +18,8 @@ itself -- is how the HAL->model translation stays entirely inside the
 Adapter while still letting the Service control WHEN it runs; the same
 shape `ReminderRecord.summary` uses.
 
-`to_record`/`get_raw` support comment-posting: `add_work_package_comment`
-normalizes a just-posted comment's raw activity payload and fetches a
-fallback single activity by id (the `_fill_missing_activity_user`
-best-effort pattern) -- both reuse this Port/Adapter instead of a duplicated
-normalizer on `WorkPackageApi`.
+`to_record` supports comment-posting: `add_work_package_comment` normalizes a just-posted comment's
+raw activity payload through this Port/Adapter instead of a duplicated normalizer on `WorkPackageApi`.
 """
 
 from __future__ import annotations

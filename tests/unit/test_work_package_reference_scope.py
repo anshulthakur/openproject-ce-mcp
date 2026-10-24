@@ -23,7 +23,9 @@ from openproject_ce_mcp.client import OpenProjectClient
 SECRET_VERSION = "Secret release 7"
 SECRET_SPRINT = "Secret sprint 3"
 OWN_VERSION = "Own release 8"
-ALL = ("list", "search", "get", "get_batch", "execute_query", "update", "delete_preview")
+ALL = ("list", "search", "get", "get_batch", "execute_query", "update", "update_preview", "delete_preview")
+# A preview echoes what the form proposed and never names a version, whatever the scope.
+PREVIEWS = ("update_preview",)
 
 
 def _version_link(version_id: int, title: str) -> dict:
@@ -112,7 +114,14 @@ class _Server:
         elif path == "/api/v3/work_packages/10" and method == "GET":
             body = _work_package()
         elif path == "/api/v3/work_packages/10/form":
-            body = {"_embedded": {"payload": {"subject": "New"}, "validationErrors": {}, "schema": {}}}
+            payload = {
+                "subject": "New",
+                "_links": {
+                    "version": _version_link(7, SECRET_VERSION),
+                    "targetVersions": [_version_link(7, SECRET_VERSION), _version_link(8, OWN_VERSION)],
+                },
+            }
+            body = {"_embedded": {"payload": payload, "validationErrors": {}, "schema": {}}}
         elif path == "/api/v3/work_packages/10" and method == "PATCH":
             body = _work_package()
         elif path == "/api/v3/queries/5":
@@ -145,6 +154,8 @@ async def _read(client: OpenProjectClient, server: _Server, path: str):
         return await client.query_execution.execute(5)
     if path == "update":
         return await work_package.update(work_package_id=10, subject="New", confirm=True)
+    if path == "update_preview":
+        return await work_package.update(work_package_id=10, subject="New", confirm=False)
     return await work_package.delete(work_package_id=10, confirm=False)
 
 
@@ -162,13 +173,16 @@ async def test_no_result_names_a_version_or_sprint_defined_outside_the_read_scop
 
     assert SECRET_VERSION not in text
     assert SECRET_SPRINT not in text
-    assert OWN_VERSION in text
-    assert '"High"' in text
+    if path in PREVIEWS:
+        assert OWN_VERSION not in text
+    else:
+        assert OWN_VERSION in text
+        assert '"High"' in text
     await client.aclose()
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("path", ALL)
+@pytest.mark.parametrize("path", [path for path in ALL if path not in PREVIEWS])
 async def test_under_a_wildcard_scope_every_title_is_kept_and_nothing_is_looked_up(path: str) -> None:
     server = _Server()
     client = _client(server, read_projects=("*",))

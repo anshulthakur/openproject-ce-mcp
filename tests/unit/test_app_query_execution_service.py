@@ -92,7 +92,7 @@ class _FakeQueryExecutionApi:
         self.execute_calls.append((query_id, offset, page_size))
         index = offset - 1
         elements = self._pages[index] if index < len(self._pages) else []
-        return QueryResultPage(raw_elements=elements)
+        return QueryResultPage(raw_elements=elements, server_total=sum(len(page) for page in self._pages))
 
 
 class _FakeWorkPackageApi:
@@ -233,6 +233,18 @@ async def test_execute_finds_an_allowed_match_beyond_a_single_server_page() -> N
     assert result.total == 1
     # Proves multiple server pages were actually scanned, not just the first.
     assert len(api.execute_calls) >= 2
+
+
+@pytest.mark.asyncio
+async def test_execute_stops_at_the_server_total_without_fetching_an_empty_page() -> None:
+    settings = dataclasses.replace(make_settings(), read_projects=("demo",), max_page_size=2)
+    api = _FakeQueryExecutionApi([[_raw_wp(1), _raw_wp(2)]])
+    service = _service(api=api, settings=settings)
+
+    result = await service.execute(7, offset=1, limit=2)
+
+    assert [r.id for r in result.results] == [1, 2]
+    assert [call[1] for call in api.execute_calls] == [1]
 
 
 @pytest.mark.asyncio

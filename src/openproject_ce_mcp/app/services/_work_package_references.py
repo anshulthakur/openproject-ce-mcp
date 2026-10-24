@@ -12,13 +12,20 @@ named `*Service`/`*Resolver`.
 from __future__ import annotations
 
 from collections.abc import Container, Iterable, Sequence
+from typing import Any
 
 from ...config import Settings
 from ...models import WorkPackageGroupSums
 from ..policies import hidden_fields
 from ..policies.scope import scope_allows_all
-from ..ports.scoped_reference import ScopedReference, ScopedReferencesAllowedBulkCheck, VisibleReferences
+from ..ports.scoped_reference import (
+    ScopedReference,
+    ScopedReferencesAllowedBulkCheck,
+    VisibleReferences,
+    reference_of_link,
+)
 from ..ports.work_package_api import WorkPackageGroupRecord, WorkPackageRecord
+from ..resource_href import ResourceLinks
 
 # The columns whose group label is the name of a version, sprint or backlog bucket.
 _REFERENCE_COLUMNS = frozenset({"version", "target_versions", "observed_in_versions", "sprint", "backlog_bucket"})
@@ -114,3 +121,34 @@ async def hidden_references_replaced(
         reference for field, references in record.references.items() if field in written for reference in references
     }
     return sum(not visible.contains(reference) for reference in replaced)
+
+
+async def field_with_visible_options(
+    field: dict[str, Any], *, links: ResourceLinks, settings: Settings, check: ScopedReferencesAllowedBulkCheck
+) -> dict[str, Any]:
+    """The schema field without the allowed values that name a version, sprint or bucket the read
+    scope does not cover, so a value can be neither assigned by name nor probed for."""
+    options = field.get("_embedded", {}).get("allowedValues")
+    if not isinstance(options, list) or scope_allows_all(settings.read_projects):
+        return field
+    named = {
+        reference: option
+        for option in options
+        if isinstance(option, dict)
+        and (reference := reference_of_link(option.get("_links", {}).get("self"), links)) is not None
+    }
+    if not named:
+        return field
+    outcomes = await check(named)
+    visible = []
+    for option in options:
+        reference = reference_of_link(option.get("_links", {}).get("self"), links) if isinstance(option, dict) else None
+        if reference is None:
+            visible.append(option)
+            continue
+        outcome = outcomes[reference]
+        if isinstance(outcome, Exception):
+            raise outcome
+        if outcome:
+            visible.append(option)
+    return {**field, "_embedded": {**field["_embedded"], "allowedValues": visible}}

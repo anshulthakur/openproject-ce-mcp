@@ -152,10 +152,16 @@ from ..ports.work_package_ref import (
     work_package_ref,
 )
 from ..ports.work_package_resolution import WorkPackageAllowedContext
+from ..resource_href import ResourceLinks
 from ..version_gate import call_query_version_gated
 from ._work_package_parents import parent_href, without_parent_unless
 from ._work_package_presentation import present_detail, present_summaries, stamp_detail
-from ._work_package_references import groups_for_result, hidden_references_replaced, visible_references
+from ._work_package_references import (
+    field_with_visible_options,
+    groups_for_result,
+    hidden_references_replaced,
+    visible_references,
+)
 from ._work_package_write_helpers import (
     resolve_custom_field_key,
     resolve_custom_field_links,
@@ -460,6 +466,7 @@ class WorkPackageService:
         self._current_user = current_user
         self._work_package_project_allowed_bulk = work_package_project_allowed_bulk
         self._references_allowed = references_allowed
+        self._resource_links = ResourceLinks(settings.base_url)
         self._user_names = user_names
         self._api_prefix = api_prefix
         # Shared across every get_batch() call on this Service instance (not
@@ -913,6 +920,9 @@ class WorkPackageService:
         work_package_query_policy.ensure_query_allowed(
             settings=self._settings,
             filters=_requested(
+                search=search,
+                project=project,
+                custom_field_filters=custom_field_filters or None,
                 status=status,
                 open_only=open_only,
                 assignee_me=assignee_me,
@@ -1061,6 +1071,8 @@ class WorkPackageService:
         work_package_query_policy.ensure_query_allowed(
             settings=self._settings,
             filters=_requested(
+                project=project,
+                custom_field_filters=custom_field_filters or None,
                 type=type,
                 version=version,
                 version_status=version_status,
@@ -1409,7 +1421,7 @@ class WorkPackageService:
         form = await self._api.validate_create(project, schema_payload)
         return (await self._api.parse_form(form, resolve_links=True, allowed_values_cache=allowed_values_cache)).schema
 
-    def _apply_custom_fields(
+    async def _apply_custom_fields(
         self,
         payload: dict[str, Any],
         links: dict[str, Any],
@@ -1425,6 +1437,9 @@ class WorkPackageService:
             )
             location = field.get("location")
             if location == "_links":
+                field = await field_with_visible_options(
+                    field, links=self._resource_links, settings=self._settings, check=self._references_allowed
+                )
                 hrefs = resolve_custom_field_links(field, raw_value, schema_key)
                 if len(hrefs) == 1:
                     links[schema_key] = {"href": hrefs[0]}
@@ -1635,7 +1650,7 @@ class WorkPackageService:
                 hidden_fields.ensure_field_writable("work_package", "project_phase", settings=self._settings)
                 links["projectPhase"] = {"href": resolve_schema_option_href(schema, "projectPhase", project_phase)}
             if custom_fields:
-                self._apply_custom_fields(payload, links, schema, custom_fields)
+                await self._apply_custom_fields(payload, links, schema, custom_fields)
 
         if links:
             payload["_links"] = links

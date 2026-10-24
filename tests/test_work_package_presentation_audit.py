@@ -10,7 +10,7 @@ from __future__ import annotations
 import ast
 
 import pytest
-from _source_scan import ADAPTERS, APP, SERVICES, calls_named, matching_nodes
+from _source_scan import APP, SERVICES, calls_named, matching_nodes
 
 PRESENTATION = "_work_package_presentation.py"
 CONSUMERS = {"work_package_service.py", "query_execution_service.py"}
@@ -94,8 +94,3 @@ def test_a_decision_made_anywhere_else_is_found(construction: str) -> None:
     assert list(
         _decision_sites(f"def present(record):\n    return record.scoped_summary(visible={construction})\n")
     ) == ["planted.py:present"]
-
-
-def test_the_adapters_receive_the_decision_and_never_build_one() -> None:
-    assert not [name for name in _decision_sites() if name.split(":")[0].startswith("httpx_")]
-    assert ADAPTERS.is_dir()

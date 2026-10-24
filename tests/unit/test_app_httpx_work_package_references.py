@@ -9,9 +9,8 @@ from openproject_ce_mcp.app.adapters.httpx_work_package_api import (
     HttpxWorkPackageApi,
     collect_references,
     normalize_work_package_summary,
-    reference_of_link,
 )
-from openproject_ce_mcp.app.ports.scoped_reference import ScopedReference, VisibleReferences
+from openproject_ce_mcp.app.ports.scoped_reference import ScopedReference, VisibleReferences, reference_of_link
 from openproject_ce_mcp.app.resource_href import ResourceLinks
 from openproject_ce_mcp.app.transport.httpx_transport import HttpxTransport
 

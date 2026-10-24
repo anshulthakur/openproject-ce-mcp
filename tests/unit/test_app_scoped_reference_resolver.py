@@ -189,3 +189,46 @@ async def test_the_requests_of_one_call_run_concurrently_but_at_most_ten_at_a_ti
 
     assert all(outcomes.values())
     assert 1 < resolver._version_api.max_in_flight <= 10  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+async def test_concurrent_calls_naming_the_same_reference_share_one_request() -> None:
+    resolver = _resolver({1: _project(1)})
+
+    first, second, third = await asyncio.gather(
+        resolver.references_allowed([OWN_VERSION]),
+        resolver.references_allowed([OWN_VERSION]),
+        resolver.references_allowed([OWN_VERSION]),
+    )
+
+    assert [first, second, third] == [{OWN_VERSION: True}] * 3
+    assert resolver._version_api.calls == [1]  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+async def test_a_failure_of_a_shared_request_reaches_every_waiter_and_is_not_remembered() -> None:
+    error = TransportError("down")
+    resolver = _resolver({1: error})
+
+    first, second = await asyncio.gather(
+        resolver.references_allowed([OWN_VERSION]), resolver.references_allowed([OWN_VERSION])
+    )
+
+    assert first == {OWN_VERSION: error}
+    assert second == {OWN_VERSION: error}
+    assert resolver._version_api.calls == [1]  # type: ignore[attr-defined]
+    assert len(resolver._known) == 0
+    assert resolver._in_flight == {}
+
+
+@pytest.mark.asyncio
+async def test_a_cancelled_waiter_neither_cancels_the_shared_request_nor_fails_the_others() -> None:
+    resolver = _resolver({1: _project(1)})
+    cancelled = asyncio.create_task(resolver.references_allowed([OWN_VERSION]))
+    await asyncio.sleep(0)
+    survivor = asyncio.create_task(resolver.references_allowed([OWN_VERSION]))
+    await asyncio.sleep(0)
+    cancelled.cancel()
+
+    assert await survivor == {OWN_VERSION: True}
+    assert resolver._version_api.calls == [1]  # type: ignore[attr-defined]

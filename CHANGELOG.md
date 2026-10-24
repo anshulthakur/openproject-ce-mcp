@@ -13,11 +13,13 @@ development baseline.
 
 - A work package field hidden with `OPENPROJECT_HIDE_WORK_PACKAGE_FIELDS` was
   left out of the results but could still be read through a query: a filter
-  such as `status` or `assignee`, `sort_by`, `group_by` (whose group labels
-  are the values) and the sums of `include_sums` showed it. `list_work_packages`
-  and `search_work_packages` now refuse a filter, an ordering or a grouping by
-  a hidden field, `list_my_open_work_packages` is refused while `assignee` or
-  `status` is hidden, and the sums of a hidden field are left out.
+  such as `status`, `assignee`, `project` or `custom_field_filters`, the text
+  of `search_work_packages` (it matches the subject), `sort_by`, `group_by`
+  (whose group labels are the values) and the sums of `include_sums` showed it.
+  `list_work_packages` and `search_work_packages` now refuse a filter, a search
+  text, an ordering or a grouping by a hidden field, `list_my_open_work_packages`
+  is refused while `assignee` or `status` is hidden, and the sums of a hidden
+  field are left out.
 - A work package of a covered project can carry a version shared into its
   project from a project that `OPENPROJECT_READ_PROJECTS` does not cover, and
   from OpenProject 17.3 a sprint, and from 17.6 a backlog bucket, shared the
@@ -30,7 +32,10 @@ development baseline.
   whole assignment. Under a restricted scope the server reads the defining
   project of each version, sprint or bucket a result names once and remembers
   it for five minutes; under `*` nothing is looked up. A sprint the token has
-  no right to view loses its name too, because its project cannot be read.
+  no right to view loses its name too, because its project cannot be read. A
+  version custom field also accepts, by name or id, only the versions a result
+  may name: the name of a hidden one was a way to confirm it exists and to
+  assign it.
 - A version, sprint or backlog bucket whose defining project the token cannot
   see is covered under `*` and not covered under a restricted scope on every
   supported release; OpenProject 16.x leaves the project link out and 17.x
@@ -194,12 +199,16 @@ development baseline.
   than the page size that was asked for. OpenProject cuts a requested page size
   to its configured maximum, so on an instance with a lower maximum the first
   page already looked like the last one and every later element was silently
-  missing: versions, relations, time entry hour sums, reminder lookups,
-  notifications, project searches, and the scanned results of
-  `search_work_packages` and `list_my_open_work_packages` under a restricted
-  project scope. A collection now counts as read to its end when the elements
-  fetched reach the `total` the server reports, or when a page is empty; where
-  only the page number is known, the page size the server reports is used.
+  missing: versions, sprint names, relations, time entry hour sums, reminder
+  lookups, notifications, project searches, saved query results, and the
+  scanned results of `search_work_packages` and `list_my_open_work_packages`
+  under a restricted project scope. These now count a collection as read to its
+  end when the elements fetched reach the `total` the server reports, or when a
+  page is empty; where only the page number is known, the page size the server
+  reports is used. The list tools that page the server directly (users, groups,
+  memberships, meetings, boards, actions, `list_work_packages`) still assume
+  that `OPENPROJECT_MAX_PAGE_SIZE` does not exceed the instance's API maximum
+  page size, which the configuration reference now states.
 - A form field with several violated constraints showed only "Multiple field
   constraints have been violated." in the validation errors of every form that
   reports them (work packages, projects, versions, time entries, grids, boards,

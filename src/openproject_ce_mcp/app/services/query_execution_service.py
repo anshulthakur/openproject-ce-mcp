@@ -81,7 +81,7 @@ class QueryExecutionService:
 
         async def _fetch_page(server_offset: int, page_size: int) -> dict:
             page = await self._api.execute(query_id, offset=server_offset, page_size=page_size)
-            return {"_embedded": {"elements": page.raw_elements}}
+            return {"total": page.server_total, "_embedded": {"elements": page.raw_elements}}
 
         async def _item_allowed(raw: dict) -> bool:
             return work_package_payload_allowed(
