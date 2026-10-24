@@ -144,6 +144,7 @@ from .app.resolvers.scoped_reference_resolver import ScopedReferenceResolver
 from .app.resolvers.sprint_resolver import SprintResolver
 from .app.resolvers.status_priority_type_resolver import StatusPriorityTypeResolver
 from .app.resolvers.type_resolver import TypeResolver
+from .app.resolvers.user_name_resolver import UserNameResolver
 from .app.resolvers.version_resolver import VersionResolver
 from .app.resolvers.work_package_resolver import WorkPackageResolver
 from .app.services.action_capability_service import ActionCapabilityService
@@ -342,6 +343,7 @@ class OpenProjectClient:
 
         self._principal_api: PrincipalApi = HttpxPrincipalApi(self._transport)
         self._principal_service = PrincipalService(api=self._principal_api, settings=settings)
+        self._user_name_resolver = UserNameResolver(api=self._principal_api)
         self._principal_resolver = PrincipalResolver(
             api=self._principal_api, current_user=self._current_user_resolver, settings=settings
         )
@@ -566,6 +568,7 @@ class OpenProjectClient:
             current_user=self._current_user_resolver,
             work_package_project_allowed_bulk=self._work_package_resolver.project_links_allowed,
             references_allowed=self._scoped_reference_resolver.references_allowed,
+            user_names=self._user_name_resolver.names,
             api_prefix=self._api_prefix,
         )
 
@@ -694,6 +697,7 @@ class OpenProjectClient:
             api=self._activity_api,
             settings=settings,
             resolve_work_package_id=self._work_package_resolver.resolve_id,
+            user_names=self._user_name_resolver.names,
         )
 
         self._attachment_api: AttachmentApi = HttpxAttachmentApi(

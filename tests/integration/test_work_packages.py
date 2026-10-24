@@ -1383,3 +1383,21 @@ async def test_aggregates_of_a_project_listing_leave_out_subprojects_outside_the
         assert len(alone.results) == 1
         assert alone.total == 1
         assert [group.count for group in alone.groups] == [1]
+
+
+async def test_an_activity_and_a_posted_comment_name_their_user(
+    client: OpenProjectClient, test_project: str, wp_ids: list[int]
+) -> None:
+    """The server links the user of an activity by href only, so the name comes from the user."""
+    me = await client.current_user.get_current_user()
+    created = await client.work_package.create(
+        project=test_project, type="Task", subject="[integration-test] activity user", confirm=True
+    )
+    assert created.ready, created.validation_errors
+    wp_ids.append(created.work_package_id)
+
+    posted = await client.work_package.add_comment(work_package_id=created.work_package_id, comment="Hi", confirm=True)
+    activities = await client.activity.list_for_work_package(created.work_package_id)
+
+    assert posted.result is not None and posted.result.user == me.name
+    assert [activity.user for activity in activities.results if activity.comment] == [me.name]

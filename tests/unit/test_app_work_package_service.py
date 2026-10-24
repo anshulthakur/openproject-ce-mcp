@@ -10,7 +10,6 @@ from _client_test_helpers import make_settings
 from openproject_ce_mcp.app.errors import (
     InvalidInputError,
     NotFoundError,
-    OpenProjectError,
     OpenProjectServerError,
     PermissionDeniedError,
     ProjectLinkPrefixError,
@@ -341,38 +340,35 @@ class _FakeStatusApi:
 
 class _FakeActivityApi:
     def __init__(self) -> None:
-        self.get_raw_calls: list[int] = []
-        self.next_get_raw: dict | None = None
         self.details_requested: list[bool] = []
 
     async def list_for_work_package(self, work_package_id: int):
         return []
 
     def to_record(self, payload: dict) -> ActivityRecord:
-        def to_summary(text_limit, *, details):
+        def to_summary(text_limit, *, details, user):
             self.details_requested.append(details)
             return ActivitySummary(
                 id=payload["id"],
                 type=payload.get("_type"),
                 version=None,
-                user=payload.get("_links", {}).get("user", {}).get("title"),
+                user=user,
                 comment=(payload.get("comment") or {}).get("raw"),
                 created_at=payload.get("createdAt"),
                 details=[{"raw": d["raw"]} for d in payload.get("details", [])] if details else None,
                 details_omitted=not details,
             )
 
-        return ActivityRecord(to_summary=to_summary)
-
-    async def get_raw(self, activity_id: int) -> dict:
-        self.get_raw_calls.append(activity_id)
-        if self.next_get_raw is not None:
-            return self.next_get_raw
-        return {"id": activity_id, "_type": "Activity", "_links": {}}
+        href = payload.get("_links", {}).get("user", {}).get("href")
+        return ActivityRecord(to_summary=to_summary, user_id=int(href.rsplit("/", 1)[-1]) if href else None)
 
 
 async def _no_project_allowed(href: str, *, context: WorkPackageAllowedContext | None = None) -> bool:
     return False
+
+
+async def _no_user_names(user_ids):
+    return dict.fromkeys(user_ids)
 
 
 async def _all_references_allowed(references):
@@ -434,6 +430,7 @@ def _service(
     references_allowed=None,
     status_api: _FakeStatusApi | None = None,
     activity_api: _FakeActivityApi | None = None,
+    user_names=None,
     resolve_work_package_id=None,
 ) -> tuple[WorkPackageService, _FakeWorkPackageApi]:
     fake_api = api or _FakeWorkPackageApi()
@@ -494,6 +491,7 @@ def _service(
         resolve_work_package_id=resolve_work_package_id or default_resolve_work_package_id,
         status_api=status_api or _FakeStatusApi(),
         activity_api=activity_api or _FakeActivityApi(),
+        user_names=user_names or _no_user_names,
         current_user=current_user,
         work_package_project_allowed_bulk=work_package_project_allowed_bulk
         or _bulk_from_single(work_package_project_allowed or _all_project_allowed),
@@ -3010,79 +3008,66 @@ async def test_add_comment_result_masked_when_comment_hidden_in_output() -> None
 
 
 # ----------------------------------------------------------------------
-# _fill_missing_activity_user
+# The user of a posted comment
 # ----------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
-async def test_fill_missing_activity_user_success_merges_fetched_user_link() -> None:
+class _UserNames:
+    def __init__(self, names: dict[int, str | None]) -> None:
+        self._names = names
+        self.calls: list[list[int]] = []
+
+    async def __call__(self, user_ids):
+        ids = list(user_ids)
+        self.calls.append(ids)
+        return {user_id: self._names.get(user_id) for user_id in ids}
+
+
+def _service_naming(names: _UserNames, **kwargs):
     activity_api = _FakeActivityApi()
-    activity_api.next_get_raw = {"id": 55, "_links": {"user": {"title": "Jane"}}}
-    api = _FakeWorkPackageApi()
-    service, _ = _service(api, activity_api=activity_api)
-
-    result = await service._fill_missing_activity_user({"id": 55, "_links": {}})
-
-    assert result["_links"]["user"]["title"] == "Jane"
-    assert activity_api.get_raw_calls == [55]
-
-
-@pytest.mark.asyncio
-async def test_fill_missing_activity_user_skipped_when_already_present() -> None:
-    activity_api = _FakeActivityApi()
-    api = _FakeWorkPackageApi()
-    service, _ = _service(api, activity_api=activity_api)
-
-    activity = {"id": 55, "_links": {"user": {"title": "Existing"}}}
-    result = await service._fill_missing_activity_user(activity)
-
-    assert result is activity
-    assert activity_api.get_raw_calls == []
+    service, _ = _service(_FakeWorkPackageApi(), activity_api=activity_api, user_names=names, **kwargs)
+    return service
 
 
 @pytest.mark.asyncio
-async def test_fill_missing_activity_user_skipped_when_hidden() -> None:
-    activity_api = _FakeActivityApi()
+async def test_a_posted_comment_names_its_user_from_the_user_id_of_the_response() -> None:
+    names = _UserNames({4: "Jane"})
+    service = _service_naming(names)
+    result = await _comment_as(service, {"id": 55, "_links": {"user": {"href": "/api/v3/users/4"}}})
+
+    assert result.result is not None and result.result.user == "Jane"
+    assert names.calls == [[4]]
+
+
+@pytest.mark.asyncio
+async def test_a_posted_comment_without_a_user_link_asks_for_no_name() -> None:
+    names = _UserNames({})
+    service = _service_naming(names)
+
+    result = await _comment_as(service, {"id": 55, "_links": {}})
+
+    assert result.result is not None and result.result.user is None
+    assert names.calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_posted_comment_asks_for_no_name_when_the_user_is_a_hidden_activity_field() -> None:
+    names = _UserNames({4: "Jane"})
     settings = dataclasses.replace(make_settings(), hidden_fields={"activity": ("user",)})
-    api = _FakeWorkPackageApi()
-    service, _ = _service(api, activity_api=activity_api, settings=settings)
+    service = _service_naming(names, settings=settings)
 
-    activity = {"id": 55, "_links": {}}
-    result = await service._fill_missing_activity_user(activity)
+    result = await _comment_as(service, {"id": 55, "_links": {"user": {"href": "/api/v3/users/4"}}})
 
-    assert result is activity
-    assert activity_api.get_raw_calls == []
+    assert result.result is not None and result.result.user is None
+    assert names.calls == []
 
 
-@pytest.mark.asyncio
-async def test_fill_missing_activity_user_skipped_when_no_usable_id() -> None:
-    activity_api = _FakeActivityApi()
-    api = _FakeWorkPackageApi()
-    service, _ = _service(api, activity_api=activity_api)
+async def _comment_as(service, activity: dict):
+    async def post_comment(work_package_ref, *, comment, internal, notify):
+        return {**activity, "comment": {"raw": comment}}
 
-    activity = {"id": None, "_links": {}}
-    result = await service._fill_missing_activity_user(activity)
-
-    assert result is activity
-    assert activity_api.get_raw_calls == []
-
-
-@pytest.mark.asyncio
-async def test_fill_missing_activity_user_swallows_fetch_failure() -> None:
-    class _FailingActivityApi(_FakeActivityApi):
-        async def get_raw(self, activity_id: int) -> dict:
-            self.get_raw_calls.append(activity_id)
-            raise OpenProjectError("boom")
-
-    activity_api = _FailingActivityApi()
-    api = _FakeWorkPackageApi()
-    service, _ = _service(api, activity_api=activity_api)
-
-    activity = {"id": 55, "_links": {}}
-    result = await service._fill_missing_activity_user(activity)
-
-    assert result is activity
-    assert activity_api.get_raw_calls == [55]
+    service._api.post_comment = post_comment
+    return await service.add_comment(work_package_id=6, comment="Hello", confirm=True)
 
 
 # ----------------------------------------------------------------------

@@ -42,6 +42,10 @@ class PrincipalApi(Protocol):
     OPENPROJECT_ENABLE_ADMIN_READ (see PrincipalResolver's own docstring).
     """
 
+    async def get_user_name(self, user_id: int) -> str | None:
+        """The name of one user (`GET users/{id}`); `NotFoundError` for a user the token cannot see."""
+        ...
+
     async def list_principals(
         self, *, search: str | None, offset: int, page_size: int
     ) -> tuple[list[PrincipalRecord], int]: ...

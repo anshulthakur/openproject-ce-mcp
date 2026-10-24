@@ -28,18 +28,19 @@ from ..ports.activity_api import ActivityRecord
 from ..transport.protocol import Transport
 from ._text import delimit_user_content as _delimit_user_content
 from ._text import extract_formattable_text_with_meta as _extract_formattable_text_with_meta
-from ._text import link_title as _link_title
+from ._text import id_from_href as _id_from_href
 
 ACTIVITY_DETAILS_LIMIT = 20
 
 
-def normalize_activity(payload: dict[str, Any], *, text_limit: int | None = None, details: bool) -> ActivitySummary:
+def normalize_activity(
+    payload: dict[str, Any], *, text_limit: int | None = None, details: bool, user: str | None
+) -> ActivitySummary:
     """Pure HAL->model translation (ADR: 'lives in the Domain API adapter').
 
     Excludes hidden-field masking and the hide-aware gate -- masking is a
     Service-layer concern applied after this returns (see module docstring).
     """
-    links = payload.get("_links", {})
     raw_comment, truncated, length = _extract_formattable_text_with_meta(
         payload.get("comment"), limit=text_limit, preserve_newlines=True
     )
@@ -68,7 +69,7 @@ def normalize_activity(payload: dict[str, Any], *, text_limit: int | None = None
         id=int(payload["id"]),
         type=payload.get("_type"),
         version=payload.get("version"),
-        user=_link_title(links.get("user")),
+        user=user,
         comment=comment,
         created_at=payload.get("createdAt"),
         comment_truncated=truncated,
@@ -80,10 +81,12 @@ def normalize_activity(payload: dict[str, Any], *, text_limit: int | None = None
 
 
 def _record(payload: dict[str, Any]) -> ActivityRecord:
-    def to_summary(text_limit: int | None, *, details: bool) -> ActivitySummary:
-        return normalize_activity(payload, text_limit=text_limit, details=details)
+    def to_summary(text_limit: int | None, *, details: bool, user: str | None) -> ActivitySummary:
+        return normalize_activity(payload, text_limit=text_limit, details=details, user=user)
 
-    return ActivityRecord(to_summary=to_summary)
+    return ActivityRecord(
+        to_summary=to_summary, user_id=_id_from_href(payload.get("_links", {}).get("user", {}).get("href"))
+    )
 
 
 class HttpxActivityApi:
@@ -97,6 +100,3 @@ class HttpxActivityApi:
 
     def to_record(self, payload: dict[str, Any]) -> ActivityRecord:
         return _record(payload)
-
-    async def get_raw(self, activity_id: int) -> dict[str, Any]:
-        return await self._transport.get_json(f"activities/{activity_id}")

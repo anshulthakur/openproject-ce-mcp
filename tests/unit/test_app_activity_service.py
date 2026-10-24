@@ -11,12 +11,12 @@ from openproject_ce_mcp.app.services.activity_service import ActivityService
 from openproject_ce_mcp.models import ActivitySummary
 
 
-def _summary(activity_id: int, *, details: bool = True) -> ActivitySummary:
+def _summary(activity_id: int, *, details: bool = True, user: str | None = None) -> ActivitySummary:
     return ActivitySummary(
         id=activity_id,
         type="Activity::Comment",
         version=activity_id,
-        user="Alice",
+        user=user,
         comment=f"comment {activity_id}",
         created_at="2026-01-01T00:00:00Z",
         details=[{"raw": "Parent set to FOREIGN"}] if details else None,
@@ -35,12 +35,12 @@ class _FakeActivityApi:
         self.list_for_work_package_calls.append(work_package_id)
 
         def make_record(activity_id: int) -> ActivityRecord:
-            def to_summary(text_limit: int | None, *, details: bool) -> ActivitySummary:
+            def to_summary(text_limit: int | None, *, details: bool, user: str | None) -> ActivitySummary:
                 self.to_summary_calls.append(activity_id)
                 self.details_requested.append(details)
-                return _summary(activity_id, details=details)
+                return _summary(activity_id, details=details, user=user)
 
-            return ActivityRecord(to_summary=to_summary)
+            return ActivityRecord(to_summary=to_summary, user_id=activity_id % 2 or None)
 
         return [make_record(i) for i in range(1, self._count + 1)]
 
@@ -63,11 +63,24 @@ def _resolve_work_package_id_denied():
     return resolve
 
 
-def _service(*, api: _FakeActivityApi | None = None, settings=None, resolve_work_package_id=None) -> ActivityService:
+class _UserNames:
+    def __init__(self) -> None:
+        self.calls: list[list[int]] = []
+
+    async def __call__(self, user_ids):
+        ids = list(user_ids)
+        self.calls.append(ids)
+        return {user_id: f"User {user_id}" for user_id in ids}
+
+
+def _service(
+    *, api: _FakeActivityApi | None = None, settings=None, resolve_work_package_id=None, user_names=None
+) -> ActivityService:
     return ActivityService(
         api=api or _FakeActivityApi(),
         settings=settings or make_settings(),
         resolve_work_package_id=resolve_work_package_id or _resolve_work_package_id_ok(),
+        user_names=user_names or _UserNames(),
     )
 
 
@@ -128,11 +141,11 @@ async def test_list_for_work_package_passes_text_limit_through_to_summary() -> N
         records = await original_list(work_package_id)
 
         def wrap(record):
-            def to_summary(text_limit, *, details):
+            def to_summary(text_limit, *, details, user):
                 seen_limits.append(text_limit)
-                return record.to_summary(text_limit, details=details)
+                return record.to_summary(text_limit, details=details, user=user)
 
-            return ActivityRecord(to_summary=to_summary)
+            return ActivityRecord(to_summary=to_summary, user_id=record.user_id)
 
         return [wrap(r) for r in records]
 
@@ -181,7 +194,8 @@ async def test_details_are_left_out_under_a_restricted_read_scope(read_projects:
     for row in result.results:
         assert row.details is None
         assert row.details_omitted is True
-        assert row.comment and row.user == "Alice" and row.created_at
+        assert row.comment and row.created_at
+        assert row.user == ("User 1" if row.id % 2 else None)
 
 
 @pytest.mark.asyncio
@@ -248,3 +262,36 @@ async def test_comment_hidden_by_activity_scope_not_time_entry_scope() -> None:
     service_activity_hidden = _service(api=_FakeActivityApi(count=1), settings=settings_activity_hidden)
     result_activity_hidden = await service_activity_hidden.list_for_work_package(9)
     assert getattr(result_activity_hidden.results[0], "_hidden_keys", frozenset()) == {"comment"}
+
+
+@pytest.mark.asyncio
+async def test_each_activity_names_its_user_with_one_lookup_for_the_distinct_users() -> None:
+    names = _UserNames()
+    service = _service(api=_FakeActivityApi(count=3), user_names=names)
+
+    result = await service.list_for_work_package(7)
+
+    assert [(a.id, a.user) for a in result.results] == [(3, "User 1"), (2, None), (1, "User 1")]
+    assert names.calls == [[1]]
+
+
+@pytest.mark.asyncio
+async def test_only_the_users_of_the_activities_that_are_returned_are_looked_up() -> None:
+    names = _UserNames()
+    service = _service(api=_FakeActivityApi(count=5), user_names=names)
+
+    await service.list_for_work_package(7, limit=1)
+
+    assert names.calls == [[1]]
+
+
+@pytest.mark.asyncio
+async def test_no_name_is_looked_up_when_the_user_is_a_hidden_activity_field() -> None:
+    names = _UserNames()
+    settings = dataclasses.replace(make_settings(), hidden_fields={"activity": ("user",)})
+    service = _service(settings=settings, user_names=names)
+
+    result = await service.list_for_work_package(7)
+
+    assert names.calls == []
+    assert all(activity.user is None for activity in result.results)

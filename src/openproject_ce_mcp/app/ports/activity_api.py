@@ -34,14 +34,16 @@ from ...models import ActivitySummary
 
 
 class ActivitySummaryFactory(Protocol):
-    """`details` has no default: every caller decides whether the change details may be returned."""
+    """`details` and `user` have no default: every caller decides whether the change details may be
+    returned, and names the user, whom the server links by id only."""
 
-    def __call__(self, text_limit: int | None, *, details: bool) -> ActivitySummary: ...
+    def __call__(self, text_limit: int | None, *, details: bool, user: str | None) -> ActivitySummary: ...
 
 
 @dataclass(frozen=True)
 class ActivityRecord:
     to_summary: ActivitySummaryFactory
+    user_id: int | None
 
 
 class ActivityApi(Protocol):
@@ -59,14 +61,5 @@ class ActivityApi(Protocol):
         -- no HTTP call. Exists as a Protocol method (not a bare module-level
         function) so a Service depends only on the `ActivityApi` Protocol,
         never importing the concrete adapter's `normalize_activity` directly.
-        """
-        ...
-
-    async def get_raw(self, activity_id: int) -> dict[str, Any]:
-        """Raw, unnormalized GET `activities/{activity_id}` -- used by the
-        `_fill_missing_activity_user` best-effort fallback fetch, which only
-        reads `_links.user` off the result. Lets errors propagate; the one
-        caller that needs a catch-and-log-and-continue behavior does so
-        itself, rather than this method swallowing errors for every caller.
         """
         ...

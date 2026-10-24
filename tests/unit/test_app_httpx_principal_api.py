@@ -96,3 +96,13 @@ async def test_list_principals_searches_the_text_literally(search: str, sent: st
         await HttpxPrincipalApi(HttpxTransport(http_client)).list_principals(search=search, offset=1, page_size=10)
 
     assert json.loads(seen[0]) == [{"name": {"operator": "~", "values": [sent]}}]
+
+
+@pytest.mark.asyncio
+async def test_get_user_name_reads_the_name_of_the_user() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v3/users/4"
+        return httpx.Response(200, json={"id": 4, "name": "Jane Reviewer"}, request=request)
+
+    async with _client(handler) as http_client:
+        assert await HttpxPrincipalApi(HttpxTransport(http_client)).get_user_name(4) == "Jane Reviewer"

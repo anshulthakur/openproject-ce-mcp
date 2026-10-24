@@ -44,6 +44,10 @@ class HttpxPrincipalApi:
     def __init__(self, transport: Transport) -> None:
         self._transport = transport
 
+    async def get_user_name(self, user_id: int) -> str | None:
+        payload = await self._transport.get_json(f"users/{user_id}")
+        return _trim_text(payload.get("name"), limit=SUBJECT_LIMIT)
+
     async def list_principals(
         self, *, search: str | None, offset: int, page_size: int
     ) -> tuple[list[PrincipalRecord], int]:

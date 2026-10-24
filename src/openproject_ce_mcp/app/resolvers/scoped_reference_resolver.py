@@ -15,12 +15,12 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections import OrderedDict
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
 from ...config import Settings
+from ..caches import TtlCache
 from ..errors import NotFoundError
 from ..policies.backlog_bucket_policy import backlog_bucket_payload_allowed
 from ..policies.scope import defining_project_link_allowed
@@ -64,9 +64,10 @@ class ScopedReferenceResolver:
         self._backlog_bucket_api = backlog_bucket_api
         self._settings = settings
         self._project_id_to_identifier = project_id_to_identifier
-        self._clock = clock
         self._semaphore = asyncio.Semaphore(_LOOKUP_CONCURRENCY)
-        self._known: OrderedDict[ScopedReference, tuple[float, _DefiningProject | None]] = OrderedDict()
+        self._known: TtlCache[ScopedReference, _DefiningProject | None] = TtlCache(
+            ttl_seconds=_FRESHNESS_SECONDS, max_entries=_MAX_ENTRIES, clock=clock
+        )
 
     async def references_allowed(
         self, references: Iterable[ScopedReference]
@@ -77,11 +78,11 @@ class ScopedReferenceResolver:
         outcomes: dict[ScopedReference, bool | Exception] = {}
         lookups: list[ScopedReference] = []
         for reference in dict.fromkeys(references):
-            found, remembered = self._recall(reference)
-            if found:
-                outcomes[reference] = self._verdict(reference, remembered)
-            else:
+            remembered = self._known.get(reference)
+            if remembered is None:
                 lookups.append(reference)
+            else:
+                outcomes[reference] = self._verdict(reference, remembered[0])
 
         async def look_up(reference: ScopedReference) -> None:
             async with self._semaphore:
@@ -92,24 +93,11 @@ class ScopedReferenceResolver:
                 except Exception as exc:  # noqa: BLE001 -- returned as a deferred outcome, see docstring
                     outcomes[reference] = exc
                     return
-            self._remember(reference, project)
+            self._known.put(reference, project)
             outcomes[reference] = self._verdict(reference, project)
 
         await asyncio.gather(*(look_up(reference) for reference in lookups))
         return outcomes
-
-    def _recall(self, reference: ScopedReference) -> tuple[bool, _DefiningProject | None]:
-        entry = self._known.get(reference)
-        if entry is None or self._clock() - entry[0] > _FRESHNESS_SECONDS:
-            return False, None
-        self._known.move_to_end(reference)
-        return True, entry[1]
-
-    def _remember(self, reference: ScopedReference, project: _DefiningProject | None) -> None:
-        self._known[reference] = (self._clock(), project)
-        self._known.move_to_end(reference)
-        while len(self._known) > _MAX_ENTRIES:
-            self._known.popitem(last=False)
 
     async def _fetch(self, reference: ScopedReference) -> _DefiningProject:
         if reference.kind == "version":

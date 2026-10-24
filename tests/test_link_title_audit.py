@@ -268,3 +268,23 @@ def test_a_title_read_in_a_function_is_counted(read: str) -> None:
     planted = f"def normalize(links, link):\n    return {read}\n"
 
     assert _work_package_title_reads(planted) == {"planted.py:normalize": 1}
+
+
+# Links the server renders with an href only, whatever the link's role: reading their title yields
+# nothing. "file" -> link names. Verified against the representers of 16.0 to 17.9.
+TITLELESS_BY_THE_SERVER = {"httpx_activity_api.py": {"user"}}
+
+
+def test_no_adapter_reads_the_title_of_a_link_the_server_renders_without_one() -> None:
+    named, _ = _titled_links()
+
+    offenders = {
+        (file, link) for link, files in named.items() for file in files if link in TITLELESS_BY_THE_SERVER.get(file, ())
+    }
+    assert offenders == set()
+
+
+def test_a_title_read_of_a_titleless_link_is_found() -> None:
+    named, _ = _titled_links('def normalize(links):\n    return _link_title(links.get("user"))\n')
+
+    assert named == {"user": {"planted.py"}}

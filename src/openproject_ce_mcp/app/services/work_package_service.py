@@ -143,6 +143,7 @@ from ..ports.sprint_ref import SprintIdResolver
 from ..ports.status_priority_type_api import StatusPriorityTypeApi
 from ..ports.status_ref import StatusRefResolver
 from ..ports.type_ref import TypeRefResolver
+from ..ports.user_names import UserNames
 from ..ports.version_ref import VersionIdResolver
 from ..ports.work_package_api import WorkPackageApi, WorkPackageRecord
 from ..ports.work_package_ref import (
@@ -433,6 +434,7 @@ class WorkPackageService:
         current_user: CurrentUserLookup,
         work_package_project_allowed_bulk: WorkPackageProjectAllowedBulkCheck,
         references_allowed: ScopedReferencesAllowedBulkCheck,
+        user_names: UserNames,
         api_prefix: str,
     ) -> None:
         self._api = api
@@ -453,6 +455,7 @@ class WorkPackageService:
         self._current_user = current_user
         self._work_package_project_allowed_bulk = work_package_project_allowed_bulk
         self._references_allowed = references_allowed
+        self._user_names = user_names
         self._api_prefix = api_prefix
         # Shared across every get_batch() call on this Service instance (not
         # constructed per-call), so N genuinely bounds this Service's total
@@ -2202,42 +2205,6 @@ class WorkPackageService:
             result=None,
         )
 
-    async def _fill_missing_activity_user(self, activity: dict[str, Any]) -> dict[str, Any]:
-        """Best-effort: fill in a missing `_links.user` on a freshly-posted activity.
-
-        The activities POST response can be leaner than a subsequent GET and
-        omit `_links.user` entirely, even though the activity was persisted
-        correctly. Re-fetches the canonical activity by id (via the injected
-        `ActivityApi`, not a duplicated Adapter method -- see
-        `app/ports/activity_api.py`'s module docstring) and merges in its
-        `_links.user`. A failure here (404, permission, timeout, ...) must
-        never turn an already-successful write into a reported error, so it
-        is swallowed and just logged -- the caller then simply keeps user
-        unset. Only attempted when the response carries a usable id and when
-        `user` isn't configured hidden for activities anyway, since fetching
-        it would just be discarded.
-        """
-        if hidden_fields.field_hidden("activity", "user", settings=self._settings):
-            return activity
-        activity_links = activity.get("_links", {})
-        activity_id = activity.get("id")
-        existing_user_title = _trim_text((activity_links.get("user") or {}).get("title"))
-        if existing_user_title or not (isinstance(activity_id, int) and activity_id > 0):
-            return activity
-        try:
-            fetched_activity = await self._activity_api.get_raw(activity_id)
-        except OpenProjectError:
-            LOGGER.warning(
-                "add_comment: fallback fetch of activity %s for a missing user link failed; "
-                "the comment was still saved, user stays unset.",
-                activity_id,
-            )
-            return activity
-        fetched_user_link = fetched_activity.get("_links", {}).get("user")
-        if not fetched_user_link:
-            return activity
-        return {**activity, "_links": {**activity_links, "user": fetched_user_link}}
-
     async def add_comment(
         self,
         *,
@@ -2272,7 +2239,6 @@ class WorkPackageService:
 
         access.ensure_write_enabled("work_package", settings=self._settings)
         activity = await self._api.post_comment(ref, comment=comment, internal=internal, notify=notify)
-        activity = await self._fill_missing_activity_user(activity)
         # OpenProject can aggregate a new note into an existing, more recent
         # journal entry (e.g. a prior status change) instead of always
         # creating a fresh one. When that happens, this endpoint's response
@@ -2283,7 +2249,16 @@ class WorkPackageService:
         # non-aggregated comment, which sacrifices its own correct timestamp
         # too. `comment`/`id` are unaffected by this and still reflect the
         # activities POST response.
-        raw_summary = self._activity_api.to_record(activity).to_summary(FORMATTABLE_LIMIT, details=False)
+        activity_record = self._activity_api.to_record(activity)
+        user_name = None
+        if activity_record.user_id is not None and not hidden_fields.field_hidden(
+            "activity", "user", settings=self._settings
+        ):
+            try:
+                user_name = (await self._user_names([activity_record.user_id]))[activity_record.user_id]
+            except OpenProjectError:
+                LOGGER.warning("add_comment: the name of the comment's user could not be read; the comment was saved.")
+        raw_summary = activity_record.to_summary(FORMATTABLE_LIMIT, details=False, user=user_name)
         normalized_activity = self._replace_and_restamp("activity", raw_summary, created_at=None)
         return ActivityWriteResult(
             action="comment",

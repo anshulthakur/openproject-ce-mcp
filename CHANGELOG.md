@@ -176,6 +176,12 @@ development baseline.
 
 ### Fixed
 
+- The `user` of an activity in `get_work_package_activities` and of a comment
+  posted with `add_work_package_comment` was always empty, because OpenProject
+  links the user by href without a name. The name is now read from the user
+  (one request per distinct user, remembered for five minutes) unless `user` is
+  a hidden activity field, and a posted comment no longer fetches the activity
+  a second time. A user the token cannot see has no name.
 - `assignee: "me"` in a work package write failed with a permission error when
   `OPENPROJECT_ENABLE_MEMBERSHIP_READ` was false, and a version, sprint or
   project given by name failed the same way when the version or project reads

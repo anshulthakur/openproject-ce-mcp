@@ -106,6 +106,7 @@ async def test_allowed_projects_and_hidden_fields_filter_read_outputs() -> None:
                 "_links": {"user": {"title": "Bot"}},
             },
             details=True,
+            user=None,
         ),
         settings=settings,
     )

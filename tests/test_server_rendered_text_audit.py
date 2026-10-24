@@ -51,27 +51,29 @@ def test_the_scan_sees_a_planted_read() -> None:
 
 
 def _undecided_summary_calls(source: str | None = None) -> tuple[list[str], int]:
-    """`.to_summary(...)` calls without a `details=` keyword, and how many calls there are."""
+    """`.to_summary(...)` calls without a `details=` or a `user=` keyword, and how many calls there are."""
     calls = matching_nodes(calls_named("to_summary"), directories=(SERVICES,), source=source)
     undecided = [
         f"{name}:{call.lineno}"  # type: ignore[attr-defined]
         for name, nodes in calls.items()
         for call in nodes
-        if "details" not in {k.arg for k in call.keywords}  # type: ignore[attr-defined]
+        if not {"details", "user"} <= {k.arg for k in call.keywords}  # type: ignore[attr-defined]
     ]
     return undecided, sum(len(nodes) for nodes in calls.values())
 
 
-def test_every_service_decides_on_the_details_when_it_builds_an_activity_summary() -> None:
+def test_every_service_decides_on_the_details_and_the_user_when_it_builds_an_activity_summary() -> None:
     undecided, checked = _undecided_summary_calls()
 
     assert checked >= 2, "the scan found too few activity summaries to be reading the services"
-    assert undecided == [], "pass details= to to_summary: the policy decision, or False where nothing may be returned"
+    assert undecided == [], "pass details= (the policy decision, or False where nothing may be returned) and user="
 
 
 def test_the_service_scan_refuses_a_call_without_the_decision() -> None:
     assert _undecided_summary_calls("def f(r):\n    r.to_summary(None)\n") == (["planted.py:f:2"], 1)
-    assert _undecided_summary_calls("def f(r):\n    r.to_summary(None, details=False)\n") == ([], 1)
+    assert _undecided_summary_calls("def f(r):\n    r.to_summary(None, details=False)\n") == (["planted.py:f:2"], 1)
+    assert _undecided_summary_calls("def f(r):\n    r.to_summary(None, user=None)\n") == (["planted.py:f:2"], 1)
+    assert _undecided_summary_calls("def f(r):\n    r.to_summary(None, details=False, user=None)\n") == ([], 1)
 
 
 def _post_text_callers(source: str | None = None) -> list[str]:
