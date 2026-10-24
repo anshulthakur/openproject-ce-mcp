@@ -140,6 +140,7 @@ from .app.resolvers.assignee_resolver import AssigneeResolver
 from .app.resolvers.current_user_resolver import CurrentUserResolver
 from .app.resolvers.principal_resolver import PrincipalResolver
 from .app.resolvers.project_resolver import ProjectResolver
+from .app.resolvers.scoped_reference_resolver import ScopedReferenceResolver
 from .app.resolvers.sprint_resolver import SprintResolver
 from .app.resolvers.status_priority_type_resolver import StatusPriorityTypeResolver
 from .app.resolvers.type_resolver import TypeResolver
@@ -541,6 +542,12 @@ class OpenProjectClient:
         # for add_comment()'s reuse of the Activities normalizer, instead of
         # duplicating that logic onto WorkPackageApi.
         self._activity_api: ActivityApi = HttpxActivityApi(self._transport)
+        self._scoped_reference_resolver = ScopedReferenceResolver(
+            version_api=self._version_api,
+            sprint_api=self._sprint_api,
+            settings=settings,
+            project_id_to_identifier=self._project_id_to_identifier,
+        )
         self._work_package_service = WorkPackageService(
             api=self._work_package_api,
             settings=settings,
@@ -559,6 +566,7 @@ class OpenProjectClient:
             activity_api=self._activity_api,
             current_user=self._current_user_resolver,
             work_package_project_allowed_bulk=self._work_package_resolver.project_links_allowed,
+            references_allowed=self._scoped_reference_resolver.references_allowed,
             api_prefix=self._api_prefix,
         )
 
@@ -615,6 +623,7 @@ class OpenProjectClient:
             settings=settings,
             project_id_to_identifier=self._project_id_to_identifier,
             work_package_project_allowed_bulk=self._work_package_resolver.project_links_allowed,
+            references_allowed=self._scoped_reference_resolver.references_allowed,
             api_prefix=self._api_prefix,
         )
 

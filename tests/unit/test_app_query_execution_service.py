@@ -65,6 +65,22 @@ def _summary(wp_id: int) -> WorkPackageSummary:
     )
 
 
+def _record(summary: WorkPackageSummary, payload: dict) -> WorkPackageRecord:
+    return WorkPackageRecord(
+        id=summary.id,
+        project=summary.project,
+        references={},
+        seeds={},
+        payload=payload,
+        summary_factory=lambda _visible: summary,
+        detail_factory=lambda _visible: None,  # type: ignore[arg-type,return-value]
+    )
+
+
+async def _all_references_allowed(references, *, seeds):
+    return dict.fromkeys(references, True)
+
+
 class _FakeQueryExecutionApi:
     def __init__(self, pages: list[list[dict]]) -> None:
         """`pages` is a list of server pages -- each call to `execute()` with
@@ -83,7 +99,7 @@ class _FakeQueryExecutionApi:
 class _FakeWorkPackageApi:
     def to_record(self, payload: dict, *, text_limit: int | None) -> WorkPackageRecord:
         wp_id = payload["id"]
-        return WorkPackageRecord(summary=_summary(wp_id), to_detail=lambda: None, payload=payload)
+        return _record(_summary(wp_id), payload)
 
 
 def _service(
@@ -102,6 +118,7 @@ def _service(
         settings=settings or make_settings(),
         project_id_to_identifier=PROJECT_ID_TO_IDENTIFIER,
         work_package_project_allowed_bulk=bulk or nothing_allowed,
+        references_allowed=_all_references_allowed,
         api_prefix="/api/v3/",
     )
 
@@ -131,7 +148,7 @@ class _CustomFieldWorkPackageApi:
             custom_fields_truncated=True,
             custom_comments={"customComment1": "secret note", "customComment2": "kept note"},
         )
-        return WorkPackageRecord(summary=summary, to_detail=lambda: None, payload=payload)
+        return _record(summary, payload)
 
 
 @pytest.mark.asyncio
@@ -280,7 +297,7 @@ class _ParentedWorkPackageApi(_FakeWorkPackageApi):
     def to_record(self, payload: dict, *, text_limit: int | None) -> WorkPackageRecord:
         wp_id = payload["id"]
         summary = dataclasses.replace(_summary(wp_id), parent_id=payload.get("parent"), parent_display_id="OTHER-1")
-        return WorkPackageRecord(summary=summary, to_detail=lambda: None, payload=payload)
+        return _record(summary, payload)
 
 
 @pytest.mark.asyncio

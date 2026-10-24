@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from functools import partial
 
 import httpx
 import pytest
@@ -15,8 +16,13 @@ from openproject_ce_mcp.app.adapters.httpx_work_package_api import (
 )
 from openproject_ce_mcp.app.errors import InvalidInputError
 from openproject_ce_mcp.app.ports.project_resolution import ProjectResolutionContext, WorkPackageResolutionContext
+from openproject_ce_mcp.app.ports.scoped_reference import VisibleReferences
+from openproject_ce_mcp.app.ports.work_package_api import WorkPackageGroupRecord
 from openproject_ce_mcp.app.transport.httpx_transport import HttpxTransport
 from openproject_ce_mcp.models import SortCriterion
+
+normalize_work_package_summary = partial(normalize_work_package_summary, visible=VisibleReferences.everything())
+normalize_work_package_detail = partial(normalize_work_package_detail, visible=VisibleReferences.everything())
 
 BASE_URL = "https://op.example.com"
 
@@ -73,7 +79,7 @@ async def test_list_hits_work_packages_endpoint_with_filters_sort_and_group() ->
     assert page.server_total == 1
     assert len(page.raw_elements) == 1
     assert page.raw_elements[0]["id"] == 6
-    assert page.raw_groups is None
+    assert page.groups is None
     assert page.raw_total_sums is None
 
 
@@ -120,7 +126,9 @@ async def test_list_parses_top_level_groups_and_total_sums_when_include_sums() -
         api = HttpxWorkPackageApi(HttpxTransport(http_client), base_url=BASE_URL)
         page = await api.list(filters=[], offset=1, limit=10, sort_by=None, group_by="status", include_sums=True)
 
-    assert page.raw_groups == [group_payload]
+    assert page.groups == [
+        WorkPackageGroupRecord(value="New", count=39, sums=group_payload["sums"], references=frozenset())
+    ]
     assert page.raw_total_sums == total_sums_payload
     # Normal row elements stay unaffected by groupBy/sums, per real API behavior.
     assert len(page.raw_elements) == 1
@@ -144,7 +152,7 @@ async def test_list_ignores_groups_and_total_sums_in_response_when_include_sums_
         api = HttpxWorkPackageApi(HttpxTransport(http_client), base_url=BASE_URL)
         page = await api.list(filters=[], offset=1, limit=10, sort_by=None, group_by=None, include_sums=False)
 
-    assert page.raw_groups is None
+    assert page.groups is None
     assert page.raw_total_sums is None
 
 
@@ -176,8 +184,8 @@ async def test_get_fetches_by_ref_and_builds_record() -> None:
         api = HttpxWorkPackageApi(HttpxTransport(http_client), base_url=BASE_URL)
         record = await api.get("6")
 
-    assert record.summary.id == 6
-    assert record.summary.subject == "Demo WP"
+    assert record.scoped_summary(visible=VisibleReferences.everything()).id == 6
+    assert record.scoped_summary(visible=VisibleReferences.everything()).subject == "Demo WP"
     assert record.payload == _wp_payload()
 
 
@@ -219,9 +227,9 @@ async def test_to_record_lazy_to_detail_diverges_from_summary_on_long_text() -> 
         api = HttpxWorkPackageApi(HttpxTransport(http_client), base_url=BASE_URL)
         record = await api.get("6", text_limit=10)
 
-    assert record.summary.description_truncated is True
-    assert record.summary.description_length == 900
-    detail = record.to_detail()
+    assert record.scoped_summary(visible=VisibleReferences.everything()).description_truncated is True
+    assert record.scoped_summary(visible=VisibleReferences.everything()).description_length == 900
+    detail = record.scoped_detail(visible=VisibleReferences.everything())
     # get()'s detail_text_limit propagation: to_detail must use the SAME
     # text_limit passed to get() (10), matching client.py's get_work_package
     # default (text_limit=None means uncapped, but an explicit small limit
@@ -239,9 +247,9 @@ async def test_to_record_to_detail_is_lazy_not_precomputed() -> None:
     payload = _wp_payload()
     record = api.to_record(payload, text_limit=None)
 
-    assert callable(record.to_detail)
+    assert callable(record.detail_factory)
     # Calling it explicitly must still work (proves it's not broken, just deferred).
-    detail = record.to_detail()
+    detail = record.scoped_detail(visible=VisibleReferences.everything())
     assert detail.id == 6
 
 
@@ -262,8 +270,8 @@ async def test_normalize_detail_milestone_date_fallback() -> None:
         api = HttpxWorkPackageApi(HttpxTransport(http_client), base_url=BASE_URL)
         record = await api.get("6")
 
-    assert record.summary.start_date == "2026-03-15"
-    assert record.summary.due_date == "2026-03-15"
+    assert record.scoped_summary(visible=VisibleReferences.everything()).start_date == "2026-03-15"
+    assert record.scoped_summary(visible=VisibleReferences.everything()).due_date == "2026-03-15"
 
 
 @pytest.mark.asyncio
@@ -279,7 +287,7 @@ async def test_normalize_detail_children_and_ancestors_truncation() -> None:
         api = HttpxWorkPackageApi(HttpxTransport(http_client), base_url=BASE_URL)
         record = await api.get("6")
 
-    detail = record.to_detail()
+    detail = record.scoped_detail(visible=VisibleReferences.everything())
     assert len(detail.children) == 50  # WORK_PACKAGE_CHILDREN_LIMIT
     assert detail.children_truncated is True
 
@@ -299,7 +307,7 @@ async def test_normalize_detail_ancestors_missing_display_id_on_classic_instance
         api = HttpxWorkPackageApi(HttpxTransport(http_client), base_url=BASE_URL)
         record = await api.get("6")
 
-    detail = record.to_detail()
+    detail = record.scoped_detail(visible=VisibleReferences.everything())
     assert detail.ancestors == [{"href": "/api/v3/work_packages/1", "title": "Parent", "display_id": None}]
 
 
@@ -595,7 +603,7 @@ async def test_commit_create_posts_to_work_packages_and_caps_text_limit() -> Non
         api = HttpxWorkPackageApi(HttpxTransport(http_client), base_url=BASE_URL)
         record = await api.commit_create({"subject": "New"}, text_limit=10)
 
-    assert record.summary.description_truncated is True
+    assert record.scoped_summary(visible=VisibleReferences.everything()).description_truncated is True
 
 
 @pytest.mark.asyncio
@@ -609,7 +617,7 @@ async def test_commit_update_patches_by_ref_and_escapes() -> None:
         api = HttpxWorkPackageApi(HttpxTransport(http_client), base_url=BASE_URL)
         record = await api.commit_update("PROJ-123", {"subject": "Updated"}, text_limit=None)
 
-    assert record.summary.id == 6
+    assert record.scoped_summary(visible=VisibleReferences.everything()).id == 6
 
 
 @pytest.mark.asyncio
@@ -1099,7 +1107,7 @@ async def test_get_work_package_exposes_custom_fields_end_to_end() -> None:
         api = HttpxWorkPackageApi(HttpxTransport(http_client), base_url=BASE_URL)
         record = await api.get("6")
 
-    detail = record.to_detail()
+    detail = record.scoped_detail(visible=VisibleReferences.everything())
     assert detail.custom_fields == {
         "customField1": "<user-content>Acme Corp</user-content>",
         "customField2": "v1.0",

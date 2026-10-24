@@ -828,6 +828,20 @@ Important properties of the current model:
   projects and versions of other projects or carry the value of a hidden
   field, so otherwise the details are left out and `details_omitted` is true;
   comments, user and time stay
+- a work package result names a version or sprint only when its defining
+  project is covered by `OPENPROJECT_READ_PROJECTS`. A version or sprint can be
+  shared into a covered project from one that is not, and the link a work package
+  carries names it without its project. The service decides once per call, from
+  the resource the response embeds or from one `GET versions/{id}` or
+  `GET sprints/{id}` per distinct reference, and hands the adapters a
+  `VisibleReferences`: `WorkPackageRecord` builds a summary or detail only with
+  it, and an adapter keeps a title only for a reference in it. A reference the
+  adapter does not recognize, such as a version in a custom field, a link of an
+  unknown namespace or one whose lookup the token cannot see, loses its title; a
+  failed lookup fails the read. `version` names the alias only when the whole
+  assignment is that one visible version, and `groups` is left out when a group
+  is named after a version or sprint that is not visible. Under `*` nothing is
+  looked up
 - `render_text` is refused unless `OPENPROJECT_READ_PROJECTS` is `*` and no
   field of work packages, projects, versions, documents, meetings, posts,
   users, groups, principals or views is hidden. OpenProject expands macros such as

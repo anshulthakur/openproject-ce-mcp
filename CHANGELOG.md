@@ -11,6 +11,16 @@ development baseline.
 
 ### Security
 
+- A work package of a covered project can carry a version shared into its
+  project from a project that `OPENPROJECT_READ_PROJECTS` does not cover, and
+  from OpenProject 17.3 a sprint shared the same way. Work package reads, lists,
+  searches, `execute_query` rows, write results and the delete preview named
+  it in `version`, `target_versions`, `sprint` and the values of version
+  custom fields, and `groups` named it when grouped by such a column. They now
+  leave the name out as if it were unset, `groups` is left out when a group is
+  named after one, and `version` names a version only when it is the whole
+  assignment. Under a restricted scope the server reads each version or sprint
+  a result names but does not embed, once per call; under `*` nothing changes.
 - A project link now counts for `OPENPROJECT_READ_PROJECTS` and
   `OPENPROJECT_WRITE_PROJECTS` only when it points to a project on the
   configured OpenProject instance; wherever a project link is checked, a link

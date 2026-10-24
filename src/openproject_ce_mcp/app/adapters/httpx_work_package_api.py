@@ -50,13 +50,19 @@ imported from `app/ports/work_package_ref.py`, shared with
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlparse
 
 from ...models import SortCriterion, WorkPackageDetail, WorkPackageSummary
 from ..errors import OpenProjectServerError
 from ..ports.project_resolution import WorkPackageResolutionContext
-from ..ports.work_package_api import WorkPackageFormResult, WorkPackagePage, WorkPackageRecord
+from ..ports.scoped_reference import ScopedReference, VisibleReferences
+from ..ports.work_package_api import (
+    WorkPackageFormResult,
+    WorkPackageGroupRecord,
+    WorkPackagePage,
+    WorkPackageRecord,
+)
 from ..ports.work_package_ref import work_package_ref as _valid_work_package_ref
 from ..transport.protocol import Transport
 from ._text import FORMATTABLE_LIMIT, SUBJECT_LIMIT
@@ -120,15 +126,89 @@ def _link_title_with_meta(link: dict[str, Any]) -> tuple[str | None, bool]:
     return title, truncated
 
 
-def _link_titles(links: Any) -> list[str]:
-    """List of HAL link objects (e.g. `_links.targetVersions`) -> list of
-    non-null title strings, in order. No truncation cap -- target_versions
-    has no comparable unbounded-growth risk to custom_fields (a work
-    package realistically never has more than a handful of target
-    versions)."""
+# The namespaces whose resources are not bound to a project: a custom field link into one of them
+# keeps its title. Any other link in a custom field loses it.
+_UNBOUND_LINK_NAMESPACES = frozenset({"custom_options", "users", "groups", "placeholder_users", "custom_field_items"})
+_REFERENCE_NAMESPACES: dict[str, Literal["version", "sprint"]] = {"versions": "version", "sprints": "sprint"}
+
+
+def _href_tail(link: Any) -> tuple[str, str] | None:
+    """The last two path segments of a link's href, whatever the API prefix is."""
+    href = link.get("href") if isinstance(link, dict) else None
+    if not isinstance(href, str):
+        return None
+    segments = href.split("?", 1)[0].rstrip("/").split("/")
+    return (segments[-2], segments[-1]) if len(segments) >= 2 else None
+
+
+def reference_of_link(link: Any) -> ScopedReference | None:
+    tail = _href_tail(link)
+    if tail is None or tail[0] not in _REFERENCE_NAMESPACES or not tail[1].isdigit():
+        return None
+    return ScopedReference(_REFERENCE_NAMESPACES[tail[0]], int(tail[1]))
+
+
+def _scoped_title_with_meta(link: Any, visible: VisibleReferences) -> tuple[str | None, bool]:
+    """A custom field link's title, or None when the link names a version or sprint that is not
+    visible, or a resource this code does not know to be free of a project."""
+    if not isinstance(link, dict):
+        return None, False
+    reference = reference_of_link(link)
+    if reference is not None:
+        return _link_title_with_meta(link) if visible.contains(reference) else (None, False)
+    tail = _href_tail(link)
+    if tail is not None and tail[0] in _UNBOUND_LINK_NAMESPACES:
+        return _link_title_with_meta(link)
+    return None, False
+
+
+def _scoped_title(link: Any, visible: VisibleReferences) -> str | None:
+    return _scoped_title_with_meta(link, visible)[0] if isinstance(link, dict) else None
+
+
+def _scoped_titles(links: Any, visible: VisibleReferences) -> list[str]:
     if not isinstance(links, list):
         return []
-    return [title for item in links if isinstance(item, dict) and (title := _link_title(item)) is not None]
+    return [title for item in links if (title := _scoped_title(item, visible)) is not None]
+
+
+def _link_references(link: Any) -> frozenset[ScopedReference]:
+    reference = reference_of_link(link)
+    return frozenset({reference}) if reference else frozenset()
+
+
+def _links_references(links: Any) -> frozenset[ScopedReference]:
+    items = links if isinstance(links, list) else [links]
+    return frozenset().union(*(_link_references(item) for item in items))
+
+
+_REFERENCE_FIELDS = {
+    "version": "version",
+    "targetVersions": "target_versions",
+    "observedInVersions": "observed_in_versions",
+    "sprint": "sprint",
+}
+
+
+def collect_references(payload: dict[str, Any]) -> dict[str, frozenset[ScopedReference]]:
+    """Result field -> the versions and sprints its links name, for the fields that name any."""
+    links = payload.get("_links", {})
+    found = {field: _links_references(links.get(key)) for key, field in _REFERENCE_FIELDS.items() if key in links}
+    found.update({key: _links_references(value) for key, value in links.items() if _is_custom_field_key(key)})
+    return {field: references for field, references in found.items() if references}
+
+
+def collect_seeds(payload: dict[str, Any]) -> dict[ScopedReference, dict[str, Any]]:
+    """The embedded versions and sprints, keyed by the reference their own self link names."""
+    embedded = payload.get("_embedded", {})
+    seeds: dict[ScopedReference, dict[str, Any]] = {}
+    for key, value in embedded.items():
+        if key not in _REFERENCE_FIELDS and not _is_custom_field_key(key):
+            continue
+        for item in value if isinstance(value, list) else [value]:
+            if isinstance(item, dict) and (reference := reference_of_link(item.get("_links", {}).get("self"))):
+                seeds[reference] = item
+    return seeds
 
 
 def _is_custom_field_key(key: str) -> bool:
@@ -173,7 +253,9 @@ def _custom_field_raw_entries(payload: dict[str, Any], links: dict[str, Any]) ->
     return entries
 
 
-def _normalize_custom_field_entry(raw: Any, *, text_limit: int | None) -> tuple[Any, bool] | None:
+def _normalize_custom_field_entry(
+    raw: Any, *, text_limit: int | None, visible: VisibleReferences
+) -> tuple[Any, bool] | None:
     """Shape-detect and normalize one raw customField<N> value.
 
     Returns `(normalized_value, truncated)`, or `None` to omit the key
@@ -225,10 +307,10 @@ def _normalize_custom_field_entry(raw: Any, *, text_limit: int | None) -> tuple[
         if "raw" in raw or "html" in raw:
             text, truncated, _length = _extract_formattable_text_with_meta(raw, limit=text_limit)
             return _delimit_user_content(text), truncated
-        title, title_truncated = _link_title_with_meta(raw)
+        title, title_truncated = _scoped_title_with_meta(raw, visible)
         return title, title_truncated
     if isinstance(raw, list):
-        title_results = [_link_title_with_meta(item) for item in raw if isinstance(item, dict)]
+        title_results = [_scoped_title_with_meta(item, visible) for item in raw if isinstance(item, dict)]
         kept_results = [(title, t) for title, t in title_results if title is not None]
         titles = [title for title, _truncated in kept_results]
         any_kept_title_truncated = any(t for _title, t in kept_results[:CUSTOM_FIELD_LIST_ITEM_LIMIT])
@@ -243,7 +325,7 @@ def _normalize_custom_field_entry(raw: Any, *, text_limit: int | None) -> tuple[
 
 
 def _extract_custom_fields(
-    payload: dict[str, Any], links: dict[str, Any], *, text_limit: int | None
+    payload: dict[str, Any], links: dict[str, Any], *, text_limit: int | None, visible: VisibleReferences
 ) -> tuple[dict[str, Any] | None, bool]:
     """Build the `custom_fields` dict, applying every cap described below.
 
@@ -280,7 +362,7 @@ def _extract_custom_fields(
         if len(kept) >= CUSTOM_FIELD_VALUE_LIMIT:
             break
         considered += 1
-        normalized = _normalize_custom_field_entry(raw_entries[key], text_limit=text_limit)
+        normalized = _normalize_custom_field_entry(raw_entries[key], text_limit=text_limit, visible=visible)
         if normalized is None:
             continue
         value, entry_truncated = normalized
@@ -387,7 +469,9 @@ def _work_package_dates(payload: dict[str, Any]) -> tuple[str | None, str | None
     return start_date, due_date
 
 
-def normalize_work_package_summary(payload: dict[str, Any], *, text_limit: int | None) -> WorkPackageSummary:
+def normalize_work_package_summary(
+    payload: dict[str, Any], *, text_limit: int | None, visible: VisibleReferences
+) -> WorkPackageSummary:
     """Pure HAL->model translation. Excludes hidden-field-aware text
     extraction -- hidden-field masking (including zeroing
     description_truncated/description_length/has_description when the
@@ -401,19 +485,23 @@ def normalize_work_package_summary(payload: dict[str, Any], *, text_limit: int |
     links = payload.get("_links", {})
     description, truncated, length = _extract_formattable_text_with_meta(payload.get("description"), limit=text_limit)
     start_date, due_date = _work_package_dates(payload)
-    custom_fields, custom_fields_truncated = _extract_custom_fields(payload, links, text_limit=text_limit)
+    custom_fields, custom_fields_truncated = _extract_custom_fields(
+        payload, links, text_limit=text_limit, visible=visible
+    )
     custom_comments, custom_comments_truncated = _extract_custom_comments(payload)
     target_version_links = links.get("targetVersions")
     if isinstance(target_version_links, list):
-        target_versions = _link_titles(target_version_links)
-        version = target_versions[0] if len(target_versions) == 1 else None
+        target_versions = _scoped_titles(target_version_links, visible)
+        # The alias shows the one version only if the whole assignment is that one version.
+        assigned = [link for link in target_version_links if isinstance(link, dict) and link.get("title") is not None]
+        version = target_versions[0] if len(assigned) == 1 and len(target_versions) == 1 else None
     else:
         # Real fallback, not just defensive: targetVersions genuinely doesn't
         # exist on this client's older supported servers (absent in the 17.2
         # representer, present by 17.7). Keep target_versions consistent with
         # the legacy value rather than reporting an empty list while version
         # shows a real one.
-        legacy_version = _link_title(links.get("version"))
+        legacy_version = _scoped_title(links.get("version"), visible)
         target_versions = [legacy_version] if legacy_version is not None else []
         version = legacy_version
     return WorkPackageSummary(
@@ -429,7 +517,7 @@ def normalize_work_package_summary(payload: dict[str, Any], *, text_limit: int |
         project=_link_title(links.get("project")),
         version=version,
         target_versions=target_versions,
-        sprint=_link_title(links.get("sprint")),
+        sprint=_scoped_title(links.get("sprint"), visible),
         start_date=start_date,
         due_date=due_date,
         description=_delimit_user_content(description),
@@ -470,6 +558,7 @@ def normalize_work_package_detail(
     payload: dict[str, Any],
     *,
     text_limit: int | None = FORMATTABLE_LIMIT,
+    visible: VisibleReferences,
     summary: WorkPackageSummary | None = None,
 ) -> WorkPackageDetail:
     """Single-work-package read. ``text_limit=None`` (used by get()) returns the
@@ -498,7 +587,7 @@ def normalize_work_package_detail(
     worth the doubled shape-detection cost.
     """
     if summary is None:
-        summary = normalize_work_package_summary(payload, text_limit=text_limit)
+        summary = normalize_work_package_summary(payload, text_limit=text_limit, visible=visible)
     links = payload.get("_links", {})
     description, truncated, length = _extract_formattable_text_with_meta(
         payload.get("description"), limit=text_limit, preserve_newlines=True
@@ -576,6 +665,20 @@ def normalize_work_package_detail(
     )
 
 
+def _group_records(raw_groups: Any) -> list[WorkPackageGroupRecord] | None:
+    if raw_groups is None:
+        return None
+    return [
+        WorkPackageGroupRecord(
+            value=group.get("value"),
+            count=group.get("count", 0),
+            sums=group.get("sums"),
+            references=_links_references(group.get("_links", {}).get("valueLink", [])),
+        )
+        for group in raw_groups
+    ]
+
+
 class HttpxWorkPackageApi:
     def __init__(self, transport: Transport, *, base_url: str, api_prefix: str = "/api/v3/") -> None:
         self._transport = transport
@@ -603,13 +706,22 @@ class HttpxWorkPackageApi:
         return relative_path
 
     def to_record(self, payload: dict[str, Any], *, text_limit: int | None) -> WorkPackageRecord:
-        summary = normalize_work_package_summary(payload, text_limit=text_limit)
+        project = _link_title(payload.get("_links", {}).get("project"))
+
+        def summary(visible: VisibleReferences) -> WorkPackageSummary:
+            return normalize_work_package_summary(payload, text_limit=text_limit, visible=visible)
+
+        def detail(visible: VisibleReferences) -> WorkPackageDetail:
+            return normalize_work_package_detail(payload, text_limit=text_limit, visible=visible)
+
         return WorkPackageRecord(
-            summary=summary,
-            # Lazy: list()/search() callers never read this -- only get()'s
-            # single-item path needs the full detail normalization.
-            to_detail=lambda: normalize_work_package_detail(payload, text_limit=text_limit, summary=summary),
+            id=int(payload["id"]),
+            project=project,
+            references=collect_references(payload),
+            seeds=collect_seeds(payload),
             payload=payload,
+            summary_factory=summary,
+            detail_factory=detail,
         )
 
     async def list(
@@ -644,12 +756,12 @@ class HttpxWorkPackageApi:
         # `_embedded` -- verified live against a real 17.x instance. Gated on
         # the request flag (not response presence) so a caller who didn't
         # ask for sums never sees populated fields.
-        raw_groups = payload.get("groups") if include_sums else None
+        groups = _group_records(payload.get("groups")) if include_sums else None
         raw_total_sums = payload.get("totalSums") if include_sums else None
         return WorkPackagePage(
             raw_elements=raw_elements,
             server_total=server_total,
-            raw_groups=raw_groups,
+            groups=groups,
             raw_total_sums=raw_total_sums,
         )
 

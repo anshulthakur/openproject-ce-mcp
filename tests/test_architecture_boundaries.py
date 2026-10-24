@@ -1460,6 +1460,7 @@ def test_f3_allowlist_semaphore_is_structurally_separate_from_f6_batch_read_sema
         activity_api=_StubWorkPackageApi(),  # type: ignore[arg-type]
         current_user=_unused,  # type: ignore[arg-type]
         work_package_project_allowed_bulk=resolver.project_links_allowed,
+        references_allowed=_unused,  # type: ignore[arg-type]
         api_prefix="/api/v3/",
     )
 

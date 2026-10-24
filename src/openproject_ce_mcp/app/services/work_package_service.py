@@ -107,7 +107,6 @@ from ...models import (
     BulkWorkPackageWriteResult,
     SortCriterion,
     WorkPackageDetail,
-    WorkPackageGroupSums,
     WorkPackageListResult,
     WorkPackageSummary,
     WorkPackageWriteResult,
@@ -139,12 +138,13 @@ from ..ports.priority_ref import PriorityRefResolver
 from ..ports.project_ref import ProjectRefResolver
 from ..ports.project_resolution import ProjectResolutionContext, WorkPackageResolutionContext
 from ..ports.readable_projects import ReadableProjects
+from ..ports.scoped_reference import ScopedReferencesAllowedBulkCheck
 from ..ports.sprint_ref import SprintIdResolver
 from ..ports.status_priority_type_api import StatusPriorityTypeApi
 from ..ports.status_ref import StatusRefResolver
 from ..ports.type_ref import TypeRefResolver
 from ..ports.version_ref import VersionIdResolver
-from ..ports.work_package_api import WorkPackageApi
+from ..ports.work_package_api import WorkPackageApi, WorkPackageRecord
 from ..ports.work_package_ref import (
     WorkPackageIdResolver,
     WorkPackageProjectAllowedBulkCheck,
@@ -153,7 +153,8 @@ from ..ports.work_package_ref import (
 from ..ports.work_package_resolution import WorkPackageAllowedContext
 from ..version_gate import call_query_version_gated
 from ._work_package_parents import parent_href, without_parent_unless
-from ._work_package_presentation import present_summaries, stamp_detail
+from ._work_package_presentation import present_detail, present_summaries, stamp_detail
+from ._work_package_references import groups_for_result, visible_references
 from ._work_package_write_helpers import (
     resolve_custom_field_key,
     resolve_custom_field_links,
@@ -431,6 +432,7 @@ class WorkPackageService:
         activity_api: ActivityApi,
         current_user: CurrentUserLookup,
         work_package_project_allowed_bulk: WorkPackageProjectAllowedBulkCheck,
+        references_allowed: ScopedReferencesAllowedBulkCheck,
         api_prefix: str,
     ) -> None:
         self._api = api
@@ -450,6 +452,7 @@ class WorkPackageService:
         self._activity_api = activity_api
         self._current_user = current_user
         self._work_package_project_allowed_bulk = work_package_project_allowed_bulk
+        self._references_allowed = references_allowed
         self._api_prefix = api_prefix
         # Shared across every get_batch() call on this Service instance (not
         # constructed per-call), so N genuinely bounds this Service's total
@@ -487,11 +490,15 @@ class WorkPackageService:
 
     async def _present(self, raw_items: builtins.list[dict[str, Any]]) -> builtins.list[WorkPackageSummary]:
         return await present_summaries(
-            [self._api.to_record(item, text_limit=self._settings.text_limit).summary for item in raw_items],
+            [self._api.to_record(item, text_limit=self._settings.text_limit) for item in raw_items],
             settings=self._settings,
             api_prefix=self._api_prefix,
             project_allowed_bulk=self._work_package_project_allowed_bulk,
+            references_allowed=self._references_allowed,
         )
+
+    async def _detail_of(self, record: WorkPackageRecord) -> WorkPackageDetail:
+        return await present_detail(record, settings=self._settings, references_allowed=self._references_allowed)
 
     def _payload_allowed(self, payload: dict[str, Any]) -> bool:
         return _work_package_policy.work_package_payload_allowed(
@@ -589,7 +596,18 @@ class WorkPackageService:
         # and expected to honor that, but this is still a hard safety net
         # against a server (or a misbehaving mock) that returns more.
         raw_items = allowed_items[:limit]
-        results = await self._present(raw_items)
+        records = [self._api.to_record(item, text_limit=self._settings.text_limit) for item in raw_items]
+        visible = await visible_references(
+            records=records, groups=page.groups or (), settings=self._settings, check=self._references_allowed
+        )
+        results = await present_summaries(
+            records,
+            visible=visible,
+            settings=self._settings,
+            api_prefix=self._api_prefix,
+            project_allowed_bulk=self._work_package_project_allowed_bulk,
+            references_allowed=self._references_allowed,
+        )
         server_total = page.server_total if page.server_total is not None else len(results)
         # If the allowlist check actually dropped something here, the
         # server-side filter this path relies on did not fully hold --
@@ -605,11 +623,8 @@ class WorkPackageService:
             truncated = len(allowed_items) > limit
             next_offset = (offset + 1) if truncated else None
         groups = (
-            [
-                WorkPackageGroupSums(value=g.get("value"), count=g.get("count", 0), sums=g.get("sums"))
-                for g in page.raw_groups
-            ]
-            if requested_sums and aggregates_hold and page.raw_groups is not None
+            groups_for_result(page.groups, group_by=group_by, visible=visible)
+            if requested_sums and aggregates_hold and page.groups is not None
             else None
         )
         # The server computed them over the rows it returned, which include the dropped ones.
@@ -1200,7 +1215,7 @@ class WorkPackageService:
             settings=self._settings,
             project_id_to_identifier=self._project_id_to_identifier,
         )
-        detail = await self._filter_hierarchy_allowlist(record.to_detail())
+        detail = await self._filter_hierarchy_allowlist(await self._detail_of(record))
         # Hidden-field stamping MUST run after _filter_hierarchy_allowlist,
         # never before: apply_hidden_fields sets `_hidden_keys` as a dynamic
         # (non-dataclass-field) attribute, and dataclasses.replace() -- which
@@ -1564,7 +1579,7 @@ class WorkPackageService:
         if outcome.detail is not None:
             # outcome.detail is a WorkPackageRecord (commit_create's/
             # commit_update's return shape, same lazy-detail shape get()
-            # itself consumes) -- must call .to_detail() before any
+            # itself consumes) -- must build the detail before any
             # dataclasses.replace()-based transform, which requires an actual
             # WorkPackageDetail instance, not the Record wrapping it.
             #
@@ -1580,7 +1595,7 @@ class WorkPackageService:
             # _hidden_keys tag if stamping ran first, leaking hidden fields
             # under a restricted scope. Filter first, stamp last, matching
             # get()'s ordering exactly.
-            filtered = await self._filter_hierarchy_allowlist(outcome.detail.to_detail())
+            filtered = await self._filter_hierarchy_allowlist(await self._detail_of(outcome.detail))
             detail = stamp_detail(filtered, settings=self._settings)
         return WorkPackageWriteResult(
             action=action,
@@ -1683,8 +1698,8 @@ class WorkPackageService:
                 text_limit=FORMATTABLE_LIMIT,
             ),
             committed_identity=lambda record: {
-                "work_package_id": record.summary.id,
-                "project": record.summary.project,
+                "work_package_id": record.id,
+                "project": record.project,
             },
             rejected_message="OpenProject rejected the proposed changes. Fix the validation errors before confirming.",
             preview_message="OpenProject validated the change. Ask for confirmation, then call again with confirm=true to write it.",
@@ -1769,8 +1784,8 @@ class WorkPackageService:
                 text_limit=FORMATTABLE_LIMIT,
             ),
             committed_identity=lambda record: {
-                "work_package_id": record.summary.id,
-                "project": record.summary.project,
+                "work_package_id": record.id,
+                "project": record.project,
             },
             rejected_message="OpenProject rejected the proposed changes. Fix the validation errors before confirming.",
             preview_message="OpenProject validated the subtask. Ask for confirmation, then call again with confirm=true to create it.",
@@ -2048,8 +2063,8 @@ class WorkPackageService:
                 text_limit=FORMATTABLE_LIMIT,
             ),
             committed_identity=lambda record: {
-                "work_package_id": record.summary.id,
-                "project": record.summary.project,
+                "work_package_id": record.id,
+                "project": record.project,
             },
             rejected_message="OpenProject rejected the proposed changes. Fix the validation errors before confirming.",
             preview_message="OpenProject validated the change. Ask for confirmation, then call again with confirm=true to write it.",
@@ -2145,7 +2160,9 @@ class WorkPackageService:
             settings=self._settings,
             project_id_to_identifier=self._project_id_to_identifier,
         )
-        detail = stamp_detail(await self._filter_hierarchy_allowlist(record.to_detail()), settings=self._settings)
+        detail = stamp_detail(
+            await self._filter_hierarchy_allowlist(await self._detail_of(record)), settings=self._settings
+        )
         payload = {"id": detail.id, "subject": detail.subject, "lockVersion": detail.lock_version}
 
         if not confirm:

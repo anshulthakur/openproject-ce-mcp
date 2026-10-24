@@ -17,7 +17,12 @@ from openproject_ce_mcp.app.errors import (
 )
 from openproject_ce_mcp.app.ports.activity_api import ActivityRecord
 from openproject_ce_mcp.app.ports.status_priority_type_api import StatusRecord
-from openproject_ce_mcp.app.ports.work_package_api import WorkPackageFormResult, WorkPackagePage, WorkPackageRecord
+from openproject_ce_mcp.app.ports.work_package_api import (
+    WorkPackageFormResult,
+    WorkPackageGroupRecord,
+    WorkPackagePage,
+    WorkPackageRecord,
+)
 from openproject_ce_mcp.app.ports.work_package_resolution import WorkPackageAllowedContext
 from openproject_ce_mcp.app.resolvers.work_package_resolver import WorkPackageResolver
 from openproject_ce_mcp.app.services.work_package_service import WorkPackageService
@@ -117,7 +122,15 @@ def _payload(wp_id: int = 6, *, project_href: str = "/api/v3/projects/1", projec
 def _record(wp_id: int = 6, *, summary=None, detail=None, payload=None) -> WorkPackageRecord:
     s = summary or _summary(wp_id)
     d = detail or _detail(wp_id)
-    return WorkPackageRecord(summary=s, to_detail=lambda: d, payload=payload or _payload(wp_id))
+    return WorkPackageRecord(
+        id=s.id,
+        project=s.project,
+        references={},
+        seeds={},
+        payload=payload or _payload(wp_id),
+        summary_factory=lambda _visible: s,
+        detail_factory=lambda _visible: d,
+    )
 
 
 class _FakeWorkPackageApi:
@@ -166,7 +179,16 @@ class _FakeWorkPackageApi:
         return WorkPackagePage(
             raw_elements=self._raw_elements,
             server_total=self._server_total,
-            raw_groups=self._raw_groups if include_sums else None,
+            groups=(
+                [
+                    WorkPackageGroupRecord(
+                        value=g.get("value"), count=g.get("count", 0), sums=g.get("sums"), references=frozenset()
+                    )
+                    for g in self._raw_groups
+                ]
+                if include_sums and self._raw_groups is not None
+                else None
+            ),
             raw_total_sums=self._raw_total_sums if include_sums else None,
         )
 
@@ -353,6 +375,10 @@ async def _no_project_allowed(href: str, *, context: WorkPackageAllowedContext |
     return False
 
 
+async def _all_references_allowed(references, *, seeds):
+    return dict.fromkeys(references, True)
+
+
 async def _all_project_allowed(href: str, *, context: WorkPackageAllowedContext | None = None) -> bool:
     return True
 
@@ -405,6 +431,7 @@ def _service(
     readable_projects: _ReadableIds | None = None,
     work_package_project_allowed=None,
     work_package_project_allowed_bulk=None,
+    references_allowed=None,
     status_api: _FakeStatusApi | None = None,
     activity_api: _FakeActivityApi | None = None,
     resolve_work_package_id=None,
@@ -470,6 +497,7 @@ def _service(
         current_user=current_user,
         work_package_project_allowed_bulk=work_package_project_allowed_bulk
         or _bulk_from_single(work_package_project_allowed or _all_project_allowed),
+        references_allowed=references_allowed or _all_references_allowed,
         api_prefix="/api/v3/",
     )
     return service, fake_api

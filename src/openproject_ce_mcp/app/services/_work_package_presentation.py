@@ -17,8 +17,11 @@ from typing import Any, TypeVar
 from ...config import Settings
 from ...models import WorkPackageDetail, WorkPackageSummary
 from ..policies import hidden_fields
+from ..ports.scoped_reference import ScopedReferencesAllowedBulkCheck, VisibleReferences
+from ..ports.work_package_api import WorkPackageRecord
 from ..ports.work_package_ref import WorkPackageProjectAllowedBulkCheck
 from ._work_package_parents import without_uncovered_parents
+from ._work_package_references import visible_references
 
 WorkPackageT = TypeVar("WorkPackageT", WorkPackageSummary, WorkPackageDetail)
 
@@ -124,15 +127,32 @@ def stamp_detail(detail: WorkPackageDetail, *, settings: Settings) -> WorkPackag
 
 
 async def present_summaries(
-    summaries: Sequence[WorkPackageSummary],
+    records: Sequence[WorkPackageRecord],
     *,
+    visible: VisibleReferences | None = None,
     settings: Settings,
     api_prefix: str,
     project_allowed_bulk: WorkPackageProjectAllowedBulkCheck,
+    references_allowed: ScopedReferencesAllowedBulkCheck,
 ) -> list[WorkPackageSummary]:
-    """The summaries as a result may show them: each without a parent the read scope does not
-    cover, then stamped."""
+    """The records as summaries a result may show: naming only the versions and sprints the read
+    scope covers, each without a parent it does not cover, then stamped. A caller that needs the
+    decision for more than the summaries passes it in."""
+    if visible is None:
+        visible = await visible_references(records=records, settings=settings, check=references_allowed)
     covered = await without_uncovered_parents(
-        summaries, settings=settings, api_prefix=api_prefix, project_allowed_bulk=project_allowed_bulk
+        [record.scoped_summary(visible=visible) for record in records],
+        settings=settings,
+        api_prefix=api_prefix,
+        project_allowed_bulk=project_allowed_bulk,
     )
     return [stamp_summary(summary, settings=settings) for summary in covered]
+
+
+async def present_detail(
+    record: WorkPackageRecord, *, settings: Settings, references_allowed: ScopedReferencesAllowedBulkCheck
+) -> WorkPackageDetail:
+    """The record as a detail that names only the versions and sprints the read scope covers. The
+    caller applies the hierarchy filter and then `stamp_detail`."""
+    visible = await visible_references(records=[record], settings=settings, check=references_allowed)
+    return record.scoped_detail(visible=visible)

@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import ast
 
-from _source_scan import SERVICES, calls_named, matching_nodes
+import pytest
+from _source_scan import ADAPTERS, APP, SERVICES, calls_named, matching_nodes
 
 PRESENTATION = "_work_package_presentation.py"
 CONSUMERS = {"work_package_service.py", "query_execution_service.py"}
@@ -58,3 +59,43 @@ def test_every_service_that_reads_work_packages_presents_them_through_the_presen
 
     assert readers == CONSUMERS
     assert readers <= presenters
+
+
+DECISION = "_work_package_references.py"
+
+
+def _builds_visible_references(node: ast.AST) -> bool:
+    if not isinstance(node, ast.Call):
+        return False
+    func = node.func
+    named = func.id if isinstance(func, ast.Name) else None
+    on_class = (
+        isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id == "VisibleReferences"
+    )
+    return named == "VisibleReferences" or (on_class and func.attr in {"everything", "only"})  # type: ignore[union-attr]
+
+
+def _decision_sites(source: str | None = None) -> dict[str, list[ast.AST]]:
+    directories = (APP / "adapters", APP / "resolvers", SERVICES, APP / "policies")
+    return matching_nodes(_builds_visible_references, directories=directories, source=source)
+
+
+def test_only_the_reference_helper_decides_which_references_a_result_may_name() -> None:
+    sites = _decision_sites()
+
+    assert sites, "the scan sees no decision at all"
+    assert {name.split(":")[0] for name in sites} == {DECISION}
+
+
+@pytest.mark.parametrize(
+    "construction", ["VisibleReferences.everything()", "VisibleReferences.only([])", "VisibleReferences(None)"]
+)
+def test_a_decision_made_anywhere_else_is_found(construction: str) -> None:
+    assert list(
+        _decision_sites(f"def present(record):\n    return record.scoped_summary(visible={construction})\n")
+    ) == ["planted.py:present"]
+
+
+def test_the_adapters_receive_the_decision_and_never_build_one() -> None:
+    assert not [name for name in _decision_sites() if name.split(":")[0].startswith("httpx_")]
+    assert ADAPTERS.is_dir()

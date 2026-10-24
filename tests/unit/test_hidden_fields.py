@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from functools import partial
 
 import httpx
 import pytest
@@ -20,12 +21,16 @@ from openproject_ce_mcp.app.adapters.httpx_work_package_api import (
 )
 from openproject_ce_mcp.app.origin import origin_from_url as _origin_from_url
 from openproject_ce_mcp.app.policies import hidden_fields
+from openproject_ce_mcp.app.ports.scoped_reference import VisibleReferences
 from openproject_ce_mcp.client import (
     InvalidInputError,
     OpenProjectClient,
 )
 from openproject_ce_mcp.config import Settings
 from openproject_ce_mcp.presentation import _to_payload
+
+normalize_work_package_summary = partial(normalize_work_package_summary, visible=VisibleReferences.everything())
+normalize_work_package_detail = partial(normalize_work_package_detail, visible=VisibleReferences.everything())
 
 
 @pytest.mark.asyncio

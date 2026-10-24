@@ -11,7 +11,7 @@ from __future__ import annotations
 import ast
 
 import pytest
-from _source_scan import ADAPTERS, constant_key_reads
+from _source_scan import ADAPTERS, constant_key_reads, matching_nodes, reads_key
 
 _INSTANCE_WIDE = "the resource is seen alike by every user of the instance"
 _ANCHOR = "the project the record itself belongs to, which the service checks"
@@ -44,12 +44,10 @@ CLASSIFIED: dict[str, str] = {
     "query": _CHECKED + " (view: its project)",
     "responsible": _INSTANCE_WIDE,
     "self": _INSTANCE_WIDE,
-    "sprint": "named on a work package the caller may read; the sprint object itself is checked on get",
     "status": _INSTANCE_WIDE,
     "storage": _INSTANCE_WIDE,
     "type": _INSTANCE_WIDE,
     "user": _INSTANCE_WIDE,
-    "version": "named on a work package the caller may read; the version object itself is checked on get",
     "workspace": _CHECKED + " (sprint and backlog bucket policy, per record)",
     "entity": _CHECKED + " (the entity sits in the record's project)",
     "resource": _CHECKED + " (the notification's own project)",
@@ -64,7 +62,6 @@ LOOPS_OVER_LINKS: dict[str, str] = {
     "httpx_time_entry_api.py:normalize_time_entry_activity_raw": _REDUCED + " (activity projects, in the service)",
     "httpx_time_entry_api.py:project_link_title_and_id": "one project link of a time entry, checked per record",
     "httpx_board_api.py:_normalize_query_link_label": _INSTANCE_WIDE + " (the column, group and sort names of a query)",
-    "httpx_work_package_api.py:_link_titles": _REDUCED + " (children and ancestors)",
 }
 
 
@@ -88,13 +85,17 @@ def _link_name(argument: ast.expr) -> str | None:
     return None
 
 
-def _titled_links() -> tuple[dict[str, set[str]], dict[str, int]]:
+def _titled_links(source: str | None = None) -> tuple[dict[str, set[str]], dict[str, int]]:
     """(link name -> files, "file:function" -> line) of every `_link_title(...)` call, the second
-    for the calls that pass a loop variable and so cannot be named."""
+    for the calls that pass a loop variable and so cannot be named. Scans the adapters, or the
+    given source text when a test plants one."""
     named: dict[str, set[str]] = {}
     unnamed: dict[str, int] = {}
-    for path in sorted(ADAPTERS.glob("*.py")):
-        for function in ast.walk(ast.parse(path.read_text())):
+    sources = (
+        {"planted.py": source} if source is not None else {p.name: p.read_text() for p in sorted(ADAPTERS.glob("*.py"))}
+    )
+    for file_name, text in sources.items():
+        for function in ast.walk(ast.parse(text)):
             if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
             for node in ast.walk(function):
@@ -106,9 +107,9 @@ def _titled_links() -> tuple[dict[str, set[str]], dict[str, int]]:
                     continue
                 name = _link_name(node.args[0])
                 if name is None:
-                    unnamed.setdefault(f"{path.name}:{function.name}", node.lineno)
+                    unnamed.setdefault(f"{file_name}:{function.name}", node.lineno)
                 else:
-                    named.setdefault(name, set()).add(path.name)
+                    named.setdefault(name, set()).add(file_name)
     return named, unnamed
 
 
@@ -117,7 +118,6 @@ def _titled_links() -> tuple[dict[str, set[str]], dict[str, int]]:
 _OWN = "the record's own title, not a link"
 _INSTANCE = "names a resource every user of the instance sees alike"
 _REDUCED_BY_SERVICE = "the service leaves it out for a project the read scope does not cover"
-_ON_READABLE_WORK_PACKAGE = "named on a work package the caller may read"
 OTHER_TITLE_READS: dict[str, str] = {
     "httpx_backlog_bucket_api.py:_defining_workspace_link": "the defining project, checked per record by the policy",
     "httpx_sprint_api.py:_defining_workspace_link": "the defining project, checked per record by the policy",
@@ -145,7 +145,7 @@ OTHER_TITLE_READS: dict[str, str] = {
     "httpx_user_non_working_time_api.py:normalize_user_non_working_time": _OWN,
     "httpx_user_working_hours_api.py:normalize_user_working_hours": _OWN,
     "httpx_wiki_page_api.py:normalize_wiki_page": _OWN,
-    "httpx_work_package_api.py:_link_title_with_meta": _ON_READABLE_WORK_PACKAGE + " (custom field link values)",
+    "httpx_work_package_api.py:_link_title_with_meta": "the helper behind the scoped custom field titles; every caller passes a link already judged",
     "httpx_work_package_api.py:normalize_work_package_summary": _REDUCED_BY_SERVICE + " (the parent's display id)",
     "httpx_work_package_api.py:normalize_work_package_detail": _REDUCED_BY_SERVICE
     + " (children, ancestors and parent)",
@@ -204,3 +204,67 @@ def test_the_scan_refuses_a_spelling_it_cannot_name() -> None:
     call = ast.parse("_link_title(links.get(key))").body[0].value  # type: ignore[attr-defined]
 
     assert _link_name(call.args[0]) is None
+
+
+# The links of a work package whose resource is defined in a project: a title reaches a result only
+# through the helpers that keep it for a reference the service judged visible.
+WORK_PACKAGE_ADAPTER = "httpx_work_package_api.py"
+UNBOUND_WORK_PACKAGE_LINKS = {
+    "type",
+    "status",
+    "priority",
+    "projectPhase",
+    "assignee",
+    "responsible",
+    "project",
+    "author",
+    "category",
+}
+# "file:function" -> how many `["title"]`/`.get("title")` reads the function holds, and why
+WORK_PACKAGE_TITLE_READS = {
+    f"{WORK_PACKAGE_ADAPTER}:_link_title_with_meta": 1,
+    f"{WORK_PACKAGE_ADAPTER}:normalize_work_package_summary": 1,  # counts the titled target version links
+    f"{WORK_PACKAGE_ADAPTER}:normalize_work_package_detail": 2,  # children and ancestors, reduced by the service
+}
+
+
+def _bound_links_read_plainly(source: str | None = None) -> set[str]:
+    named, _ = _titled_links(source)
+    return {name for name, files in named.items() if WORK_PACKAGE_ADAPTER in files or "planted.py" in files} - (
+        UNBOUND_WORK_PACKAGE_LINKS
+    )
+
+
+def test_the_work_package_adapter_reads_a_link_with_a_defining_project_only_through_the_scoped_helpers() -> None:
+    assert _bound_links_read_plainly() == set()
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        '_link_title(links.get("sprint"))',
+        '_link_title(links.get("version"))',
+        '_link_title(links["targetVersions"])',
+        "_link_title(observed_in_versions_link)",
+    ],
+)
+def test_a_plain_title_read_of_a_version_or_sprint_link_is_found(source: str) -> None:
+    assert _bound_links_read_plainly(f"def normalize(links):\n    return {source}\n") != set()
+
+
+def _work_package_title_reads(source: str | None = None) -> dict[str, int]:
+    nodes = matching_nodes(reads_key(("title",)), source=source) if source else matching_nodes(reads_key(("title",)))
+    return {name: len(found) for name, found in nodes.items() if name.startswith(WORK_PACKAGE_ADAPTER) or source}
+
+
+def test_the_work_package_adapter_holds_no_title_read_besides_the_known_ones() -> None:
+    assert _work_package_title_reads() == WORK_PACKAGE_TITLE_READS
+
+
+@pytest.mark.parametrize(
+    "read", ['links.get("sprint", {}).get("title")', 'links["sprint"]["title"]', 'link.get("title")']
+)
+def test_a_title_read_in_a_function_is_counted(read: str) -> None:
+    planted = f"def normalize(links, link):\n    return {read}\n"
+
+    assert _work_package_title_reads(planted) == {"planted.py:normalize": 1}
