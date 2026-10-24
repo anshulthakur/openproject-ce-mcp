@@ -200,6 +200,12 @@ development baseline.
   project scope. A collection now counts as read to its end when the elements
   fetched reach the `total` the server reports, or when a page is empty; where
   only the page number is known, the page size the server reports is used.
+- A form field with several violated constraints showed only "Multiple field
+  constraints have been violated." in the validation errors of every form that
+  reports them (work packages, projects, versions, time entries, grids, boards,
+  memberships, meetings, users); the messages are now joined from the nested
+  errors. The operator of a board filter without a title came back
+  percent-encoded (`%3D` instead of `=`).
 - `list_time_entries` with `user` compared the display name of each entry's
   user, so two users with the same name were mixed up. The reference ("me", an
   id or an exact name) is resolved to an id, and entries match by the id in
