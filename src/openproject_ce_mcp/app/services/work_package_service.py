@@ -154,7 +154,7 @@ from ..ports.work_package_resolution import WorkPackageAllowedContext
 from ..version_gate import call_query_version_gated
 from ._work_package_parents import parent_href, without_parent_unless
 from ._work_package_presentation import present_detail, present_summaries, stamp_detail
-from ._work_package_references import groups_for_result, visible_references
+from ._work_package_references import groups_for_result, hidden_references_replaced, visible_references
 from ._work_package_write_helpers import (
     resolve_custom_field_key,
     resolve_custom_field_links,
@@ -2012,6 +2012,16 @@ class WorkPackageService:
             lock_version=lock_version,
             resolution_context=wp_context,
         )
+
+        hidden_replaced = await hidden_references_replaced(
+            current_record, payload.get("_links", {}), settings=self._settings, check=self._references_allowed
+        )
+        if hidden_replaced:
+            raise InvalidInputError(
+                f"Work package {ref} has {hidden_replaced} version or sprint assignment(s) in a project "
+                "OPENPROJECT_READ_PROJECTS does not cover, which this change would replace or remove. "
+                "Leave the version, target versions, sprint or version custom fields unchanged."
+            )
 
         auto_percentage, auto_remaining = await self._auto_derive_progress_on_close(
             status=status,

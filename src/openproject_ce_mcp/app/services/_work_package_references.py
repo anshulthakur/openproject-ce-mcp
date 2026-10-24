@@ -11,7 +11,7 @@ named `*Service`/`*Resolver`.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Container, Iterable, Mapping, Sequence
 from typing import Any
 
 from ...config import Settings
@@ -45,17 +45,18 @@ async def visible_references(
     groups: Sequence[WorkPackageGroupRecord] = (),
     settings: Settings,
     check: ScopedReferencesAllowedBulkCheck,
+    fields: Container[str] | None = None,
 ) -> VisibleReferences:
     """The references the results built from `records` and `groups` may name. Everything under `*`;
-    otherwise one deduplicated check for the references of the fields that are shown, which fails
-    as a whole if any check fails."""
+    otherwise one deduplicated check for the references of the fields that are shown (and, when
+    given, among `fields`), which fails as a whole if any check fails."""
     if scope_allows_all(settings.read_projects):
         return VisibleReferences.everything()
     wanted: dict[ScopedReference, None] = {}
     seeds: dict[ScopedReference, Mapping[str, Any]] = {}
     for record in records:
         for field, references in record.references.items():
-            if _field_shown(field, settings=settings):
+            if (fields is None or field in fields) and _field_shown(field, settings=settings):
                 wanted.update(dict.fromkeys(references))
         seeds.update(record.seeds)
     for group in groups:
@@ -85,3 +86,32 @@ def groups_for_result(
             return None
         result.append(WorkPackageGroupSums(value=group.value, count=group.count, sums=group.sums))
     return result
+
+
+# The link a write sets -> the result fields that show what it replaces.
+_WRITTEN_LINK_FIELDS = {
+    "version": ("version", "target_versions"),
+    "targetVersions": ("version", "target_versions"),
+    "sprint": ("sprint",),
+}
+
+
+async def hidden_references_replaced(
+    record: WorkPackageRecord,
+    written_links: Iterable[str],
+    *,
+    settings: Settings,
+    check: ScopedReferencesAllowedBulkCheck,
+) -> int:
+    """How many versions and sprints a write that sets `written_links` would remove from `record`
+    although a result may not name them, so the caller cannot know they are there. A custom field
+    link is its own result field."""
+    written = {field for link in written_links for field in _WRITTEN_LINK_FIELDS.get(link, (link,))}
+    visible = await visible_references(records=[record], settings=settings, check=check, fields=written)
+    replaced = {
+        reference
+        for field, references in record.references.items()
+        if field in written and _field_shown(field, settings=settings)
+        for reference in references
+    }
+    return sum(not visible.contains(reference) for reference in replaced)

@@ -169,6 +169,12 @@ development baseline.
 
 ### Fixed
 
+- `update_work_package` and `bulk_update_work_packages` now refuse a change of
+  `version`, `target_versions`, `sprint` or a version custom field while the
+  work package holds such an assignment in a project outside
+  `OPENPROJECT_READ_PROJECTS`. The change replaced the whole value and removed
+  an assignment the result no longer shows. The error names how many
+  assignments are in the way and no name.
 - `execute_query` rows kept the values of custom fields hidden by
   `OPENPROJECT_HIDE_CUSTOM_FIELDS`, their comments, and the description length
   and truncation flag when `description` is a hidden field, which every other

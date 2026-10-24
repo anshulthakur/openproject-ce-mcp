@@ -10,7 +10,11 @@ from _client_test_helpers import make_settings
 from openproject_ce_mcp.app.errors import TransportError
 from openproject_ce_mcp.app.ports.scoped_reference import ScopedReference, VisibleReferences
 from openproject_ce_mcp.app.ports.work_package_api import WorkPackageGroupRecord, WorkPackageRecord
-from openproject_ce_mcp.app.services._work_package_references import groups_for_result, visible_references
+from openproject_ce_mcp.app.services._work_package_references import (
+    groups_for_result,
+    hidden_references_replaced,
+    visible_references,
+)
 
 SECRET = ScopedReference("version", 7)
 OWN = ScopedReference("version", 8)
@@ -185,3 +189,74 @@ def test_a_label_without_a_link_is_kept_in_a_column_that_names_no_version_or_spr
     groups = groups_for_result([_group("Open")], group_by=group_by, visible=VisibleReferences.only([]))
 
     assert [g.value for g in groups or []] == ["Open"]
+
+
+def _holding(**references: frozenset[ScopedReference]) -> WorkPackageRecord:
+    return _record(references)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("links", "expected"),
+    [
+        (["targetVersions"], 1),
+        (["version"], 1),
+        (["sprint"], 1),
+        (["customField5"], 1),
+        (["targetVersions", "version"], 1),
+        (["targetVersions", "sprint", "customField5"], 3),
+        (["subject", "status", "customField7"], 0),
+        ([], 0),
+    ],
+)
+async def test_a_write_replaces_the_hidden_assignments_of_the_fields_it_sets_and_no_others(links, expected) -> None:
+    record = _holding(
+        target_versions=frozenset({SECRET, OWN}),
+        version=frozenset({SECRET}),
+        sprint=frozenset({SPRINT}),
+        customField5=frozenset({ScopedReference("version", 9)}),
+        customField6=frozenset({ScopedReference("version", 10)}),
+    )
+    check = _Check(
+        {
+            SECRET: False,
+            OWN: True,
+            SPRINT: False,
+            ScopedReference("version", 9): False,
+            ScopedReference("version", 10): False,
+        }
+    )
+
+    assert await hidden_references_replaced(record, links, settings=_settings(), check=check) == expected
+
+
+@pytest.mark.asyncio
+async def test_a_write_replaces_nothing_hidden_under_a_wildcard_scope() -> None:
+    settings = dataclasses.replace(make_settings(), read_projects=("*",))
+
+    assert (
+        await hidden_references_replaced(
+            _holding(target_versions=frozenset({SECRET})), ["targetVersions"], settings=settings, check=_Check({})
+        )
+        == 0
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_failed_check_fails_the_write_check() -> None:
+    check = _Check({SECRET: TransportError("timeout")})
+
+    with pytest.raises(TransportError):
+        await hidden_references_replaced(
+            _holding(target_versions=frozenset({SECRET})), ["targetVersions"], settings=_settings(), check=check
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("link", "carried"), [("version", "target_versions"), ("targetVersions", "version")])
+async def test_version_and_target_versions_write_the_same_data_so_either_link_replaces_what_the_other_shows(
+    link: str, carried: str
+) -> None:
+    record = _holding(**{carried: frozenset({SECRET})})
+
+    assert await hidden_references_replaced(record, [link], settings=_settings(), check=_Check({SECRET: False})) == 1

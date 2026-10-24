@@ -788,6 +788,9 @@ async def update_work_package(
     (OpenProject's multi-version feature); pass [] to clear all. target_versions and version write
     the same underlying data and cannot be used together in one call. If this work package already
     has more than one target version, version alone is rejected; use target_versions instead.
+    A change of version, target_versions, sprint or a version custom field is refused while the work
+    package holds such an assignment in a project OPENPROJECT_READ_PROJECTS does not cover, because the
+    change would remove it.
     estimated_time, remaining_time, duration accept ISO8601 duration strings (e.g., 'PT8H' for 8 hours, 'PT1H30M' for 1.5 hours, 'P1D' for 1 day); omit to leave unchanged, or pass 'none' to clear the field. percentage_done is an integer 0-100.
     Setting status to a closed status auto-fills percentage_done=100 and remaining_time=PT0H when you
     don't supply them explicitly and OpenProject's schema reports those fields as writable (on instances

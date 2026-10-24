@@ -16,6 +16,7 @@ from openproject_ce_mcp.app.errors import (
     ProjectLinkPrefixError,
 )
 from openproject_ce_mcp.app.ports.activity_api import ActivityRecord
+from openproject_ce_mcp.app.ports.scoped_reference import ScopedReference
 from openproject_ce_mcp.app.ports.status_priority_type_api import StatusRecord
 from openproject_ce_mcp.app.ports.work_package_api import (
     WorkPackageFormResult,
@@ -25,7 +26,7 @@ from openproject_ce_mcp.app.ports.work_package_api import (
 )
 from openproject_ce_mcp.app.ports.work_package_resolution import WorkPackageAllowedContext
 from openproject_ce_mcp.app.resolvers.work_package_resolver import WorkPackageResolver
-from openproject_ce_mcp.app.services.work_package_service import WorkPackageService
+from openproject_ce_mcp.app.services.work_package_service import CLEAR_VERSION, WorkPackageService
 from openproject_ce_mcp.models import (
     ActivitySummary,
     CurrentUser,
@@ -119,13 +120,13 @@ def _payload(wp_id: int = 6, *, project_href: str = "/api/v3/projects/1", projec
     }
 
 
-def _record(wp_id: int = 6, *, summary=None, detail=None, payload=None) -> WorkPackageRecord:
+def _record(wp_id: int = 6, *, summary=None, detail=None, payload=None, references=None) -> WorkPackageRecord:
     s = summary or _summary(wp_id)
     d = detail or _detail(wp_id)
     return WorkPackageRecord(
         id=s.id,
         project=s.project,
-        references={},
+        references=references or {},
         seeds={},
         payload=payload or _payload(wp_id),
         summary_factory=lambda _visible: s,
@@ -3653,3 +3654,96 @@ async def test_list_rows_do_not_look_up_a_parent_that_is_a_row_of_the_same_page(
 
     assert {row.id: row.parent_id for row in result.results} == {1: 2, 2: None}
     assert looked_up == ["/api/v3/work_packages/20"]
+
+
+_HIDDEN_VERSION = ScopedReference("version", 7)
+_HIDDEN_SPRINT = ScopedReference("sprint", 3)
+
+
+async def _only_visible(references, *, seeds):
+    return {reference: reference not in {_HIDDEN_VERSION, _HIDDEN_SPRINT} for reference in references}
+
+
+def _service_holding_hidden_assignments(settings=None):
+    api = _FakeWorkPackageApi()
+    api._records_by_id[6] = _record(
+        6,
+        references={
+            "target_versions": frozenset({_HIDDEN_VERSION, ScopedReference("version", 8)}),
+            "version": frozenset({_HIDDEN_VERSION}),
+            "sprint": frozenset({_HIDDEN_SPRINT}),
+        },
+    )
+    restricted = dataclasses.replace(make_settings(), read_projects=("demo",), write_projects=("demo",))
+    service, _ = _service(api, settings=settings or restricted, references_allowed=_only_visible)
+    return service, api
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "change", [{"target_versions": ["Own"]}, {"target_versions": []}, {"version": "Own"}, {"version": CLEAR_VERSION}]
+)
+async def test_update_refuses_a_change_of_the_version_that_would_remove_a_hidden_assignment(change) -> None:
+    service, api = _service_holding_hidden_assignments()
+
+    with pytest.raises(InvalidInputError, match=r"has 1 version or sprint assignment\(s\)"):
+        await service.update(work_package_id=6, confirm=True, **change)
+
+    assert api.validate_update_calls == [] and api.commit_update_calls == []
+
+
+@pytest.mark.asyncio
+async def test_update_refuses_a_change_of_the_sprint_that_would_remove_a_hidden_assignment() -> None:
+    service, api = _service_holding_hidden_assignments()
+
+    with pytest.raises(InvalidInputError, match=r"has 1 version or sprint assignment\(s\)"):
+        await service.update(work_package_id=6, sprint="Sprint 1", confirm=True)
+
+    assert api.commit_update_calls == []
+
+
+@pytest.mark.asyncio
+async def test_the_refusal_names_a_count_and_no_version() -> None:
+    service, _ = _service_holding_hidden_assignments()
+
+    with pytest.raises(InvalidInputError) as raised:
+        await service.update(work_package_id=6, target_versions=["Own"])
+
+    assert "7" not in str(raised.value) and "Own" not in str(raised.value)
+
+
+@pytest.mark.asyncio
+async def test_update_of_other_fields_goes_ahead_while_the_work_package_holds_hidden_assignments() -> None:
+    service, api = _service_holding_hidden_assignments()
+
+    result = await service.update(work_package_id=6, subject="New", confirm=True)
+
+    assert result.ready and api.commit_update_calls
+
+
+@pytest.mark.asyncio
+async def test_update_goes_ahead_under_a_wildcard_scope_where_nothing_is_hidden() -> None:
+    settings = dataclasses.replace(make_settings(), read_projects=("*",), write_projects=("*",))
+    service, api = _service_holding_hidden_assignments(settings)
+
+    result = await service.update(work_package_id=6, target_versions=["Own"], confirm=True)
+
+    assert result.ready and api.commit_update_calls
+
+
+@pytest.mark.asyncio
+async def test_bulk_update_reports_the_refusal_for_the_item_and_updates_the_others() -> None:
+    service, api = _service_holding_hidden_assignments()
+    api._records_by_id[7] = _record(7)
+
+    result = await service.bulk_update(
+        items=[
+            {"work_package_id": 6, "target_versions": ["Own"]},
+            {"work_package_id": 7, "target_versions": ["Own"]},
+        ],
+        confirm=True,
+    )
+
+    assert [(item.success, item.error is not None) for item in result.items] == [(False, True), (True, False)]
+    assert "assignment(s)" in (result.items[0].error or "")
+    assert [ref for ref, _ in api.commit_update_calls] == ["7"]
