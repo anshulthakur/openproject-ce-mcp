@@ -924,6 +924,7 @@ def _work_package_json(work_package_id: int, project_id: int) -> dict:
 @pytest.mark.asyncio
 async def test_a_project_created_through_the_client_is_in_scope_without_a_restart() -> None:
     requests: list[tuple[str, str]] = []
+    projects: list[tuple] = [(1, "demo", "Demo")]
 
     async def handler(request: httpx.Request) -> httpx.Response:
         requests.append((request.method, request.url.path))
@@ -935,6 +936,7 @@ async def test_a_project_created_through_the_client_is_in_scope_without_a_restar
                 request=request,
             )
         if request.method == "POST" and request.url.path == "/api/v3/projects":
+            projects.append((50, "demo-new", "Demo new"))
             return httpx.Response(201, json=_project_json(50, "demo-new", "Demo new"), request=request)
         if request.method == "GET" and request.url.path == "/api/v3/work_packages/9":
             return httpx.Response(200, json=_work_package_json(9, 50), request=request)
@@ -943,7 +945,7 @@ async def test_a_project_created_through_the_client_is_in_scope_without_a_restar
         raise AssertionError(f"Unexpected request: {request.method} {request.url}")
 
     settings = _base_settings(read_projects=("demo*",), write_projects=("demo*",), enable_project_write=True)
-    client = await started_client(settings, handler, [(1, "demo", "Demo")])
+    client = await started_client(settings, handler, projects)
 
     await client.project.create(name="Demo new", identifier="demo-new", confirm=True)
 

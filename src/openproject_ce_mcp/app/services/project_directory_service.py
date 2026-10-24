@@ -6,9 +6,12 @@ an id -> identifier map. The map has to know projects that came into being
 after the server started (a copy, the web UI, another client), not just the
 ones present at startup. The directory learns them from every JSON response
 before a policy sees it (see transport.learning_transport) and looks up an
-id when no response or scan has shown it yet. A known project is looked up
-again whenever its recorded identifier alone would admit a link to it: the
-link carries no identifier, and the recorded one may predate a rename.
+id when no response or scan has shown it yet. A known project is read
+again, in one request for all such projects of a response, whenever its
+recorded identifier alone would admit a link to it: the link carries no
+identifier, and the recorded one may predate a rename. Once per tool call is
+enough: what a call relies on cannot change under it any more than a check
+can be made atomic with the request it guards.
 
 The policies read `positives` synchronously; it is updated in place and never
 rebound, because every service and resolver holds the same object.
@@ -25,6 +28,7 @@ from typing import Any, NamedTuple
 
 from ...config import Settings
 from ...models import ProjectSummary
+from ..call_scope import current_tool_call
 from ..errors import NotFoundError, OpenProjectError
 from ..policies.scope import (
     LinkedProject,
@@ -71,6 +75,8 @@ class ProjectDirectoryService:
         # read earlier can predate a rename the response already reflects.
         self._ticks = 0
         self._as_of: dict[int, int] = {}
+        # The tool call that last read the project's identifier again.
+        self._reread_in_call: dict[int, int] = {}
         self._last_scan_attempt: float | None = None
         self._scan_task: asyncio.Task[None] | None = None
         self._lookups: dict[int, _Lookup] = {}
@@ -263,17 +269,21 @@ class ProjectDirectoryService:
         if rescan:
             await self.ensure_fresh()
         # A link carries no identifier, so a recorded one read before this
-        # response arrived is re-read wherever it alone would admit the link.
-        for project_id in unshown:
-            identifier = self.positives.get(project_id)
-            if (
-                identifier is not None
-                and self._as_of.get(project_id, 0) < received
-                and any(self._identifier_decides(link, project_id, identifier) for link in linked[project_id])
-            ):
-                lookups[project_id] = None
-        if lookups:
-            await asyncio.gather(*(self._look_up(project_id, received=received) for project_id in lookups))
+        # response arrived is read again wherever it alone would admit the link.
+        call = current_tool_call()
+        stale = [
+            project_id
+            for project_id in unshown
+            if (identifier := self.positives.get(project_id)) is not None
+            and self._as_of.get(project_id, 0) < received
+            and (call is None or self._reread_in_call.get(project_id) != call)
+            and any(self._identifier_decides(link, project_id, identifier) for link in linked[project_id])
+        ]
+        reads = [self._look_up(project_id, received=received) for project_id in lookups]
+        if stale:
+            reads.append(self._read_again(stale, call=call))
+        if reads:
+            await asyncio.gather(*reads)
 
     def _identifier_decides(self, link: dict[str, Any], project_id: int, identifier: str) -> bool:
         without = project_link_candidates(link, settings=self._settings, project_id_to_identifier={})
@@ -284,6 +294,29 @@ class ProjectDirectoryService:
             scope_matches_candidates(scope, with_identifier) and not scope_matches_candidates(scope, without)
             for scope in (self._settings.read_projects, self._settings.write_projects)
         )
+
+    async def _read_again(self, project_ids: list[int], *, call: int | None) -> None:
+        """One request for the projects whose recorded identifier decided a link. A project the
+        answer leaves out is forgotten, so the next link to it is looked up on its own."""
+        started = self._tick()
+        try:
+            current = {project.id: project for project in await self._list_projects(ids=project_ids)}
+        except OpenProjectError as exc:
+            LOGGER.warning(
+                "Projects %s could not be read again for the allowlist; only their id and name match until a "
+                "lookup succeeds: %s",
+                project_ids,
+                exc,
+            )
+            current = {}
+        for project_id in project_ids:
+            project = current.get(project_id)
+            if project is None:
+                self._forget(project_id, as_of=started)
+            else:
+                self._store(project, as_of=started)
+            if call is not None:
+                self._reread_in_call[project_id] = call
 
     async def _look_up(self, project_id: int, *, received: int) -> None:
         lookup = self._lookups.get(project_id)

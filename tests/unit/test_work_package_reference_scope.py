@@ -14,7 +14,7 @@ from collections import Counter
 
 import httpx
 import pytest
-from _client_test_helpers import make_settings
+from _client_test_helpers import _project_index_response, make_settings
 from _source_scan import SERVICES, matching_nodes
 
 from openproject_ce_mcp.app.services._work_package_references import HIDDEN_GROUP_LABEL
@@ -71,7 +71,9 @@ class _Server:
         if path in {"/api/v3/projects/demo", "/api/v3/projects/1"}:
             body = {"_type": "Project", "id": 1, "name": "Demo", "identifier": "demo", "_links": {}}
         elif path == "/api/v3/projects":
-            body = {"total": 0, "_embedded": {"elements": []}}
+            # The scan finds nothing; a read of named ids (the directory checking a recorded identifier) finds them.
+            named = '"id"' in request.url.params.get("filters", "")
+            return _project_index_response(request, [(1, "demo", "Demo"), (9, "secret", "Secret")] if named else [])
         elif path == "/api/v3/projects/9":
             body = {"_type": "Project", "id": 9, "name": "Secret", "identifier": "secret", "_links": {}}
         elif path == "/api/v3/versions/7":

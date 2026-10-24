@@ -66,6 +66,7 @@ from .app.caches import SingletonCache
 # from here (e.g. `from openproject_ce_mcp.client import
 # PermissionDeniedError`, used by tests/integration/test_work_packages.py among
 # others) and must keep working.
+from .app.call_scope import tool_call  # noqa: F401 -- the tool boundary opens the scope through the facade
 from .app.errors import (
     AuthenticationError,  # noqa: F401
     InvalidInputError,  # noqa: F401

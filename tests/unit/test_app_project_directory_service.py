@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 from _client_test_helpers import _base_settings
 
+from openproject_ce_mcp.app.call_scope import tool_call
 from openproject_ce_mcp.app.errors import NotFoundError, PermissionDeniedError, TransportError
 from openproject_ce_mcp.app.ports.project_api import ProjectPage, ProjectRecord
 from openproject_ce_mcp.app.services.project_directory_service import FRESHNESS_SECONDS, ProjectDirectoryService
@@ -430,7 +431,8 @@ async def test_a_known_project_is_read_again_when_only_its_recorded_identifier_a
 
     await _learn(directory, _work_package_in(7))
 
-    assert api.get_calls == ["7"]
+    assert api.listed_ids == [[7]]
+    assert api.get_calls == []
     assert directory.positives == {}
     assert directory.readable_project_ids() == frozenset()
 
@@ -463,7 +465,7 @@ async def test_a_known_project_is_read_again_when_its_identifier_alone_admits_a_
 
     await _learn(directory, _work_package_in(7))
 
-    assert api.get_calls == ["7"]
+    assert api.listed_ids == [[7]]
     assert directory.positives == {7: "renamed"}
 
 
@@ -486,47 +488,63 @@ async def test_a_failed_re_read_forgets_the_project_and_the_next_link_looks_it_u
     api = _FakeProjectApi([(7, "demo-a", "Some project")])
     directory = _directory(api)
     await directory.refresh()
-    api.get_errors["7"] = TransportError("Could not reach OpenProject")
+    api.list_error = TransportError("Could not reach OpenProject")
 
     await _learn(directory, _work_package_in(7))
     assert directory.positives == {}
     assert directory.readable_project_ids() == frozenset()
 
-    del api.get_errors["7"]
+    api.list_error = None
     await _learn(directory, _work_package_in(7))
 
-    assert api.get_calls == ["7", "7"]
-    assert api.list_calls == [1]
+    assert api.get_calls == ["7"]
+    assert api.list_calls == [1, 1]
     assert directory.positives == {7: "demo-a"}
 
 
-class _HeldLookups(_FakeProjectApi):
-    """Each lookup reads the project when it is called, then waits until the
-    test releases that call, as a server answer still in transit would."""
+class _HeldReads(_FakeProjectApi):
+    """Each id-filtered read takes the projects as they are when it is called, then waits until
+    the test releases that call, as a server answer still in transit would."""
 
     def __init__(self, projects: Sequence[tuple] = ()) -> None:
         super().__init__(projects)
-        self.arrived: asyncio.Queue[str] = asyncio.Queue()
+        self.arrived: asyncio.Queue[list[int]] = asyncio.Queue()
         self._releases: list[asyncio.Event] = []
 
-    async def get(self, project_ref: str) -> ProjectRecord:
-        self.get_calls.append(project_ref)
-        answer = next(project for project in self.projects if str(project[0]) == project_ref)
+    async def list(
+        self,
+        *,
+        server_offset: int,
+        server_page_size: int,
+        search: str | None,
+        ids: Sequence[int] | None = None,
+        ancestor_id: int | None = None,
+    ) -> ProjectPage:
+        if ids is None:
+            return await super().list(
+                server_offset=server_offset,
+                server_page_size=server_page_size,
+                search=search,
+                ids=ids,
+                ancestor_id=ancestor_id,
+            )
+        self.listed_ids.append(list(ids))
+        answer = [project for project in self.projects if project[0] in ids]
         release = asyncio.Event()
         self._releases.append(release)
-        self.arrived.put_nowait(project_ref)
+        self.arrived.put_nowait(list(ids))
         await release.wait()
-        if project_ref in self.get_errors:
-            raise self.get_errors[project_ref]
-        return _record(*answer)
+        if self.list_error is not None:
+            raise self.list_error
+        return ProjectPage(records=[_record(*project) for project in answer], server_total=len(answer), exhausted=True)
 
     def release(self, call: int) -> None:
         self._releases[call].set()
 
 
 @pytest.mark.asyncio
-async def test_a_response_relies_only_on_a_lookup_that_started_after_it_arrived() -> None:
-    api = _HeldLookups([(7, "demo-old", "Some project")])
+async def test_a_response_relies_only_on_a_read_that_started_after_it_arrived() -> None:
+    api = _HeldReads([(7, "demo-old", "Some project")])
     directory = _directory(api)
     directory.record(7, "demo-old", "Some project", archived=False)
     first = asyncio.create_task(_learn(directory, _work_package_in(7)))
@@ -534,7 +552,7 @@ async def test_a_response_relies_only_on_a_lookup_that_started_after_it_arrived(
     api.projects[0] = (7, "renamed", "Some project")
 
     second = asyncio.create_task(_learn(directory, _work_package_in(7)))
-    # Bounds a failure only: the response must start a lookup of its own.
+    # Bounds a failure only: the response must start a read of its own.
     await asyncio.wait_for(api.arrived.get(), timeout=5)
     api.release(1)
     await second
@@ -543,25 +561,24 @@ async def test_a_response_relies_only_on_a_lookup_that_started_after_it_arrived(
     api.release(0)
     await first
     assert directory.positives == {}
-    assert api.get_calls == ["7", "7"]
+    assert api.listed_ids == [[7], [7]]
 
 
 @pytest.mark.parametrize(
     ("error", "answered"),
     [
-        (NotFoundError("not found"), (7, "demo-old", "Some project")),
+        (None, None),
         (TransportError("Could not reach OpenProject"), (7, "demo-old", "Some project")),
         (None, (7, "", "Some project")),
     ],
-    ids=["404", "failure", "no-identifier"],
+    ids=["gone", "failure", "no-identifier"],
 )
 @pytest.mark.asyncio
-async def test_a_lookup_that_ends_without_a_project_keeps_what_a_later_read_recorded(
-    error: Exception | None, answered: tuple
+async def test_a_read_that_ends_without_a_project_keeps_what_a_later_read_recorded(
+    error: Exception | None, answered: tuple | None
 ) -> None:
-    api = _HeldLookups([answered])
-    if error is not None:
-        api.get_errors["7"] = error
+    api = _HeldReads([answered] if answered else [])
+    api.list_error = error
     directory = _directory(api)
     directory.record(7, "demo-old", "Some project", archived=False)
     earlier = asyncio.create_task(_learn(directory, _work_package_in(7)))
@@ -573,7 +590,7 @@ async def test_a_lookup_that_ends_without_a_project_keeps_what_a_later_read_reco
 
     assert directory.positives == {7: "demo-new"}
     assert directory.readable_project_ids() == {7}
-    assert api.get_calls == ["7"]
+    assert api.listed_ids == [[7]]
 
 
 class _HeldConfirmation(_FakeProjectApi):
@@ -584,6 +601,7 @@ class _HeldConfirmation(_FakeProjectApi):
         super().__init__(projects)
         self.confirmation_arrived: asyncio.Queue[list[int]] = asyncio.Queue()
         self.release_confirmation = asyncio.Event()
+        self._held = False
 
     async def list(
         self,
@@ -601,7 +619,8 @@ class _HeldConfirmation(_FakeProjectApi):
             ids=ids,
             ancestor_id=ancestor_id,
         )
-        if ids is not None:
+        if ids is not None and not self._held:
+            self._held = True
             self.confirmation_arrived.put_nowait(list(ids))
             await self.release_confirmation.wait()
         return page
@@ -621,7 +640,7 @@ async def test_current_readable_projects_answers_from_what_was_recorded_after_it
 
     assert await confirming == frozenset()
     assert directory.positives == {}
-    assert api.get_calls == ["1"]
+    assert api.listed_ids == [[1], [1]]
 
 
 @pytest.mark.asyncio
@@ -662,9 +681,10 @@ class _HeldScan(_FakeProjectApi):
             ids=ids,
             ancestor_id=ancestor_id,
         )
-        self.scan_arrived.put_nowait(server_offset)
-        if self.scan_gate is not None:
-            await self.scan_gate.wait()
+        if ids is None:
+            self.scan_arrived.put_nowait(server_offset)
+            if self.scan_gate is not None:
+                await self.scan_gate.wait()
         return page
 
 
@@ -677,15 +697,15 @@ async def test_a_scan_does_not_undo_forgetting_a_project_whose_re_read_failed_wh
     api.scan_gate = asyncio.Event()
     scan = asyncio.create_task(directory.refresh())
     await api.scan_arrived.get()
-    api.get_errors["7"] = TransportError("Could not reach OpenProject")
+    api.list_error = TransportError("Could not reach OpenProject")
     await _learn(directory, _work_package_in(7))
     api.scan_gate.set()
     await scan
 
-    del api.get_errors["7"]
+    api.list_error = None
     await _learn(directory, _work_package_in(7))
 
-    assert api.get_calls == ["7", "7"]
+    assert api.get_calls == ["7"]
     assert directory.positives == {7: "demo-a"}
 
 
@@ -697,7 +717,8 @@ async def test_a_lookup_answered_without_an_identifier_forgets_the_project() -> 
 
     await _learn(directory, _work_package_in(7))
 
-    assert api.get_calls == ["7"]
+    assert api.listed_ids == [[7]]
+    assert api.get_calls == []
     assert directory.positives == {}
 
 
@@ -982,3 +1003,66 @@ async def test_readable_descendants_are_judged_on_the_answer_not_on_an_earlier_n
     api.projects[1] = (2, "renamed", "Renamed")
 
     assert await directory.readable_descendant_ids(1) == frozenset()
+
+
+@pytest.mark.asyncio
+async def test_a_recorded_identifier_is_read_again_once_per_tool_call() -> None:
+    api = _FakeProjectApi([(7, "demo-a", "Some project")])
+    directory = _directory(api)
+    directory.record(7, "demo-a", "Some project", archived=False)
+
+    with tool_call():
+        for _ in range(3):
+            await _learn(directory, _work_package_in(7))
+
+    assert api.listed_ids == [[7]]
+    assert api.get_calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_rename_is_noticed_by_the_next_tool_call() -> None:
+    api = _FakeProjectApi([(7, "demo-a", "Some project")])
+    directory = _directory(api)
+    directory.record(7, "demo-a", "Some project", archived=False)
+    with tool_call():
+        await _learn(directory, _work_package_in(7))
+    assert directory.positives == {7: "demo-a"}
+
+    api.projects[0] = (7, "renamed", "Some project")
+    with tool_call():
+        await _learn(directory, _work_package_in(7))
+
+    assert directory.positives == {}
+    assert api.listed_ids == [[7], [7]]
+
+
+@pytest.mark.asyncio
+async def test_outside_a_tool_call_every_response_reads_again() -> None:
+    api = _FakeProjectApi([(7, "demo-a", "Some project")])
+    directory = _directory(api)
+    directory.record(7, "demo-a", "Some project", archived=False)
+
+    for _ in range(3):
+        await _learn(directory, _work_package_in(7))
+
+    assert api.listed_ids == [[7], [7], [7]]
+
+
+@pytest.mark.asyncio
+async def test_a_response_linking_several_known_projects_reads_them_in_one_request() -> None:
+    api = _FakeProjectApi([(7, "demo-a", "A"), (8, "demo-b", "B"), (9, "demo-c", "C")])
+    directory = _directory(api)
+    for project_id, identifier in ((7, "demo-a"), (8, "demo-b"), (9, "demo-c")):
+        directory.record(project_id, identifier, "Some project", archived=False)
+    payload = {
+        "_type": "Collection",
+        "_embedded": {"elements": [_work_package_in(7), _work_package_in(8), _work_package_in(9)]},
+    }
+
+    with tool_call():
+        await _learn(directory, payload)
+        await _learn(directory, payload)
+
+    assert api.listed_ids == [[7, 8, 9]]
+    assert api.get_calls == []
+    assert directory.positives == {7: "demo-a", 8: "demo-b", 9: "demo-c"}

@@ -38,6 +38,7 @@ from .client import (
     PermissionDeniedError,
     ProjectLinkPrefixError,
     TransportError,
+    tool_call,
 )
 from .presentation import ContentBundle, _to_payload
 from .tool_errors import ToolCallError, ToolInputError
@@ -301,7 +302,8 @@ def _categorize_tool_errors(fn):
     @functools.wraps(fn)
     async def wrapper(*args, **kwargs):
         try:
-            return await fn(*args, **kwargs)
+            with tool_call():
+                return await fn(*args, **kwargs)
         except ValueError as exc:
             raise ToolInputError(_prefix("validation_error", str(exc))) from exc
 

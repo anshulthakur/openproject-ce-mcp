@@ -206,6 +206,12 @@ development baseline.
   memberships, meetings, users); the messages are now joined from the nested
   errors. The operator of a board filter without a title came back
   percent-encoded (`%3D` instead of `=`).
+- With `OPENPROJECT_READ_PROJECTS` or `OPENPROJECT_WRITE_PROJECTS` naming
+  identifiers, every response that linked a known project read the project
+  again (`GET /projects/{id}`) before the check, because a link carries no
+  identifier and a rename could have changed it. The projects of a response are
+  now read in one request, and once per tool call; a rename is still noticed by
+  the next tool call.
 - `list_time_entries` with `user` compared the display name of each entry's
   user, so two users with the same name were mixed up. The reference ("me", an
   id or an exact name) is resolved to an id, and entries match by the id in

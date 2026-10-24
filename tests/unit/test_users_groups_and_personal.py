@@ -4,7 +4,13 @@ import json
 
 import httpx
 import pytest
-from _client_test_helpers import _base_settings, _membership_settings, _personal_write_enabled_settings, make_settings
+from _client_test_helpers import (
+    _base_settings,
+    _membership_settings,
+    _personal_write_enabled_settings,
+    _project_index_response,
+    make_settings,
+)
 
 from openproject_ce_mcp.client import (
     OpenProjectClient,
@@ -71,6 +77,8 @@ async def test_update_membership_returns_preview_when_not_confirmed() -> None:
 @pytest.mark.asyncio
 async def test_update_membership_writes_after_confirmation_when_enabled() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/v3/projects" and request.method == "GET":
+            return _project_index_response(request, [(7, "demo-id", "Demo")])
         if request.url.path == "/api/v3/projects/7" and request.method == "GET":
             return httpx.Response(
                 200,
