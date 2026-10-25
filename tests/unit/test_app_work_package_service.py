@@ -4054,7 +4054,7 @@ async def test_list_refuses_to_query_by_a_hidden_field(hidden: str, call: dict) 
     settings = dataclasses.replace(make_settings(), hidden_fields={"work_package": (hidden,)})
     service, api = _service(settings=settings)
 
-    with pytest.raises(PermissionDeniedError, match="is hidden by OPENPROJECT_HIDE_WORK_PACKAGE_FIELDS"):
+    with pytest.raises(InvalidInputError, match="is hidden by OPENPROJECT_HIDE_WORK_PACKAGE_FIELDS"):
         await service.list(**call)
 
     assert api.list_calls == []
@@ -4065,7 +4065,7 @@ async def test_search_refuses_to_query_by_a_hidden_field() -> None:
     settings = dataclasses.replace(make_settings(), hidden_fields={"work_package": ("priority",)})
     service, api = _service(settings=settings)
 
-    with pytest.raises(PermissionDeniedError, match="'priority' is hidden"):
+    with pytest.raises(InvalidInputError, match="'priority' is hidden"):
         await service.search(search="x", priority="High")
 
     assert api.list_calls == []
@@ -4077,7 +4077,7 @@ async def test_list_my_open_is_refused_while_the_assignee_or_the_status_is_hidde
     settings = dataclasses.replace(make_settings(), hidden_fields={"work_package": (hidden,)})
     service, api = _service(settings=settings)
 
-    with pytest.raises(PermissionDeniedError, match=f"'{hidden}' is hidden"):
+    with pytest.raises(InvalidInputError, match=f"'{hidden}' is hidden"):
         await service.list_my_open()
 
     assert api.list_calls == []
@@ -4100,7 +4100,7 @@ async def test_the_two_names_of_the_version_column_close_together(hidden: str, c
     settings = dataclasses.replace(make_settings(), hidden_fields={"work_package": (hidden,)})
     service, _ = _service(settings=settings)
 
-    with pytest.raises(PermissionDeniedError, match="cannot be used to group"):
+    with pytest.raises(InvalidInputError, match="cannot be used to group"):
         await service.list(group_by=column)
 
 
@@ -4109,7 +4109,7 @@ async def test_a_filter_set_to_zero_is_still_a_filter_on_the_hidden_field() -> N
     settings = dataclasses.replace(make_settings(), hidden_fields={"work_package": ("due_date",)})
     service, _ = _service(settings=settings)
 
-    with pytest.raises(PermissionDeniedError, match="'due_date' is hidden"):
+    with pytest.raises(InvalidInputError, match="'due_date' is hidden"):
         await service.list(due_within_days=0)
 
 
@@ -4174,7 +4174,7 @@ async def test_a_filter_on_a_hidden_field_is_refused_by_the_list_and_search_tool
     if method == "search":
         arguments.setdefault("search", "needle")
 
-    with pytest.raises(PermissionDeniedError, match="cannot be used to filter"):
+    with pytest.raises(InvalidInputError, match="cannot be used to filter"):
         await getattr(service, method)(**arguments)
 
     assert api.list_calls == []
