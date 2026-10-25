@@ -1092,6 +1092,7 @@ class TimeEntrySummary:
     updated_at: str | None
     comment_truncated: bool = False
     comment_length: int | None = None
+    user_id: int | None = None
 
 
 @dataclass

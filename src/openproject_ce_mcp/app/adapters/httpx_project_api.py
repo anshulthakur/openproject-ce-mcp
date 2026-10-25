@@ -32,6 +32,7 @@ from ...models import (
     ProjectSummary,
 )
 from ..errors import OpenProjectServerError
+from ..pagination import page_is_last
 from ..ports.project_api import (
     ProjectCopyFormResult,
     ProjectFormResult,
@@ -336,7 +337,7 @@ class HttpxProjectApi:
             if isinstance(item, dict) and item.get("_type") == "Project"
         ]
         total = int(payload.get("total", 0))
-        exhausted = server_offset * server_page_size >= total
+        exhausted = page_is_last(payload, offset=server_offset, requested_page_size=server_page_size, total=total)
         return ProjectPage(records=records, server_total=total, exhausted=exhausted)
 
     async def get(self, project_ref: str, *, text_limit: int | None = FORMATTABLE_LIMIT) -> ProjectRecord:

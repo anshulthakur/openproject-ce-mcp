@@ -126,6 +126,8 @@ of scoping it per project, use the user-wide `config.toml`:
   - **Windows:** `%USERPROFILE%\.codex\config.toml`
   - **macOS:** `~/.codex/config.toml`
   - **Linux:** `~/.codex/config.toml`
+  - If `CODEX_HOME` is set, Codex and this tool read `$CODEX_HOME/config.toml`
+    instead.
 - **Protect credentials:** `chmod 600 ~/.codex/config.toml` on macOS/Linux; on
   Windows restrict it to your user via **Properties → Security**.
 

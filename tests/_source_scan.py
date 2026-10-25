@@ -6,7 +6,8 @@ import ast
 from collections.abc import Callable, Collection
 from pathlib import Path
 
-APP = Path(__file__).resolve().parents[1] / "src" / "openproject_ce_mcp" / "app"
+SRC = Path(__file__).resolve().parents[1] / "src" / "openproject_ce_mcp"
+APP = SRC / "app"
 ADAPTERS = APP / "adapters"
 SERVICES = APP / "services"
 INTEGRATION = Path(__file__).resolve().parent / "integration"

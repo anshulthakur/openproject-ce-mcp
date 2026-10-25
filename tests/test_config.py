@@ -716,3 +716,12 @@ def test_consistency_error_lists_every_broken_rule_with_its_variables() -> None:
         ("OPENPROJECT_ENABLE_ADMIN_WRITE", "OPENPROJECT_ENABLE_ADMIN_READ"),
     ]
     assert str(raised.value) == "OPENPROJECT_RETRY_MAX_DELAY must be >= OPENPROJECT_RETRY_BASE_DELAY."
+
+
+@pytest.mark.parametrize("name", ["OPENPROJECT_TIMEOUT", "OPENPROJECT_RETRY_BASE_DELAY", "OPENPROJECT_RETRY_MAX_DELAY"])
+@pytest.mark.parametrize("value", ["nan", "NaN", "inf", "-inf", "Infinity", "1e999"])
+def test_a_number_from_the_environment_must_be_finite(name: str, value: str) -> None:
+    env = {"OPENPROJECT_BASE_URL": "https://op.example.com", "OPENPROJECT_API_TOKEN": "token", name: value}
+
+    with pytest.raises(ConfigError, match=f"{name} must be a finite number"):
+        Settings.from_env(env)

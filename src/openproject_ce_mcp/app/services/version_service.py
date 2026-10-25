@@ -63,6 +63,7 @@ class VersionService:
         limit: int | None = None,
         context: ProjectResolutionContext | None = None,
     ) -> VersionListResult:
+        access.ensure_read_enabled("version", settings=self._settings)
         # limit must be clamped HERE, matching the original _resolve_limit contract
         # (min(requested, max_page_size, max_results)) -- fetch_version_page clamps
         # its own internal copy for the actual pagination math, but that clamped
@@ -113,7 +114,7 @@ class VersionService:
         # to read it, so nothing is cut unless the caller asks for a smaller cap.
         access.ensure_read_enabled("version", settings=self._settings)
         record = await self._api.get(version_id, text_limit=text_limit)
-        scope_policy.ensure_project_link_allowed(
+        scope_policy.ensure_defining_project_link_allowed(
             record.defining_project_link,
             settings=self._settings,
             project_id_to_identifier=self._project_id_to_identifier,
@@ -170,7 +171,7 @@ class VersionService:
         confirm: bool = False,
     ) -> VersionWriteResult:
         current = await self._api.get(version_id)
-        scope_policy.ensure_project_write_link_allowed(
+        scope_policy.ensure_defining_project_write_link_allowed(
             current.defining_project_link,
             settings=self._settings,
             project_id_to_identifier=self._project_id_to_identifier,
@@ -201,7 +202,7 @@ class VersionService:
 
     async def delete(self, *, version_id: int, confirm: bool = False) -> VersionWriteResult:
         current = await self._api.get(version_id)
-        scope_policy.ensure_project_write_link_allowed(
+        scope_policy.ensure_defining_project_write_link_allowed(
             current.defining_project_link,
             settings=self._settings,
             project_id_to_identifier=self._project_id_to_identifier,

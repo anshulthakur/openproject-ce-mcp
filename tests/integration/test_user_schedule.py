@@ -3,7 +3,7 @@ domains (per-user schedule overrides).
 
 Requires OpenProject 17.3+ (feature-flag-gated `guard_feature_flag
 :user_working_times` through 17.6, generally available 17.7+ -- verified
-against op-sources: present in 17.3-17.6's `working_hours_by_user_api.rb`/
+against the OpenProject source: present in 17.3-17.6's `working_hours_by_user_api.rb`/
 `non_working_times_by_user_api.rb`, absent in 17.7's; the route does not
 exist at all before 17.3). Earlier versions 404, which UserNonWorkingTimeService/
 UserWorkingHoursService's `call_version_gated` re-raises as a clearer

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from functools import partial
 
 import httpx
 import pytest
@@ -32,6 +33,8 @@ from openproject_ce_mcp.app.adapters.httpx_work_package_api import (
     normalize_work_package_summary,
 )
 from openproject_ce_mcp.app.origin import origin_from_url as _origin_from_url
+from openproject_ce_mcp.app.ports.scoped_reference import VisibleReferences
+from openproject_ce_mcp.app.resource_href import ResourceLinks
 from openproject_ce_mcp.app.services.work_package_service import _narrow_cleared
 from openproject_ce_mcp.client import (
     CLEAR,
@@ -39,6 +42,17 @@ from openproject_ce_mcp.client import (
     CLEAR_VERSION,
     OpenProjectClient,
     _trim_text,
+)
+
+normalize_work_package_summary = partial(
+    normalize_work_package_summary,
+    visible=VisibleReferences.everything(),
+    resource_links=ResourceLinks("https://op.example.com"),
+)
+normalize_work_package_detail = partial(
+    normalize_work_package_detail,
+    visible=VisibleReferences.everything(),
+    resource_links=ResourceLinks("https://op.example.com"),
 )
 
 
@@ -209,6 +223,7 @@ def test_normalize_activity_returns_full_comment_by_default() -> None:
     activity = normalize_activity(
         {"id": 7, "_type": "Activity", "comment": {"raw": long_comment}, "_links": {"user": {"title": "Bot"}}},
         details=True,
+        user=None,
     )
 
     assert activity.comment is not None
@@ -232,6 +247,7 @@ def test_normalize_activity_details_are_delimited_and_drop_duplicate_html() -> N
             "details": [{"format": "custom", "raw": "Status changed", "html": "<i>Status changed</i>"}],
         },
         details=True,
+        user=None,
     )
 
     assert activity.details == [{"raw": "<user-content>Status changed</user-content>"}]
@@ -419,6 +435,7 @@ def test_activity_comment_delimited():
             "_links": {"user": {"href": "/api/v3/users/1", "title": "John Doe"}},
         },
         details=True,
+        user=None,
     )
 
     assert activity.comment == "<user-content>User comment text</user-content>"
@@ -456,15 +473,12 @@ def test_time_entry_comment_hidden_by_time_entry_scope_not_activity_scope():
         return TimeEntryService(
             api=None,
             project_api=None,
-            user_api=None,
             work_package_lookup_api=None,
             settings=settings,
             project_id_to_identifier={},
-            resolve_work_package_id=None,
             resolve_project_ref=None,
             resolve_project_id=None,
             resolve_principal_id=None,
-            get_current_user=None,
             api_prefix="/api/v3/",
         )
 
@@ -697,6 +711,7 @@ async def test_work_package_relations_use_canonical_involved_filter_shape() -> N
             return httpx.Response(
                 200,
                 json={
+                    "total": 1,
                     "_embedded": {
                         "elements": [
                             {
@@ -708,7 +723,7 @@ async def test_work_package_relations_use_canonical_involved_filter_shape() -> N
                                 },
                             }
                         ]
-                    }
+                    },
                 },
                 request=request,
             )
@@ -896,6 +911,7 @@ async def test_get_work_package_relations_paginates_allowed_results() -> None:
             return httpx.Response(
                 200,
                 json={
+                    "total": 3,
                     "_embedded": {
                         "elements": [
                             {
@@ -908,7 +924,7 @@ async def test_get_work_package_relations_paginates_allowed_results() -> None:
                             }
                             for i in (11, 12, 13)
                         ]
-                    }
+                    },
                 },
                 request=request,
             )

@@ -344,7 +344,7 @@ async def test_create_preview_also_denied_without_admin_write_enabled() -> None:
 
 @pytest.mark.asyncio
 async def test_create_denies_admin_write_before_checking_a_hidden_field() -> None:
-    """Regression (Codex review round 7): the admin-write gate must run
+    """Regression: the admin-write gate must run
     BEFORE any hidden-field check -- a prior version of create() called
     hidden_fields.ensure_field_writable first, so a caller without
     ADMIN_WRITE enabled AND with "name" hidden got InvalidInputError

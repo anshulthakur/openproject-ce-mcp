@@ -38,6 +38,7 @@ from .client import (
     InvalidInputError,
     OpenProjectClient,
     OpenProjectError,
+    tool_call,
 )
 from .logging_support import ToolCallLogRecord
 from .presentation import ContentBundle, _to_payload
@@ -363,7 +364,8 @@ def _categorize_tool_errors(fn):
         error_code: str | None = None
         layer: str | None = None
         try:
-            result = await fn(*args, **kwargs)
+            with tool_call():
+                result = await fn(*args, **kwargs)
         except ValueError as exc:
             # A ValueError already coded by _run_tool via
             # _categorize_openproject_error (e.g. InvalidInputError, whose

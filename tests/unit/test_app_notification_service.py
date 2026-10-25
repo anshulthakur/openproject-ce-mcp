@@ -68,7 +68,7 @@ class _FakeNotificationApi:
 
     async def list_all(self, *, unread_only: bool, offset: int, limit: int) -> NotificationPage:
         self.list_all_calls.append((unread_only, offset, limit))
-        return NotificationPage(records=list(self._records), total=self._total, exhausted=True)
+        return NotificationPage(records=list(self._records), total=self._total, exhausted=offset * limit >= self._total)
 
     async def get(self, notification_id: int, **kwargs) -> NotificationRecord:
         self.get_calls.append(notification_id)
@@ -94,17 +94,6 @@ class _FakeReadableProjects:
         if self._ids is None:
             raise AssertionError("the readable project set must not be read here")
         return self._ids
-
-
-def _work_package_project_allowed_from(allowed_hrefs: set[str]):
-    calls: list[str] = []
-
-    async def check(href: str, *, context=None) -> bool:
-        calls.append(href)
-        return href in allowed_hrefs
-
-    check.calls = calls  # type: ignore[attr-defined]
-    return check
 
 
 def _work_package_project_allowed_bulk_from(allowed_hrefs: set[str], *, errors: dict[str, Exception] | None = None):
@@ -145,7 +134,6 @@ def _service(
     *,
     api: _FakeNotificationApi | None = None,
     settings=None,
-    work_package_project_allowed=None,
     work_package_project_allowed_bulk=None,
     readable_projects: _FakeReadableProjects | None = None,
 ) -> NotificationService:
@@ -153,7 +141,6 @@ def _service(
         api=api or _FakeNotificationApi(),
         settings=settings or dataclasses.replace(make_settings(), enable_personal_read=True),
         project_id_to_identifier=PROJECT_ID_TO_IDENTIFIER,
-        work_package_project_allowed=work_package_project_allowed or _work_package_project_allowed_from(set()),
         work_package_project_allowed_bulk=work_package_project_allowed_bulk
         or _work_package_project_allowed_bulk_from(set()),
         readable_projects=readable_projects or _FakeReadableProjects(),
@@ -317,6 +304,24 @@ async def test_list_all_reports_truncated_and_next_offset_under_wide_open_scope(
 
 
 @pytest.mark.asyncio
+async def test_list_all_is_truncated_while_the_page_reports_it_is_not_the_last() -> None:
+    """The page itself says whether it is the last: the server may have cut the page size the
+    service asked for, which `offset * limit` cannot know."""
+
+    class _ClampedApi(_FakeNotificationApi):
+        async def list_all(self, *, unread_only: bool, offset: int, limit: int) -> NotificationPage:
+            return NotificationPage(records=[_record(1)], total=1, exhausted=False)
+
+    settings = dataclasses.replace(make_settings(), enable_personal_read=True, read_projects=("*",))
+    service = _service(api=_ClampedApi(), settings=settings)
+
+    result = await service.list_all(limit=100, offset=1)
+
+    assert result.truncated is True
+    assert result.next_offset == 2
+
+
+@pytest.mark.asyncio
 async def test_list_all_reports_truncated_under_restrictive_scope_when_limit_hit_mid_page() -> None:
     """Same regression as above, for the restrictive-scope re-scan branch:
     hitting the caller's limit mid-page means at least one more allowed
@@ -395,9 +400,8 @@ async def test_list_all_raises_exception_for_a_record_inside_the_skip_window() -
     skip performing the check itself, so the old one-at-a-time control flow
     would have awaited (and propagated a failure for) every record up to and
     including the (limit+1)-th allowed one, not just the ones actually kept
-    in the returned page. A 2nd-round Codex review caught this: an earlier
-    draft of the fix wrongly treated any failure inside the skip window as
-    "not a match" and silently continued instead of raising."""
+    in the returned page. Treating any failure inside the skip window as
+    "not a match" would silently continue instead of raising."""
     failing = _record(1, resource_link={"href": "/api/v3/work_packages/1"})
     kept = _record(2, resource_link={"href": "/api/v3/work_packages/2"})
     api = _FakeNotificationApi(records=[failing, kept])

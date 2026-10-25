@@ -151,20 +151,19 @@ class ProjectService:
         settings: Settings,
         project_id_to_identifier: Mapping[int, str],
         resolver: ProjectResolver,
-        base_url: str,
         api_prefix: str,
     ) -> None:
         self._api = api
         self._settings = settings
         self._project_id_to_identifier = project_id_to_identifier
         self._resolver = resolver
-        self._base_url = base_url
         self._api_prefix = api_prefix
 
     def _stamp(self, value: Any) -> Any:
         return _stamp_project(value, settings=self._settings, project_id_to_identifier=self._project_id_to_identifier)
 
     async def list(self, *, search: str | None = None, offset: int = 1, limit: int | None = None) -> ProjectListResult:
+        access.ensure_read_enabled("project", settings=self._settings)
         effective_limit = clamp_limit(
             limit,
             default_page_size=self._settings.default_page_size,
@@ -582,13 +581,11 @@ class ProjectAdminService:
         settings: Settings,
         project_id_to_identifier: Mapping[int, str],
         resolver: ProjectResolver,
-        base_url: str,
     ) -> None:
         self._api = api
         self._settings = settings
         self._project_id_to_identifier = project_id_to_identifier
         self._resolver = resolver
-        self._base_url = base_url
 
     def _without_uncovered_options(
         self, fields: Sequence[ProjectFieldSchema], schema: Mapping[str, Any]

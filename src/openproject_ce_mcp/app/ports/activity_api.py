@@ -18,13 +18,10 @@ itself -- is how the HAL->model translation stays entirely inside the
 Adapter while still letting the Service control WHEN it runs; the same
 shape `ReminderRecord.summary` uses.
 
-`to_record`/`get_raw` support comment-posting: `add_work_package_comment`
-normalizes a just-posted comment's raw activity payload and fetches a
-fallback single activity by id (the `_fill_missing_activity_user`
-best-effort pattern) -- both reuse this Port/Adapter instead of a duplicated
-normalizer on `WorkPackageApi`. `update_comment` (PATCH) lives here too: an
-activity's comment is addressed by the activity id alone, not through its
-work package.
+`to_record` supports comment-posting: `add_work_package_comment` normalizes a just-posted comment's
+raw activity payload through this Port/Adapter instead of a duplicated normalizer on `WorkPackageApi`.
+`update_comment` (PATCH) and `get_raw` live here too: an activity's comment is addressed by the activity id
+alone, not through its work package.
 """
 
 from __future__ import annotations
@@ -36,14 +33,16 @@ from ...models import ActivitySummary
 
 
 class ActivitySummaryFactory(Protocol):
-    """`details` has no default: every caller decides whether the change details may be returned."""
+    """`details` and `user` have no default: every caller decides whether the change details may be
+    returned, and names the user, whom the server links by id only."""
 
-    def __call__(self, text_limit: int | None, *, details: bool) -> ActivitySummary: ...
+    def __call__(self, text_limit: int | None, *, details: bool, user: str | None) -> ActivitySummary: ...
 
 
 @dataclass(frozen=True)
 class ActivityRecord:
     to_summary: ActivitySummaryFactory
+    user_id: int | None
 
 
 class ActivityApi(Protocol):
@@ -65,16 +64,12 @@ class ActivityApi(Protocol):
         ...
 
     async def get_raw(self, activity_id: int) -> dict[str, Any]:
-        """Raw, unnormalized GET `activities/{activity_id}` -- used by the
-        `_fill_missing_activity_user` best-effort fallback fetch, which only
-        reads `_links.user` off the result. Lets errors propagate; the one
-        caller that needs a catch-and-log-and-continue behavior does so
-        itself, rather than this method swallowing errors for every caller.
-        """
+        """Raw, unnormalized GET `activities/{activity_id}`, read by `update_comment` for the links that
+        decide whether and where the edit is allowed. Errors propagate."""
         ...
 
     async def update_comment(self, activity_id: int, *, comment: str) -> dict[str, Any]:
         """PATCH `activities/{activity_id}` with a new comment text. Returns
-        the raw, unnormalized activity payload, like `get_raw`.
+        the raw, unnormalized activity payload.
         """
         ...

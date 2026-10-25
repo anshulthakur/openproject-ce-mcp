@@ -23,11 +23,15 @@ def _constant(node: ast.expr | None) -> object:
     return node.value if isinstance(node, ast.Constant) else None
 
 
-def _text_filters() -> list[tuple[str, int, str, ast.expr | None]]:
-    """(file, line, filter key, first value expression) of every `{key: {"operator": <text>, "values": [...]}}`."""
+def _text_filters(source: str | None = None) -> list[tuple[str, int, str, ast.expr | None]]:
+    """(file, line, filter key, first value expression) of every `{key: {"operator": <text>, "values": [...]}}`.
+    Scans the source tree, or the given source text when a test plants one."""
     found = []
-    for path in sorted(SOURCE.rglob("*.py")):
-        for node in ast.walk(ast.parse(path.read_text())):
+    texts = (
+        {"planted.py": source} if source is not None else {p.name: p.read_text() for p in sorted(SOURCE.rglob("*.py"))}
+    )
+    for name, text in texts.items():
+        for node in ast.walk(ast.parse(text)):
             if not isinstance(node, ast.Dict):
                 continue
             for key, value in zip(node.keys, node.values, strict=True):
@@ -38,7 +42,7 @@ def _text_filters() -> list[tuple[str, int, str, ast.expr | None]]:
                     continue
                 values = fields.get("values")
                 first = values.elts[0] if isinstance(values, ast.List) and values.elts else None
-                found.append((path.name, node.lineno, str(_constant(key)), first))
+                found.append((name, node.lineno, str(_constant(key)), first))
     return found
 
 
@@ -78,11 +82,13 @@ def test_a_filter_that_openproject_escapes_is_not_escaped_twice() -> None:
     assert doubled == []
 
 
-def test_the_scan_reads_a_filter_literal() -> None:
-    tree = ast.parse('{"name": {"operator": "~", "values": [escape_like(text)]}}')
-    assert isinstance(tree.body[0], ast.Expr)
-    literal = tree.body[0].value
-    assert isinstance(literal, ast.Dict)
-    inner = literal.values[0]
-    assert isinstance(inner, ast.Dict)
-    assert _constant(inner.keys[0]) == "operator" and _constant(inner.values[0]) in TEXT_OPERATORS
+def test_the_scan_reads_a_filter_literal_and_tells_escaped_from_raw_text() -> None:
+    planted = (
+        'a = {"name": {"operator": "~", "values": [escape_like(text)]}}\n'
+        'b = {"title": {"operator": "**", "values": [text]}}\n'
+        'c = {"id": {"operator": "=", "values": [text]}}\n'
+    )
+
+    found = _text_filters(planted)
+
+    assert [(key, _is_escaped(first)) for _, _, key, first in found] == [("name", True), ("title", False)]

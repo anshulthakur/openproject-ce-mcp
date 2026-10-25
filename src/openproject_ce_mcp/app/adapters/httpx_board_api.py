@@ -33,13 +33,9 @@ from ._text import SUBJECT_LIMIT
 from ._text import can_update_from_links as _can_update_from_links
 from ._text import id_from_href as _id_from_href
 from ._text import link_title as _link_title
+from ._text import normalize_form_validation_errors as _normalize_validation_errors
+from ._text import slug_from_href as _slug_from_href
 from ._text import trim_text as _trim_text
-
-
-def _slug_from_href(href: str | None) -> str | None:
-    if not href:
-        return None
-    return href.rstrip("/").rsplit("/", maxsplit=1)[-1] or None
 
 
 def _normalize_filter_values(values: Any) -> list[str]:
@@ -204,18 +200,3 @@ class HttpxBoardApi:
         return BoardFormResult(
             payload=payload, validation_errors=_normalize_validation_errors(embedded.get("validationErrors"))
         )
-
-
-def _normalize_validation_errors(value: Any) -> dict[str, str]:
-    if not isinstance(value, dict):
-        return {}
-    normalized: dict[str, str] = {}
-    for key, entry in value.items():
-        message = None
-        if isinstance(entry, dict):
-            message = _trim_text(entry.get("message"), limit=SUBJECT_LIMIT)
-        if message is None:
-            message = _trim_text(entry, limit=SUBJECT_LIMIT)
-        if message:
-            normalized[str(key)] = message
-    return normalized

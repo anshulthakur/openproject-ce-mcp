@@ -402,7 +402,7 @@ async def test_list_on_a_server_without_the_route_names_17_5() -> None:
         await service.list_for_work_package(42)
 
     assert str(exc_info.value) == (
-        "Listing wiki page links requires OpenProject 17.5 or newer; this instance appears to be older."
+        "Listing wiki page links: not found, or not available on this instance (it requires OpenProject 17.5 or newer)."
     )
 
 
@@ -414,7 +414,7 @@ async def test_create_on_a_server_with_list_and_delete_only_names_17_7() -> None
         await service.create(42, identifier="Home", provider="internal", confirm=True)
 
     assert str(exc_info.value) == (
-        "Creating wiki page links requires OpenProject 17.7 or newer; this instance appears to be older."
+        "Creating wiki page links: not found, or not available on this instance (it requires OpenProject 17.7 or newer)."
     )
 
 
@@ -427,7 +427,7 @@ async def test_delete_on_a_server_with_list_only_names_17_6() -> None:
         await service.delete(42, 9, confirm=True)
 
     assert str(exc_info.value) == (
-        "Deleting wiki page links requires OpenProject 17.6 or newer; this instance appears to be older."
+        "Deleting wiki page links: not found, or not available on this instance (it requires OpenProject 17.6 or newer)."
     )
     assert api.list_calls == [(42, 1, 50)]
 
@@ -440,7 +440,7 @@ async def test_delete_preview_on_a_server_without_any_route_names_17_6() -> None
         await service.delete(42, 9, confirm=False)
 
     assert str(exc_info.value) == (
-        "Deleting wiki page links requires OpenProject 17.6 or newer; this instance appears to be older."
+        "Deleting wiki page links: not found, or not available on this instance (it requires OpenProject 17.6 or newer)."
     )
 
 
@@ -455,7 +455,7 @@ async def test_delete_of_an_untyped_link_on_a_server_with_list_only_names_17_6()
         await service.delete(42, 9, confirm=True)
 
     assert str(exc_info.value) == (
-        "Deleting wiki page links requires OpenProject 17.6 or newer; this instance appears to be older."
+        "Deleting wiki page links: not found, or not available on this instance (it requires OpenProject 17.6 or newer)."
     )
 
 

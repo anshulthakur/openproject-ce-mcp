@@ -45,7 +45,7 @@ def test_find_in_chain_stops_at_a_leaf_with_no_wrapped_transport_attribute() -> 
 
 
 def test_find_innermost_in_chain_returns_the_deepest_match() -> None:
-    """Regression (Codex review round 11): find_in_chain alone returns the
+    """Regression: find_in_chain alone returns the
     OUTERMOST match, which is wrong for RetryTransport specifically --
     client.py needs the one closest to the real network so CountingTransport
     ends up seeing every genuine retry attempt that layer makes."""

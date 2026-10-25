@@ -1079,7 +1079,7 @@ def test_merge_prefill_empty_project_token_does_not_blank_global_token(tmp_path:
 
 @pytest.mark.parametrize("scope_key", ["OPENPROJECT_READ_PROJECTS", "OPENPROJECT_WRITE_PROJECTS"])
 def test_merge_prefill_explicit_empty_scope_overrides_broader_global_value(tmp_path: Path, scope_key: str) -> None:
-    """Regression (Codex review round 5): both scope keys are fail-closed --
+    """Regression: both scope keys are fail-closed --
     an explicit empty string is a deliberate "nothing readable/writable", not
     "unset". The pre-fix merge treated empty the same as absent for every
     key, so a higher-priority (project) config that intentionally locked
@@ -2060,7 +2060,7 @@ def test_main_skipping_advanced_preserves_existing_advanced_values(monkeypatch, 
 
 
 def test_main_quick_mode_preserves_existing_log_format_without_reprompting(monkeypatch, tmp_path: Path) -> None:
-    """Regression (Codex review round 5): OPENPROJECT_LOG_FORMAT was entirely
+    """Regression: OPENPROJECT_LOG_FORMAT was entirely
     absent from the wizard -- not read as prefill, not written to the
     generated env, not in _MINIMAL_ENV_FIELD_MAP -- so re-running configure
     against an existing json-logging setup silently reverted it to text on

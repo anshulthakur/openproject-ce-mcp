@@ -37,7 +37,7 @@ python tools/api-check/check_field_completeness.py --write     # also (re)write 
 ```
 
 `--all` is the **full** version map: it auto-extracts every endpoint resource and
-query-filter key from `client.py` and checks each across all 14 versions, so no
+query-filter key from `client.py` and checks each across all 17 versions, so no
 access is missed as the client grows. It flags anything introduced after 16.0
 (e.g. `workspaces` from 17.0 — used by the favorite tools — and `project_phases`
 from 16.1). Resources whose v3 API lives in a separate module engine
@@ -104,7 +104,7 @@ The matrix confirms that of every API symbol the client uses, only `displayId`
 (and the semantic-identifier model) changed across this range — both introduced
 in **17.4** (`present_from="17.4"`); everything else is stable back to 16.0.
 
-Bump / extend the `VERSIONS` array as new releases land, then re-run both
+Bump / extend the `VERSIONS` array as new releases land, then re-run all
 scripts. A symbol that appears or disappears in an unexpected version fails the
 check until its `present_from`/`expect` allowlist is updated.
 

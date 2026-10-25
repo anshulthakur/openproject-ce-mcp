@@ -94,6 +94,35 @@ Thanks to our contributors: [@feci](https://github.com/feci) ([#35](https://gith
 
 ### Security
 
+- A work package field hidden with `OPENPROJECT_HIDE_WORK_PACKAGE_FIELDS` was
+  left out of the results but could still be read through a query: a filter
+  such as `status`, `assignee`, `project` or `custom_field_filters`, the text
+  of `search_work_packages` (it matches the subject), `sort_by`, `group_by`
+  (whose group labels are the values) and the sums of `include_sums` showed it.
+  `list_work_packages` and `search_work_packages` now refuse a filter, a search
+  text, an ordering or a grouping by a hidden field, `list_my_open_work_packages`
+  is refused while `assignee` or `status` is hidden, and the sums of a hidden
+  field are left out.
+- A work package of a covered project can carry a version shared into its
+  project from a project that `OPENPROJECT_READ_PROJECTS` does not cover, and
+  from OpenProject 17.3 a sprint, and from 17.6 a backlog bucket, shared the
+  same way. Work package reads, lists, searches, `execute_query` rows, write
+  results and the delete preview named it in `version`, `target_versions`,
+  `sprint` and the values of version custom fields, and `groups` named it when
+  grouped by such a column. They now leave the name out as if it were unset,
+  a group named after one keeps its count and sums under the label
+  `[outside read scope]`, and `version` names a version only when it is the
+  whole assignment. Under a restricted scope the server reads the defining
+  project of each version, sprint or bucket a result names once and remembers
+  it for five minutes; under `*` nothing is looked up. A sprint the token has
+  no right to view loses its name too, because its project cannot be read. A
+  version custom field also accepts, by name or id, only the versions a result
+  may name: the name of a hidden one was a way to confirm it exists and to
+  assign it.
+- A version, sprint or backlog bucket whose defining project the token cannot
+  see is covered under `*` and not covered under a restricted scope on every
+  supported release; OpenProject 16.x leaves the project link out and 17.x
+  renders an undisclosed placeholder, and the two behaved differently.
 - A project link now counts for `OPENPROJECT_READ_PROJECTS` and
   `OPENPROJECT_WRITE_PROJECTS` only when it points to a project on the
   configured OpenProject instance; wherever a project link is checked, a link
@@ -149,9 +178,8 @@ Thanks to our contributors: [@feci](https://github.com/feci) ([#35](https://gith
   now left out per version, as in the list without a project, and
   `get_project_work_package_context` and `get_project_admin_context` leave out
   versions, sprints and backlog buckets of such projects in the allowed values
-  of their fields. A shared
-  version defined outside the allowlist can therefore no longer be assigned
-  by name.
+  of their fields. A shared version defined outside the allowlist can therefore
+  no longer be assigned by name.
 - `list_time_entry_activities` named every project that enables an activity,
   also those outside `OPENPROJECT_READ_PROJECTS`. It now names only the
   projects the read allowlist covers.
@@ -193,7 +221,7 @@ Thanks to our contributors: [@feci](https://github.com/feci) ([#35](https://gith
   whether or not `OPENPROJECT_READ_PROJECTS` covered it, in markdown and in plain
   text. It is now refused unless `OPENPROJECT_READ_PROJECTS` is `*` and no
   field of work packages, projects, versions, documents, meetings, posts, users,
-  groups or views is hidden.
+  groups, principals or views is hidden.
 
 ### Added
 
@@ -228,11 +256,15 @@ Thanks to our contributors: [@feci](https://github.com/feci) ([#35](https://gith
   broken.
 - `configure` and `doctor` read Codex's configuration from `CODEX_HOME` when
   it is set.
-- When Codex is installed, `doctor` runs `codex mcp list` twice (at most 20
+- When Codex is installed, `doctor` runs `codex mcp list` up to twice (at most 20
   seconds each) to see the configuration Codex applies; Codex may contact
   configured HTTP MCP servers during that call.
 - On Python 3.10 the package depends on `tomli`, which reads Codex's
   configuration.
+- The package declares `pydantic` (2.12 or newer) and `typing-extensions` (4.16
+  or newer), which it imports directly, and installs `httpx` with its SOCKS
+  extra, so a `socks5://` proxy in `ALL_PROXY` starts without a manual install.
+  `httpx` is limited to versions below 0.29.
 - An allowlist pattern like `my-project` now also matches a project named
   "My Project" in the project tools, such as `list_projects`, `get_project`,
   `update_project` and `create_project`, as it already did in the checks on
@@ -240,6 +272,80 @@ Thanks to our contributors: [@feci](https://github.com/feci) ([#35](https://gith
 
 ### Fixed
 
+- A resource that does not exist in a feature gated by an OpenProject version
+  (meetings and their parts, wiki page links, user working hours and non-working
+  times, reminders, project favorites) was reported as "requires OpenProject X
+  or newer; this instance appears to be older", also on a current instance
+  where `get_meeting(999)` simply found no meeting. The error now says that
+  the resource was not found, or that the feature is not available and needs
+  that release.
+- Collections were treated as read to their end when a page came back shorter
+  than the page size that was asked for. OpenProject cuts a requested page size
+  to its configured maximum, so on an instance with a lower maximum the first
+  page already looked like the last one and every later element was silently
+  missing: versions, sprint names, relations, time entry hour sums, reminder
+  lookups, notifications, project searches, saved query results, and the
+  scanned results of `search_work_packages` and `list_my_open_work_packages`
+  under a restricted project scope. These now count a collection as read to its
+  end when the elements fetched reach the `total` the server reports, or when a
+  page is empty; where only the page number is known, the page size the server
+  reports is used. At startup the server also reads the instance's maximum API
+  page size and lowers `OPENPROJECT_MAX_PAGE_SIZE` (and the default page size)
+  to it with a warning, so the tools that page the server directly (users,
+  groups, memberships, meetings, boards, actions, `list_work_packages`) count
+  their pages in the size the server really uses.
+- A form field with several violated constraints showed only "Multiple field
+  constraints have been violated." in the validation errors of every form that
+  reports them (work packages, projects, versions, time entries, grids, boards,
+  memberships, meetings, users); the messages are now joined from the nested
+  errors. The operator of a board filter without a title came back
+  percent-encoded (`%3D` instead of `=`).
+- With `OPENPROJECT_READ_PROJECTS` or `OPENPROJECT_WRITE_PROJECTS` naming
+  identifiers, every response that linked a known project read the project
+  again (`GET /projects/{id}`) before the check, because a link carries no
+  identifier and a rename could have changed it. The projects of a response are
+  now read in one request, and once per tool call; a rename is still noticed by
+  the next tool call.
+- The current user, the statuses, the priorities and the instance configuration
+  were read once and kept until the server restarted, so a status or priority
+  an administrator renamed or added stayed unknown by name. They now expire
+  after five minutes like the other remembered lookups. Concurrent first reads,
+  and concurrent reads of the same user name, share one request.
+- `list_time_entries` with `user` compared the display name of each entry's
+  user, so two users with the same name were mixed up. The reference ("me", an
+  id or an exact name) is resolved to an id, and entries match by the id in
+  their user link. A name two users share is reported as ambiguous. The name
+  is looked up among the users the token can see, so time entries now carry
+  `user_id` beside `user` (hidden together with it): the id works for a user
+  who is no longer visible by name.
+- The `user` of an activity in `get_work_package_activities` and of a comment
+  posted with `add_work_package_comment` was always empty, because OpenProject
+  links the user by href without a name. The name is now read from the user
+  (one request per distinct user, remembered for five minutes) unless `user` is
+  a hidden activity field, and a posted comment no longer fetches the activity
+  a second time. A user the token cannot see has no name.
+- `assignee: "me"` in a work package write failed with a permission error when
+  `OPENPROJECT_ENABLE_MEMBERSHIP_READ` was false, and a version, sprint or
+  project given by name failed the same way when the version or project reads
+  were off, although work package writes do not depend on those reads. The
+  lookups behind them no longer check another tool group's read gate; the
+  tools of that group still do.
+- `OPENPROJECT_TIMEOUT`, `OPENPROJECT_RETRY_BASE_DELAY` and
+  `OPENPROJECT_RETRY_MAX_DELAY` accepted `nan` and `inf`, which passed the
+  minimum check and reached the HTTP client; they are now rejected at start.
+  A `Retry-After` header that is not a finite number is ignored, and a
+  time entry duration too large for a float no longer becomes infinity.
+- `update_work_package` and `bulk_update_work_packages` now refuse a change of
+  `version`, `target_versions`, `sprint` or a version custom field while the
+  work package holds such an assignment in a project outside
+  `OPENPROJECT_READ_PROJECTS`. The change replaced the whole value and removed
+  an assignment the result no longer shows. The error names how many
+  assignments are in the way and no name.
+- `execute_query` rows kept the values of custom fields hidden by
+  `OPENPROJECT_HIDE_CUSTOM_FIELDS`, their comments, and the description length
+  and truncation flag when `description` is a hidden field, which every other
+  work package read removes. `execute_query` and the work package reads now
+  apply the same masking.
 - `render_text` failed with `OpenProject returned invalid JSON` on every
   supported version, because OpenProject answers the render endpoints with
   `text/html` and the server parsed the answer as JSON. It now returns the
@@ -393,19 +499,6 @@ Thanks to our contributors: [@feci](https://github.com/feci) ([#35](https://gith
   edit that text instead. The tool description and the tool reference say
   that only relation links can be deleted and that deleting needs the "Manage
   wiki page links" permission.
-- The configuration guide listed the sprint tools under
-  `OPENPROJECT_ENABLE_WORK_PACKAGE_READ` and left out the backlog bucket
-  tools; both are switched by `OPENPROJECT_ENABLE_PROJECT_READ`. Several other
-  tool group rows also left out tools they switch, among them news, wiki,
-  views, grids, statuses, time entries, reminders, watchers and project
-  copies. A new table in the guide lists every tool per setting, and another
-  lists the tools that also need a second setting.
-- The README said that the read tools of the projects, work packages,
-  memberships, versions, boards and meetings groups are registered by default.
-  Their project-bound tools are registered only while
-  `OPENPROJECT_READ_PROJECTS` is non-empty; the README, the security policy
-  and the configuration guide now say so, and the guide lists the core read
-  tools registered without it.
 - An invalid `select` error now says that no request was sent, so a rejected
   confirmed bulk write is known to have written nothing. The
   `bulk_create_work_packages` and `bulk_update_work_packages` descriptions say

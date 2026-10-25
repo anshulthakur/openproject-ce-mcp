@@ -31,7 +31,7 @@ from collections.abc import Mapping
 from typing import Annotated, Any
 
 from mcp.server.mcpserver import Context
-from pydantic import Field, StrictInt
+from pydantic import Field
 
 from .client import BATCH_READ_MAX_IDS, CLEAR, CLEAR_PARENT, CLEAR_VERSION
 from .models import (
@@ -330,7 +330,10 @@ async def list_work_packages(
     either way (a sum over the whole filtered result set even without
     grouping). Same scope-safety rule as total above: groups/total_sums
     come back null whenever the query cannot be proven restricted to
-    OPENPROJECT_READ_PROJECTS server-side.
+    OPENPROJECT_READ_PROJECTS server-side. A group named after a version,
+    sprint or backlog bucket defined in a project that
+    OPENPROJECT_READ_PROJECTS does not cover keeps its count and sums under
+    the label [outside read scope].
 
     Version rollup recipe: group_by="status", version="<version id or
     name>", include_sums=true returns per-status progress/time sums for one
@@ -798,7 +801,7 @@ async def update_work_package(
     estimated_time: str | None = None,
     remaining_time: str | None = None,
     duration: str | None = None,
-    percentage_done: StrictInt | None = None,
+    percentage_done: int | None = None,
     confirm: Confirm = False,
 ) -> WorkPackageWriteResult:
     """Update a work package.
@@ -811,6 +814,9 @@ async def update_work_package(
     has more than one target version, version alone is rejected; use target_versions instead.
     observed_in_versions accepts a list of version names/ids recording where a bug was observed
     (OpenProject 17.9+, types with the attribute enabled); pass [] to clear.
+    A change of version, target_versions, sprint or a version custom field is refused while the work
+    package holds such an assignment in a project OPENPROJECT_READ_PROJECTS does not cover, because the
+    change would remove it.
     estimated_time, remaining_time, duration accept ISO8601 duration strings (e.g., 'PT8H' for 8 hours, 'PT1H30M' for 1.5 hours, 'P1D' for 1 day); omit to leave unchanged, or pass 'none' to clear the field. percentage_done is an integer 0-100.
     Setting status to a closed status auto-fills percentage_done=100 and remaining_time=PT0H when you
     don't supply them explicitly and OpenProject's schema reports those fields as writable (on instances

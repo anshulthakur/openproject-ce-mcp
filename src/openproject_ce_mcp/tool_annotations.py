@@ -58,7 +58,6 @@ _HINTS: dict[Effect, tuple[bool, bool, bool]] = {
 
 _EFFECT_BY_PREFIX: dict[str, Effect] = {
     "create": Effect.ADDITIVE,
-    "bulk_create": Effect.ADDITIVE,
     "update": Effect.OVERWRITE,
     "bulk_update": Effect.OVERWRITE,
     "set": Effect.OVERWRITE,

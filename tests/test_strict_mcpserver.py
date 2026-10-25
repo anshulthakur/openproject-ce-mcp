@@ -120,7 +120,7 @@ async def test_unknown_tool_name_keeps_standard_error(strict_mcp: StrictMCPServe
 async def test_unknown_tool_name_is_still_logged_as_a_structured_dispatch_failure(
     strict_mcp: StrictMCPServer, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Regression (Codex review round 15): a genuinely unknown/misspelled/
+    """Regression: a genuinely unknown/misspelled/
     stale tool name reached the SDK's own "Unknown tool" ToolError (whose
     __cause__ is never a pydantic.ValidationError) with no structured log
     entry at all -- the documented one-line-per-tool-call contract silently
@@ -332,7 +332,7 @@ async def test_verify_strict_dispatch_passes_on_live_app() -> None:
 
 
 async def test_verify_strict_dispatch_does_not_emit_a_warning_log(caplog: pytest.LogCaptureFixture) -> None:
-    """Regression (Codex review round 11): verify_strict_dispatch's own
+    """Regression: verify_strict_dispatch's own
     internal self-test deliberately triggers the exact same
     [VALIDATION_FAILED] rejection path a real caller's bad request would --
     without this suppression, every healthy server startup and doctor
@@ -432,7 +432,10 @@ async def test_a_non_finite_number_inside_an_untyped_container_is_rejected(
     assert typed_mcp._test_calls == []  # type: ignore[attr-defined]
 
 
-@pytest.mark.parametrize("extra", ['{"a": NaN}', '{"a": [Infinity]}', "[NaN]"])
+@pytest.mark.parametrize(
+    "extra",
+    ['{"a": NaN}', '{"a": [Infinity]}', "[NaN]", '{"a": 1e999}', '{"a": [-1e999]}', '[{"b": 1E400}]', "[1e999]"],
+)
 async def test_a_non_finite_number_in_json_text_is_not_decoded_into_a_value(
     typed_mcp: StrictMCPServer, extra: str
 ) -> None:

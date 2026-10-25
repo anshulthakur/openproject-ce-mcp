@@ -5,21 +5,8 @@
 keep working; it lives at the package root because `services` needs the same
 same-origin check but cannot import from `adapters`.
 
-`_normalize_validation_errors` has two genuinely different behavioral shapes
-across adapters, not one: Board/Membership/User check `entry.get("message")`
-before falling back to a raw trim of the whole entry; Project/Version/News/
-Document/Grid/Time Entry check formattable-text extraction (`raw`/`html`)
-first, then `message`, then a raw trim fallback -- the latter shape is
-`normalize_form_validation_errors` below, shared. Only Board/Membership/User's
-message-first shape stays adapter-local (not safe to unify with the other
-shape without changing behavior), per this project's standing "don't unify
-what isn't truly the same" principle.
-
-`httpx_board_api.py`'s own `_slug_from_href` stays LOCAL and is not shared
-with `slug_from_href` below: it uses `rsplit` with no `unquote` call, a
-genuinely different (not just differently-written) behavior for a
-percent-encoded slug -- sharing it here would silently change Board's output
-for any href whose final segment needs unquoting.
+Every adapter reads a form's `validationErrors` through `normalize_form_validation_errors`
+below; a structural test keeps a second copy from reappearing.
 """
 
 from __future__ import annotations
@@ -182,16 +169,29 @@ def has_usable_id(item: Any) -> bool:
     return isinstance(raw_id, int | str) and str(raw_id).isdigit()
 
 
+def _nested_error_messages(entry: Any, *, limit: int) -> list[str]:
+    nested = entry.get("_embedded", {}).get("errors") if isinstance(entry, dict) else None
+    if not isinstance(nested, list):
+        return []
+    messages = (trim_text(item.get("message"), limit=limit) for item in nested if isinstance(item, dict))
+    return [message for message in messages if message]
+
+
 def normalize_form_validation_errors(value: Any, *, limit: int = SUBJECT_LIMIT) -> dict[str, str]:
-    """Try formattable-text extraction, then `entry.get("message")`, then a
-    raw trim fallback. Used by Grids', Time Entries', Projects', and
-    Versions' `create`/`update` form-validation responses, all of which share
-    this exact three-branch shape.
+    """The message of every field in a form's `validationErrors`.
+
+    A field with several violated constraints is one `MultipleErrors` entry whose own message only
+    says so; the constraints are the messages under `_embedded.errors`, and they are joined here.
+    Otherwise: formattable-text extraction, then `entry.get("message")`, then a raw trim.
     """
     if not isinstance(value, dict):
         return {}
     normalized: dict[str, str] = {}
     for key, entry in value.items():
+        nested = _nested_error_messages(entry, limit=limit)
+        if nested:
+            normalized[str(key)] = "; ".join(nested)
+            continue
         message = _extract_formattable_text(entry, limit=limit)
         if message is None and isinstance(entry, dict):
             message = trim_text(entry.get("message"), limit=limit)

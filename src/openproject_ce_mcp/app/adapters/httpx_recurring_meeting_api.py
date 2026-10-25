@@ -82,21 +82,6 @@ def normalize_occurrence(payload: dict[str, Any]) -> RecurringMeetingOccurrenceS
     )
 
 
-def _normalize_validation_errors(value: Any) -> dict[str, str]:
-    if not isinstance(value, dict):
-        return {}
-    normalized: dict[str, str] = {}
-    for key, entry in value.items():
-        message = None
-        if isinstance(entry, dict):
-            message = _trim_text(entry.get("message"), limit=SUBJECT_LIMIT)
-        if message is None:
-            message = _trim_text(entry, limit=SUBJECT_LIMIT)
-        if message:
-            normalized[str(key)] = message
-    return normalized
-
-
 class HttpxRecurringMeetingApi:
     def __init__(self, transport: Transport) -> None:
         self._transport = transport

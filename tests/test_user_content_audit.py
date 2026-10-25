@@ -44,6 +44,26 @@ def _first_target(assign: ast.Assign) -> str | None:
     return target.id if isinstance(target, ast.Name) else None
 
 
+def _inline_undelimited(function: ast.AST) -> list[ast.Call]:
+    """Extractor calls that are not assigned to a name and not an argument of a delimiter call."""
+    assigned = {id(n.value) for n in ast.walk(function) if isinstance(n, ast.Assign)}
+    delimited = {
+        id(inner)
+        for node in ast.walk(function)
+        if isinstance(node, ast.Call) and _called(node) in DELIMITERS
+        for argument in node.args
+        for inner in ast.walk(argument)
+    }
+    return [
+        node
+        for node in ast.walk(function)
+        if isinstance(node, ast.Call)
+        and _called(node) in EXTRACTORS
+        and id(node) not in assigned
+        and id(node) not in delimited
+    ]
+
+
 def _violations() -> tuple[list[str], int]:
     problems: list[str] = []
     checked = 0
@@ -52,6 +72,12 @@ def _violations() -> tuple[list[str], int]:
             if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
             delimited = _delimited_names(function)
+            for call in _inline_undelimited(function):
+                checked += 1
+                if (path.name, function.name) not in NOT_USER_TEXT:
+                    problems.append(
+                        f"{path.name}:{call.lineno} {function.name} extracts text inline without a delimiter"
+                    )
             for node in ast.walk(function):
                 if isinstance(node, ast.Assign) and _called(node.value) in EXTRACTORS:
                     checked += 1
@@ -84,3 +110,13 @@ def test_the_scan_catches_a_text_that_is_not_delimited() -> None:
 
     assert _delimited_names(function) == set()
     assert _delimited_names(delimiting) == {"text"}
+
+
+def test_the_scan_catches_an_inline_extraction_without_a_delimiter() -> None:
+    bare = ast.parse("def f(payload):\n    return Summary(text=_extract_formattable_text(payload.get('x')))\n").body[0]
+    wrapped = ast.parse(
+        "def f(payload):\n    return Summary(text=_delimit_user_content(_extract_formattable_text(payload.get('x'))))\n"
+    ).body[0]
+
+    assert len(_inline_undelimited(bare)) == 1
+    assert _inline_undelimited(wrapped) == []

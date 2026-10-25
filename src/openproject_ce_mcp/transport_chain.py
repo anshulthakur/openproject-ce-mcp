@@ -11,11 +11,9 @@ A single top-level `isinstance` check sees only the outermost layer and
 either misses an already-present inner wrapper (causing a duplicate) or
 fails to recognize one that IS present but not on top (causing client.py to
 add a redundant extra layer next to it). Two real bugs of exactly this
-shape were found in successive review rounds (a Codex round 9 double-wrap,
-then a round 10 finding that the round 9 fix itself missed two more
-orderings) before this module existed -- walking the whole chain, not just
-the top, is what actually closes the class of bug, not just the two
-specific orderings each successive patch happened to test for.
+shape (a double wrap, then a fix that missed two more orderings) came from
+checking only the top layer; walking the whole chain, not just the top, is
+what closes the class of bug, not just the specific orderings a patch tested.
 
 Every transport this walks must expose its inner transport as a public
 `wrapped_transport` attribute (both `CountingTransport` and `RetryTransport`

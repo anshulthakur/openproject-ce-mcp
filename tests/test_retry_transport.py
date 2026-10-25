@@ -386,3 +386,10 @@ async def test_retryable_response_closed_before_retry():
 # out of this transport (at
 # OPENPROJECT_MAX_RETRIES=0, RetryTransport was never installed at all, so
 # counting here undercounted every real request to 0).
+
+
+@pytest.mark.parametrize("value", ["nan", "NaN", "inf", "-inf", "1e999"])
+def test_a_retry_after_that_is_not_a_finite_number_is_ignored(value: str) -> None:
+    retry_transport = RetryTransport(AsyncMock(spec=httpx.AsyncBaseTransport), max_retries=3)
+
+    assert retry_transport._parse_retry_after(value) is None

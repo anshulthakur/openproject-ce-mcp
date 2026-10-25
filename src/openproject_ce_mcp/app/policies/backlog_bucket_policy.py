@@ -10,7 +10,7 @@ has the same TWO branches, not one.
   embedded form exists without a top-level link -- see
   `httpx_backlog_bucket_api.py`'s `_defining_workspace_link`).
 
-The link branch maps 1:1 onto `scope.ensure_project_link_allowed`. The
+The link branch maps 1:1 onto `scope.ensure_defining_project_link_allowed`. The
 embedded-object branch first requires the object's own self link to name
 its id (`scope.ensure_embedded_project_consistent`), then is composed from
 `scope.project_payload_candidates(...)` + `scope.scope_matches_candidates(...)`.
@@ -70,11 +70,10 @@ def ensure_backlog_bucket_workspace_allowed(
             )
         policy_observation.record_policy_decision("project_scope_read_allowed")
         return
-    # The link branch delegates to the already-instrumented
-    # scope.ensure_project_link_allowed (its own @_observe_project_scope_check
-    # decorator records project_scope/policy_decision) -- no separate
-    # recording needed here.
-    scope.ensure_project_link_allowed(
+    # The check delegates to the already-instrumented scope.ensure_project_link_allowed (its own
+    # @_observe_project_scope_check decorator records project_scope/policy_decision); a missing link
+    # under `*` is allowed without a decision to record.
+    scope.ensure_defining_project_link_allowed(
         defining_workspace_link, settings=settings, project_id_to_identifier=project_id_to_identifier
     )
 

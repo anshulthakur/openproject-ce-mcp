@@ -150,17 +150,6 @@ def _resolve_work_package_id_denied():
     return resolve
 
 
-def _work_package_project_allowed_from(allowed_hrefs: set[str]):
-    calls: list[str] = []
-
-    async def check(href: str, *, context=None) -> bool:
-        calls.append(href)
-        return href in allowed_hrefs
-
-    check.calls = calls  # type: ignore[attr-defined]
-    return check
-
-
 def _work_package_project_allowed_bulk_from(allowed_hrefs: set[str]):
     """Fake `WorkPackageProjectAllowedBulkCheck`: mirrors
     `WorkPackageResolver.project_links_allowed`'s dedupe/cache/only-bools-
@@ -194,7 +183,6 @@ def _service(
     work_package_lookup_api: _FakeWorkPackageLookupApi | None = None,
     settings=None,
     resolve_work_package_id=None,
-    work_package_project_allowed=None,
     work_package_project_allowed_bulk=None,
 ) -> ReminderService:
     return ReminderService(
@@ -203,8 +191,6 @@ def _service(
         settings=settings or make_settings(),
         project_id_to_identifier=PROJECT_ID_TO_IDENTIFIER,
         resolve_work_package_id=resolve_work_package_id or _resolve_work_package_id_ok(),
-        work_package_project_allowed=work_package_project_allowed
-        or _work_package_project_allowed_from({"/api/v3/work_packages/42"}),
         work_package_project_allowed_bulk=work_package_project_allowed_bulk
         or _work_package_project_allowed_bulk_from({"/api/v3/work_packages/42"}),
     )
@@ -580,7 +566,10 @@ class _ReminderApiOfOpenProject160(_FakeReminderApi):
 async def test_a_reminder_call_on_a_server_without_the_routes_names_the_version_floor(call) -> None:
     service = _service(api=_ReminderApiOfOpenProject160())
 
-    with pytest.raises(NotFoundError, match=r"Reminders requires OpenProject 16\.1 or newer"):
+    with pytest.raises(
+        NotFoundError,
+        match=r"Reminders: not found, or not available on this instance \(it requires OpenProject 16\.1 or newer\)",
+    ):
         await call(service)
 
 

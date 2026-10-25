@@ -261,7 +261,7 @@ async def test_create_commits_nextcloud_when_confirmed() -> None:
 
     assert result.state == "confirmed"
     # authenticationMethod is a link (link_without_resource on
-    # StorageRepresenter, op-sources), never a top-level property -- its
+    # StorageRepresenter in the OpenProject source), never a top-level property -- its
     # setter reads ONLY _links.authenticationMethod.href (a full URN), so it
     # must be nested under _links, not sent as a bare "authentication_method"
     # key (which the real representer silently drops).
@@ -453,7 +453,7 @@ async def test_update_preview_also_denied_without_admin_write_enabled() -> None:
 
 @pytest.mark.asyncio
 async def test_update_denies_admin_write_before_checking_a_hidden_field() -> None:
-    """Regression (Codex review round 8): update() checked
+    """Regression: update() checked
     hidden_fields.ensure_field_writable BEFORE access.ensure_write_enabled,
     the opposite order from create() (which has this pre-check as its first
     line). A caller without ADMIN_WRITE enabled AND with "name"/"host"

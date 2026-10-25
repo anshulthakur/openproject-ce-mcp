@@ -17,6 +17,7 @@ from typing import Any
 
 from ...models import ReminderSummary
 from ..errors import NotFoundError
+from ..pagination import page_is_last
 from ..ports.reminder_api import ReminderRecord
 from ..transport.protocol import Transport
 from ._text import SUBJECT_LIMIT
@@ -96,7 +97,7 @@ class HttpxReminderApi:
             if match is not None:
                 return match
             total = int(payload.get("total", len(elements)))
-            if offset * page_size >= total or not elements:
+            if page_is_last(payload, offset=offset, requested_page_size=page_size, total=total) or not elements:
                 return None
             offset += 1
 

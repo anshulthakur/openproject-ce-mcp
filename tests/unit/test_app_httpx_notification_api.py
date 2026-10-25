@@ -246,3 +246,20 @@ def test_normalize_notification_falls_back_to_subject_when_missing() -> None:
     summary = normalize_notification(payload)
 
     assert summary.subject == "Notification 7"
+
+
+@pytest.mark.asyncio
+async def test_list_all_is_not_exhausted_while_a_server_that_cut_the_page_size_has_more_pages() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params["pageSize"] == "100"
+        return httpx.Response(
+            200,
+            json={"_embedded": {"elements": [_notification_payload()]}, "total": 100, "pageSize": 20},
+            request=request,
+        )
+
+    async with _client(handler) as http_client:
+        api = HttpxNotificationApi(HttpxTransport(http_client))
+        page = await api.list_all(unread_only=False, offset=2, limit=100)
+
+    assert page.exhausted is False  # 2 * 20 = 40 < 100, although 2 * 100 >= 100

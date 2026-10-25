@@ -10,6 +10,7 @@ from _client_test_helpers import (
     _make_grid_settings,
     _make_project_response,
     _make_wp_form_response,
+    _project_index_response,
     _projects_search_handler,
     make_settings,
     serving_projects,
@@ -778,9 +779,9 @@ async def test_resolve_version_id_project_less_name_match_beyond_first_filtered_
             assert request.url.params["pageSize"] == str(make_settings().max_page_size)
             page = request.url.params["offset"]
             if page == "1":
-                return httpx.Response(200, json={"_embedded": {"elements": decoys}}, request=request)
+                return httpx.Response(200, json={"total": 51, "_embedded": {"elements": decoys}}, request=request)
             if page == "2":
-                return httpx.Response(200, json={"_embedded": {"elements": [exact]}}, request=request)
+                return httpx.Response(200, json={"total": 51, "_embedded": {"elements": [exact]}}, request=request)
         raise AssertionError(f"Unexpected request: {request.method} {request.url}")
 
     client = OpenProjectClient(make_settings(), transport=httpx.MockTransport(handler))
@@ -1065,15 +1066,25 @@ _FID_VERSION = {
 _FID_SCAN = [(42, "FIDOLD", "Fid Project")]
 
 
-def _linked_content_handler(seen: list[str], projects: list[httpx.Response | dict]):
-    """Serves content of project 42; each GET /projects/42 answers with the next of `projects`."""
+_FID_READ = 'GET /api/v3/projects [{"id":{"operator":"=","values":["42"]}}]'
+
+
+def _fid_server(seen: list[str], answers: list[httpx.Response | tuple]):
+    """Content of project 42 and the project index. The startup scan lists FIDOLD; each later read
+    of the id answers with the next of `answers` (a project tuple or a response)."""
 
     def handler(request: httpx.Request) -> httpx.Response:
-        seen.append(f"{request.method} {request.url.path}")
         path = request.url.path
+        if request.method == "GET" and path == "/api/v3/projects":
+            filters = request.url.params.get("filters", "[]")
+            if '"id"' not in filters:
+                return _project_index_response(request, _FID_SCAN)
+            seen.append(f"GET {path} {filters}")
+            answer = answers.pop(0)
+            return answer if isinstance(answer, httpx.Response) else _project_index_response(request, [answer])
+        seen.append(f"{request.method} {path}")
         if request.method == "GET" and path == "/api/v3/projects/42":
-            answer = projects.pop(0)
-            return answer if isinstance(answer, httpx.Response) else httpx.Response(200, json=answer, request=request)
+            return httpx.Response(200, json=_fid_project("FIDOLD"), request=request)
         if request.method == "GET" and path == "/api/v3/work_packages/7":
             return httpx.Response(200, json=_FID_WORK_PACKAGE, request=request)
         if request.method == "GET" and path == "/api/v3/versions/3":
@@ -1087,8 +1098,14 @@ def _linked_content_handler(seen: list[str], projects: list[httpx.Response | dic
     return handler
 
 
+async def _fid_client(settings, handler) -> OpenProjectClient:
+    client = OpenProjectClient(settings, transport=httpx.MockTransport(handler))
+    await client.initialize()
+    return client
+
+
 async def _run_tool(settings, handler, tool_name: str, arguments: dict):
-    client = await started_client(settings, handler, _FID_SCAN)
+    client = await _fid_client(settings, handler)
     tool = create_app(settings)._tool_manager.get_tool(tool_name)
     assert tool is not None
     try:
@@ -1128,12 +1145,12 @@ async def test_content_of_a_project_renamed_after_the_directory_recorded_it_is_d
     tool_name: str, arguments: dict, content_request: str, scope: dict, denied_by: str
 ) -> None:
     seen: list[str] = []
-    handler = _linked_content_handler(seen, [_fid_project("FIDNEW")])
+    handler = _fid_server(seen, [(42, "FIDNEW", "Fid Project")])
 
     with pytest.raises(ToolError, match=rf"\[PROJECT_SCOPE_DENIED\].*{denied_by}"):
         await _run_tool(_base_settings(**scope), handler, tool_name, arguments)
 
-    assert seen == [content_request, "GET /api/v3/projects/42"]
+    assert seen == [content_request, _FID_READ]
 
 
 @pytest.mark.parametrize(("pattern", "confirmed"), [("FIDOLD", True), ("Fid*", False), ("42", False)])
@@ -1142,22 +1159,22 @@ async def test_a_linked_project_is_re_read_only_when_its_recorded_identifier_alo
     pattern: str, confirmed: bool
 ) -> None:
     seen: list[str] = []
-    handler = _linked_content_handler(seen, [_fid_project("FIDOLD")])
+    handler = _fid_server(seen, [(42, "FIDOLD", "Fid Project")])
 
     result = await _run_tool(
         _base_settings(read_projects=(pattern,)), handler, "get_work_package", {"work_package_id": 7}
     )
 
     assert result["id"] == 7
-    assert seen == ["GET /api/v3/work_packages/7"] + (["GET /api/v3/projects/42"] if confirmed else [])
+    assert seen == ["GET /api/v3/work_packages/7"] + ([_FID_READ] if confirmed else [])
 
 
 @pytest.mark.asyncio
-async def test_a_failed_re_read_denies_by_the_recorded_identifier_and_the_next_link_reads_again() -> None:
+async def test_a_failed_re_read_denies_by_the_recorded_identifier_and_the_next_link_looks_it_up() -> None:
     settings = _base_settings(read_projects=("FIDOLD",))
     seen: list[str] = []
     failure = httpx.Response(500, json={"_type": "Error", "message": "boom"})
-    client = await started_client(settings, _linked_content_handler(seen, [failure, _fid_project("FIDOLD")]), _FID_SCAN)
+    client = await _fid_client(settings, _fid_server(seen, [failure]))
     tool = create_app(settings)._tool_manager.get_tool("get_work_package")
     assert tool is not None
 
@@ -1166,7 +1183,7 @@ async def test_a_failed_re_read_denies_by_the_recorded_identifier_and_the_next_l
     result = await tool.run({"work_package_id": 7}, context=FakeContext(client))
 
     assert result["id"] == 7
-    assert seen == ["GET /api/v3/work_packages/7", "GET /api/v3/projects/42"] * 2
+    assert seen == ["GET /api/v3/work_packages/7", _FID_READ, "GET /api/v3/work_packages/7", "GET /api/v3/projects/42"]
     await client.aclose()
 
 

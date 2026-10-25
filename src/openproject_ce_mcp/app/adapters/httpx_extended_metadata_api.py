@@ -40,7 +40,7 @@ def normalize_help_text(payload: dict[str, Any]) -> HelpTextSummary:
     any, is a Service-layer concern).
 
     attribute_caption reads `caption` -- `HelpTextRepresenter` (verified
-    against op-sources 16.1/17.7) declares `property :caption` with no
+    against the OpenProject 16.1 and 17.7 source) declares `property :caption` with no
     `as:` rename, not `attributeCaption`.
     """
     help_text_value = payload.get("helpText")
@@ -59,7 +59,7 @@ def normalize_help_text(payload: dict[str, Any]) -> HelpTextSummary:
 
 def normalize_working_day(payload: dict[str, Any]) -> WorkingDay:
     # day_of_week reads `day` -- WeekDayRepresenter (verified against
-    # op-sources 16.1/17.7) declares `property :day`, not `dayOfWeek`.
+    # the OpenProject 16.1 and 17.7 source) declares `property :day`, not `dayOfWeek`.
     return WorkingDay(
         name=payload.get("name", ""),
         day_of_week=int(payload.get("day", 0)),

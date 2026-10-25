@@ -60,7 +60,8 @@ from .app.adapters.httpx_wiki_page_link_api import HttpxWikiPageLinkApi
 from .app.adapters.httpx_work_package_api import HttpxWorkPackageApi
 from .app.adapters.httpx_work_package_lookup_api import HttpxWorkPackageLookupApi
 from .app.adapters.httpx_work_package_picker_api import HttpxWorkPackagePickerApi
-from .app.caches import SingletonCache
+from .app.caches import CachedValue
+from .app.call_scope import tool_call  # noqa: F401 -- the tool boundary opens the scope through the facade
 
 # AuthenticationError/PermissionDeniedError/its three subclasses
 # (CapabilityDisabledError/ProjectScopeDeniedError/OpenProjectPermissionDeniedError)
@@ -74,7 +75,7 @@ from .app.errors import (
     ConflictError,  # noqa: F401
     InvalidInputError,  # noqa: F401
     NotFoundError,  # noqa: F401
-    OpenProjectError,  # noqa: F401
+    OpenProjectError,
     OpenProjectPermissionDeniedError,  # noqa: F401
     OpenProjectServerError,
     PermissionDeniedError,  # noqa: F401
@@ -148,9 +149,11 @@ from .app.resolvers.assignee_resolver import AssigneeResolver
 from .app.resolvers.current_user_resolver import CurrentUserResolver
 from .app.resolvers.principal_resolver import PrincipalResolver
 from .app.resolvers.project_resolver import ProjectResolver
+from .app.resolvers.scoped_reference_resolver import ScopedReferenceResolver
 from .app.resolvers.sprint_resolver import SprintResolver
 from .app.resolvers.status_priority_type_resolver import StatusPriorityTypeResolver
 from .app.resolvers.type_resolver import TypeResolver
+from .app.resolvers.user_name_resolver import UserNameResolver
 from .app.resolvers.version_resolver import VersionResolver
 from .app.resolvers.work_package_resolver import WorkPackageResolver
 from .app.services.action_capability_service import ActionCapabilityService
@@ -258,128 +261,15 @@ class OpenProjectClient:
         self.settings = settings
         self._origin = origin_from_url(settings.base_url)
         self._api_prefix = api_prefix_from_url(settings.base_url)
-        # Process-lifetime caches for read-only, process-global API responses
-        # (see app/caches.py) -- each is shared by every real consumer of
-        # that value (Service and, where one exists, Resolver alike).
-        self._current_user_cache: SingletonCache[CurrentUserRecord] = SingletonCache()
-        self._statuses_cache: SingletonCache[list[StatusRecord]] = SingletonCache()
-        self._priorities_cache: SingletonCache[list[PriorityRecord]] = SingletonCache()
-        self._instance_configuration_cache: SingletonCache[InstanceConfigurationRecord] = SingletonCache()
+        # Caches of the responses this client's one token keeps getting (see
+        # app/caches.py) -- each is shared by every real consumer of that value
+        # (Service and, where one exists, Resolver alike) and expires.
+        self._current_user_cache: CachedValue[CurrentUserRecord] = CachedValue()
+        self._statuses_cache: CachedValue[list[StatusRecord]] = CachedValue()
+        self._priorities_cache: CachedValue[list[PriorityRecord]] = CachedValue()
+        self._instance_configuration_cache: CachedValue[InstanceConfigurationRecord] = CachedValue()
 
-        # Three successive review rounds each found a real bug in a prior
-        # version of this block trying to patch specific caller-supplied
-        # transport orderings in place with `isinstance` checks -- there is
-        # no bounded set of "the orderings a caller might use", so patching
-        # detected orderings one at a time cannot converge (a wrong-position
-        # CountingTransport still counts, just at the wrong place, so
-        # "is one present anywhere" is not sufficient -- its POSITION
-        # matters). Normalizing instead: unconditionally strip every
-        # existing CountingTransport layer out of whatever chain the caller
-        # supplied (its position is never trusted), then add back exactly
-        # one at the one position (inside the innermost RetryTransport if
-        # the caller supplied one, otherwise innermost overall) that is
-        # actually guaranteed to count every real retry attempt correctly.
-        # See transport_chain.py's own docstring for the specific orderings
-        # this replaced.
-        from .counting_transport import CountingTransport
-        from .retry_transport import RetryTransport
-        from .transport_chain import find_innermost_in_chain, remove_from_chain
-
-        # A caller who explicitly passed their own `transport` gets exactly
-        # what they asked for -- opting into a custom transport already
-        # means opting out of httpx's own verify=/trust_env-based proxy
-        # resolution, same as it always has (an explicit `transport=`
-        # bypasses those regardless of anything this class does). This
-        # branch exists ONLY for that explicit-caller-transport case.
-        if transport is not None:
-            base_transport = remove_from_chain(transport, CountingTransport)
-            existing_retry = find_innermost_in_chain(base_transport, RetryTransport)
-            if existing_retry is not None:
-                # A caller-supplied RetryTransport anywhere in the chain
-                # already defines the retry policy -- OPENPROJECT_MAX_RETRIES
-                # is not applied on top of it (this codebase never had a way
-                # to combine two different retry policies meaningfully, and
-                # layering ours outside theirs would multiply real network
-                # attempts). The INNERMOST one specifically (find_innermost_
-                # in_chain, not find_in_chain) -- a chain can validly nest
-                # more than one RetryTransport, and CountingTransport must
-                # sit inside the one actually closest to the real network to
-                # count every real attempt, not just the outer layer's own.
-                existing_retry.wrapped_transport = CountingTransport(existing_retry.wrapped_transport)
-            else:
-                base_transport = CountingTransport(base_transport)
-                if settings.max_retries > 0:
-                    base_transport = RetryTransport(
-                        wrapped_transport=base_transport,
-                        max_retries=settings.max_retries,
-                        base_delay=settings.retry_base_delay,
-                        max_delay=settings.retry_max_delay,
-                    )
-            self._http = httpx.AsyncClient(
-                base_url=f"{settings.api_base_url.rstrip('/')}/",
-                headers={
-                    "Accept": "application/hal+json, application/json",
-                    "Authorization": (
-                        f"Basic {__import__('base64').b64encode(f'apikey:{settings.api_token}'.encode()).decode()}"
-                    ),
-                    "User-Agent": f"openproject-ce-mcp/{__version__}",
-                },
-                timeout=httpx.Timeout(settings.timeout),
-                verify=settings.verify_ssl,
-                follow_redirects=True,
-                transport=base_transport,
-            )
-        else:
-            # No caller-supplied transport -- CountingTransport still must be
-            # installed unconditionally (the `http_requests` log field must
-            # count every request), but NEVER by passing an explicit
-            # `transport=`/`mounts=` to httpx.AsyncClient's own
-            # constructor here: either one, tried in earlier versions of
-            # this code, silently broke httpx's own environment-variable-
-            # based proxy resolution (`allow_env_proxies = trust_env and
-            # transport is None` in AsyncClient.__init__ -- a single
-            # `mounts={"all://": ...}` also loses because a real, more
-            # specific env-proxy mount like "https://" is matched over the
-            # wildcard "all://" pattern, silently routing every proxied
-            # request around our transport entirely and back to
-            # undercounting). Constructing AsyncClient with NEITHER
-            # `transport=` nor `mounts=` lets it build its OWN verify_ssl-
-            # and env-proxy-configured transport(s) exactly as it always
-            # has, then wrapping `self._http._transport` and every value in
-            # `self._http._mounts` IN PLACE afterward reaches every real
-            # request path (the base transport for unproxied schemes, and
-            # each scheme-specific proxy transport) without ever
-            # influencing which one httpx picks for a given URL.
-            self._http = httpx.AsyncClient(
-                base_url=f"{settings.api_base_url.rstrip('/')}/",
-                headers={
-                    "Accept": "application/hal+json, application/json",
-                    "Authorization": (
-                        f"Basic {__import__('base64').b64encode(f'apikey:{settings.api_token}'.encode()).decode()}"
-                    ),
-                    "User-Agent": f"openproject-ce-mcp/{__version__}",
-                },
-                timeout=httpx.Timeout(settings.timeout),
-                verify=settings.verify_ssl,
-                follow_redirects=True,
-            )
-
-            def _wrap(t: httpx.AsyncBaseTransport) -> httpx.AsyncBaseTransport:
-                wrapped: httpx.AsyncBaseTransport = CountingTransport(t)
-                if settings.max_retries > 0:
-                    wrapped = RetryTransport(
-                        wrapped_transport=wrapped,
-                        max_retries=settings.max_retries,
-                        base_delay=settings.retry_base_delay,
-                        max_delay=settings.retry_max_delay,
-                    )
-                return wrapped
-
-            self._http._transport = _wrap(self._http._transport)  # noqa: SLF001
-            self._http._mounts = {  # noqa: SLF001
-                pattern: (_wrap(mount_transport) if mount_transport is not None else None)
-                for pattern, mount_transport in self._http._mounts.items()  # noqa: SLF001
-            }
+        self._http = _build_http_client(settings, transport)
 
         # Every HttpxTransport wraps the SAME httpx.AsyncClient constructed
         # above (one connection pool). The directory looks projects up on a
@@ -401,7 +291,6 @@ class OpenProjectClient:
             settings=settings,
             project_id_to_identifier=self._project_id_to_identifier,
             resolver=self._project_resolver,
-            base_url=settings.base_url,
             api_prefix=self._api_prefix,
         )
         self._project_admin_service = ProjectAdminService(
@@ -409,7 +298,6 @@ class OpenProjectClient:
             settings=settings,
             project_id_to_identifier=self._project_id_to_identifier,
             resolver=self._project_resolver,
-            base_url=settings.base_url,
         )
 
         self._version_api: VersionApi = HttpxVersionApi(self._transport)
@@ -441,12 +329,11 @@ class OpenProjectClient:
         self._current_user_service = CurrentUserService(
             api=self._current_user_api, settings=settings, cache=self._current_user_cache
         )
-        self._current_user_resolver = CurrentUserResolver(
-            api=self._current_user_api, settings=settings, cache=self._current_user_cache
-        )
+        self._current_user_resolver = CurrentUserResolver(api=self._current_user_api, cache=self._current_user_cache)
 
         self._principal_api: PrincipalApi = HttpxPrincipalApi(self._transport)
         self._principal_service = PrincipalService(api=self._principal_api, settings=settings)
+        self._user_name_resolver = UserNameResolver(api=self._principal_api)
         self._principal_resolver = PrincipalResolver(
             api=self._principal_api, current_user=self._current_user_resolver, settings=settings
         )
@@ -645,6 +532,13 @@ class OpenProjectClient:
         # for add_comment()'s reuse of the Activities normalizer, instead of
         # duplicating that logic onto WorkPackageApi.
         self._activity_api: ActivityApi = HttpxActivityApi(self._transport)
+        self._scoped_reference_resolver = ScopedReferenceResolver(
+            version_api=self._version_api,
+            sprint_api=self._sprint_api,
+            backlog_bucket_api=self._backlog_bucket_api,
+            settings=settings,
+            project_id_to_identifier=self._project_id_to_identifier,
+        )
         self._work_package_service = WorkPackageService(
             api=self._work_package_api,
             settings=settings,
@@ -662,8 +556,9 @@ class OpenProjectClient:
             status_api=self._status_priority_type_api,
             activity_api=self._activity_api,
             current_user=self._current_user_resolver,
-            work_package_project_allowed=self._work_package_resolver.project_link_allowed,
             work_package_project_allowed_bulk=self._work_package_resolver.project_links_allowed,
+            references_allowed=self._scoped_reference_resolver.references_allowed,
+            user_names=self._user_name_resolver.names,
             api_prefix=self._api_prefix,
         )
 
@@ -729,6 +624,7 @@ class OpenProjectClient:
             settings=settings,
             project_id_to_identifier=self._project_id_to_identifier,
             work_package_project_allowed_bulk=self._work_package_resolver.project_links_allowed,
+            references_allowed=self._scoped_reference_resolver.references_allowed,
             api_prefix=self._api_prefix,
         )
 
@@ -739,7 +635,6 @@ class OpenProjectClient:
             settings=settings,
             project_id_to_identifier=self._project_id_to_identifier,
             resolve_work_package_id=self._work_package_resolver.resolve_id,
-            work_package_project_allowed=self._work_package_resolver.project_link_allowed,
             work_package_project_allowed_bulk=self._work_package_resolver.project_links_allowed,
         )
 
@@ -748,7 +643,6 @@ class OpenProjectClient:
             api=self._notification_api,
             settings=settings,
             project_id_to_identifier=self._project_id_to_identifier,
-            work_package_project_allowed=self._work_package_resolver.project_link_allowed,
             work_package_project_allowed_bulk=self._work_package_resolver.project_links_allowed,
             readable_projects=self._project_directory,
         )
@@ -760,7 +654,6 @@ class OpenProjectClient:
             settings=settings,
             project_id_to_identifier=self._project_id_to_identifier,
             resolve_work_package_id=self._work_package_resolver.resolve_id,
-            work_package_project_allowed=self._work_package_resolver.project_link_allowed,
             work_package_project_allowed_bulk=self._work_package_resolver.project_links_allowed,
             api_prefix=self._api_prefix,
         )
@@ -771,15 +664,12 @@ class OpenProjectClient:
         self._time_entry_service = TimeEntryService(
             api=self._time_entry_api,
             project_api=self._project_api,
-            user_api=self._user_api,
             work_package_lookup_api=self._work_package_lookup_api,
             settings=settings,
             project_id_to_identifier=self._project_id_to_identifier,
-            resolve_work_package_id=self._work_package_resolver.resolve_id,
             resolve_project_ref=self._get_project_payload,
             resolve_project_id=self._resolve_project_id,
             resolve_principal_id=self._resolve_principal_id,
-            get_current_user=self._current_user_resolver,
             api_prefix=self._api_prefix,
         )
 
@@ -804,6 +694,7 @@ class OpenProjectClient:
             api=self._activity_api,
             settings=settings,
             resolve_work_package_id=self._work_package_resolver.resolve_id,
+            user_names=self._user_name_resolver.names,
         )
 
         self._attachment_api: AttachmentApi = HttpxAttachmentApi(
@@ -829,7 +720,6 @@ class OpenProjectClient:
             settings=settings,
             project_id_to_identifier=self._project_id_to_identifier,
             resolve_project_ref=self._get_project_payload,
-            resolve_project_id=self._resolve_project_id,
             resolve_principal_id=self._resolve_principal_id,
             api_prefix=self._api_prefix,
         )
@@ -1505,6 +1395,160 @@ class OpenProjectClient:
         self, version_ref: str, *, project: str | None = None, context: ProjectResolutionContext | None = None
     ) -> str:
         return await self._version_resolver.resolve_id(version_ref, project=project, context=context)
+
+
+def _build_http_client(settings: Settings, transport: httpx.AsyncBaseTransport | None) -> httpx.AsyncClient:
+    # Three successive review rounds each found a real bug in a prior
+    # version of this block trying to patch specific caller-supplied
+    # transport orderings in place with `isinstance` checks -- there is
+    # no bounded set of "the orderings a caller might use", so patching
+    # detected orderings one at a time cannot converge (a wrong-position
+    # CountingTransport still counts, just at the wrong place, so
+    # "is one present anywhere" is not sufficient -- its POSITION
+    # matters). Normalizing instead: unconditionally strip every
+    # existing CountingTransport layer out of whatever chain the caller
+    # supplied (its position is never trusted), then add back exactly
+    # one at the one position (inside the innermost RetryTransport if
+    # the caller supplied one, otherwise innermost overall) that is
+    # actually guaranteed to count every real retry attempt correctly.
+    # See transport_chain.py's own docstring for the specific orderings
+    # this replaced.
+    from .counting_transport import CountingTransport
+    from .retry_transport import RetryTransport
+    from .transport_chain import find_innermost_in_chain, remove_from_chain
+
+    # A caller who explicitly passed their own `transport` gets exactly
+    # what they asked for -- opting into a custom transport already
+    # means opting out of httpx's own verify=/trust_env-based proxy
+    # resolution, same as it always has (an explicit `transport=`
+    # bypasses those regardless of anything this class does). This
+    # branch exists ONLY for that explicit-caller-transport case.
+    if transport is not None:
+        base_transport = remove_from_chain(transport, CountingTransport)
+        existing_retry = find_innermost_in_chain(base_transport, RetryTransport)
+        if existing_retry is not None:
+            # A caller-supplied RetryTransport anywhere in the chain
+            # already defines the retry policy -- OPENPROJECT_MAX_RETRIES
+            # is not applied on top of it (this codebase never had a way
+            # to combine two different retry policies meaningfully, and
+            # layering ours outside theirs would multiply real network
+            # attempts). The INNERMOST one specifically (find_innermost_
+            # in_chain, not find_in_chain) -- a chain can validly nest
+            # more than one RetryTransport, and CountingTransport must
+            # sit inside the one actually closest to the real network to
+            # count every real attempt, not just the outer layer's own.
+            existing_retry.wrapped_transport = CountingTransport(existing_retry.wrapped_transport)
+        else:
+            base_transport = CountingTransport(base_transport)
+            if settings.max_retries > 0:
+                base_transport = RetryTransport(
+                    wrapped_transport=base_transport,
+                    max_retries=settings.max_retries,
+                    base_delay=settings.retry_base_delay,
+                    max_delay=settings.retry_max_delay,
+                )
+        http = httpx.AsyncClient(
+            base_url=f"{settings.api_base_url.rstrip('/')}/",
+            headers={
+                "Accept": "application/hal+json, application/json",
+                "Authorization": (
+                    f"Basic {__import__('base64').b64encode(f'apikey:{settings.api_token}'.encode()).decode()}"
+                ),
+                "User-Agent": f"openproject-ce-mcp/{__version__}",
+            },
+            timeout=httpx.Timeout(settings.timeout),
+            verify=settings.verify_ssl,
+            follow_redirects=True,
+            transport=base_transport,
+        )
+    else:
+        # No caller-supplied transport -- CountingTransport still must be
+        # installed unconditionally (the `http_requests` log field must
+        # count every request), but NEVER by passing an explicit
+        # `transport=`/`mounts=` to httpx.AsyncClient's own
+        # constructor here: either one, tried in earlier versions of
+        # this code, silently broke httpx's own environment-variable-
+        # based proxy resolution (`allow_env_proxies = trust_env and
+        # transport is None` in AsyncClient.__init__ -- a single
+        # `mounts={"all://": ...}` also loses because a real, more
+        # specific env-proxy mount like "https://" is matched over the
+        # wildcard "all://" pattern, silently routing every proxied
+        # request around our transport entirely and back to
+        # undercounting). Constructing AsyncClient with NEITHER
+        # `transport=` nor `mounts=` lets it build its OWN verify_ssl-
+        # and env-proxy-configured transport(s) exactly as it always
+        # has, then wrapping `http._transport` and every value in
+        # `http._mounts` IN PLACE afterward reaches every real
+        # request path (the base transport for unproxied schemes, and
+        # each scheme-specific proxy transport) without ever
+        # influencing which one httpx picks for a given URL.
+        http = httpx.AsyncClient(
+            base_url=f"{settings.api_base_url.rstrip('/')}/",
+            headers={
+                "Accept": "application/hal+json, application/json",
+                "Authorization": (
+                    f"Basic {__import__('base64').b64encode(f'apikey:{settings.api_token}'.encode()).decode()}"
+                ),
+                "User-Agent": f"openproject-ce-mcp/{__version__}",
+            },
+            timeout=httpx.Timeout(settings.timeout),
+            verify=settings.verify_ssl,
+            follow_redirects=True,
+        )
+
+        def _wrap(t: httpx.AsyncBaseTransport) -> httpx.AsyncBaseTransport:
+            wrapped: httpx.AsyncBaseTransport = CountingTransport(t)
+            if settings.max_retries > 0:
+                wrapped = RetryTransport(
+                    wrapped_transport=wrapped,
+                    max_retries=settings.max_retries,
+                    base_delay=settings.retry_base_delay,
+                    max_delay=settings.retry_max_delay,
+                )
+            return wrapped
+
+        http._transport = _wrap(http._transport)  # noqa: SLF001
+        http._mounts = {  # noqa: SLF001
+            pattern: (_wrap(mount_transport) if mount_transport is not None else None)
+            for pattern, mount_transport in http._mounts.items()  # noqa: SLF001
+        }
+    return http
+
+
+async def with_instance_page_limit(
+    settings: Settings, *, transport: httpx.AsyncBaseTransport | None = None
+) -> Settings:
+    """The settings with page sizes that do not exceed the instance's maximum API page size.
+
+    OpenProject silently cuts every requested page size to that maximum (an administrator setting no
+    API exposes), which makes a page shorter than asked for and every offset count in the wrong size.
+    The only way to learn it is to ask for a page of the configured size and read the `pageSize` the
+    answer reports; an offset past the end keeps the answer empty. A failed probe leaves the settings
+    as they are: the failure shows again on the first real request."""
+    http = _build_http_client(settings, transport)
+    try:
+        payload = await HttpxTransport(http).get_json(
+            "projects", params={"offset": str(_PROBE_OFFSET), "pageSize": str(settings.max_page_size)}
+        )
+    except OpenProjectError as exc:
+        LOGGER.warning("The maximum API page size of the instance could not be read: %s", exc)
+        return settings
+    finally:
+        await http.aclose()
+    reported = payload.get("pageSize")
+    if not isinstance(reported, int) or not 0 < reported < settings.max_page_size:
+        return settings
+    LOGGER.warning(
+        "OPENPROJECT_MAX_PAGE_SIZE is %d but the instance limits API pages to %d; using %d.",
+        settings.max_page_size,
+        reported,
+        reported,
+    )
+    return replace(settings, max_page_size=reported, default_page_size=min(settings.default_page_size, reported))
+
+
+# Far past the last page of any instance, so the probe's answer carries no elements.
+_PROBE_OFFSET = 1_000_000
 
 
 def _trim_text(value: Any, *, limit: int) -> str | None:

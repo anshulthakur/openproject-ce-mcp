@@ -5,7 +5,6 @@ import dataclasses
 import pytest
 from _client_test_helpers import make_settings
 
-from openproject_ce_mcp.app.errors import PermissionDeniedError
 from openproject_ce_mcp.app.ports.project_api import ProjectPage, ProjectRecord
 from openproject_ce_mcp.app.resolvers.project_query import fetch_project_page
 from openproject_ce_mcp.models import ProjectDetail, ProjectSummary
@@ -176,9 +175,12 @@ async def test_filters_out_records_outside_the_read_allowlist() -> None:
 
 
 @pytest.mark.asyncio
-async def test_read_gate_enforced() -> None:
+async def test_the_lookup_checks_no_read_gate_because_a_write_of_another_domain_uses_it() -> None:
     api = _FakeProjectApi([ProjectPage(records=[], server_total=0, exhausted=True)])
     settings = dataclasses.replace(make_settings(), enable_project_read=False)
 
-    with pytest.raises(PermissionDeniedError, match="OPENPROJECT_ENABLE_PROJECT_READ"):
-        await fetch_project_page(api=api, settings=settings, search=None, offset=1, limit=10)
+    results, total, _next, _truncated = await fetch_project_page(
+        api=api, settings=settings, search=None, offset=1, limit=10
+    )
+
+    assert (results, total) == ([], 0)

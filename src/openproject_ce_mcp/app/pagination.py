@@ -7,7 +7,7 @@ layering violation.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, TypeVar
 
 
@@ -76,14 +76,35 @@ def paginate_client(*, offset: int, limit: int, results: list[Any]) -> tuple[lis
 _T = TypeVar("_T")
 
 
+def collection_exhausted(total: Any, fetched: int) -> bool:
+    """Whether `fetched` raw elements are all the collection holds, by the server's own `total`.
+
+    A short page does not say so: OpenProject cuts a requested page size to its configured maximum,
+    so a page of the maximum is short of the requested size and the next one still holds elements.
+    A `total` that is not a number leaves the empty page as the end of the collection.
+    """
+    return isinstance(total, int) and fetched >= total
+
+
+def page_is_last(payload: Mapping[str, Any], *, offset: int, requested_page_size: int, total: int) -> bool:
+    """Whether the page at `offset` is the last one, by the page size the server reports.
+
+    OpenProject cuts a requested page size to its configured maximum and reports the size it used as
+    `pageSize`; `offset * requested_page_size` would call a page the last one while elements remain.
+    """
+    reported = payload.get("pageSize")
+    page_size = reported if isinstance(reported, int) and reported > 0 else requested_page_size
+    return offset * page_size >= total
+
+
 async def fetch_bounded_and_paginate(
     *,
     fetch_page: Callable[[int, int], Awaitable[dict[str, Any]]],
     normalize: Callable[[dict[str, Any]], _T],
-    item_allowed: Callable[[dict[str, Any]], Awaitable[bool]] | None,
     server_page_size: int,
     offset: int,
     limit: int,
+    item_allowed: Callable[[dict[str, Any]], Awaitable[bool]] | None = None,
     item_allowed_bulk: Callable[[list[dict[str, Any]]], Awaitable[list[bool | Exception]]] | None = None,
 ) -> tuple[list[_T], int, int | None, bool]:
     """Scan server pages, normalize + filter the raw elements, and stop as
@@ -135,6 +156,7 @@ async def fetch_bounded_and_paginate(
     results: list[_T] = []
     seen_ids: set[Any] = set()
     server_offset = 1
+    fetched = 0
     is_first_page = True
 
     while len(results) <= limit:
@@ -142,6 +164,7 @@ async def fetch_bounded_and_paginate(
         raw_elements = [item for item in payload.get("_embedded", {}).get("elements", []) if isinstance(item, dict)]
         if not raw_elements:
             break
+        fetched += len(raw_elements)
         page_ids = {item.get("id") for item in raw_elements}
         if not is_first_page and page_ids and page_ids <= seen_ids:
             break
@@ -180,7 +203,7 @@ async def fetch_bounded_and_paginate(
 
         if len(results) > limit:
             break
-        if len(raw_elements) < server_page_size:
+        if collection_exhausted(payload.get("total"), fetched):
             break
         server_offset += 1
 
@@ -224,6 +247,7 @@ async def scan_and_paginate(
     results: list[dict[str, Any]] = []
     seen_ids: set[Any] = set()
     server_offset = 1
+    fetched = 0
     is_first_page = True
 
     while len(results) <= limit:
@@ -231,11 +255,11 @@ async def scan_and_paginate(
         raw_elements = [item for item in payload.get("_embedded", {}).get("elements", []) if isinstance(item, dict)]
         if not raw_elements:
             break
+        fetched += len(raw_elements)
         # Same repeat-page guard as fetch_bounded_and_paginate/paginate_all:
         # some project-scoped sub-collection endpoints silently ignore
         # offset/pageSize and always return the same full page, which would
-        # otherwise loop forever since `len(raw_elements) < server_page_size`
-        # never becomes true.
+        # otherwise loop forever since the elements never reach `total`.
         page_ids = {item.get("id") for item in raw_elements}
         if not is_first_page and page_ids and page_ids <= seen_ids:
             break
@@ -257,7 +281,7 @@ async def scan_and_paginate(
 
         if len(results) > limit:
             break
-        if len(raw_elements) < server_page_size:
+        if collection_exhausted(payload.get("total"), fetched):
             break
         server_offset += 1
 
@@ -298,28 +322,22 @@ async def scan_records_and_paginate(
     only for an element the loop actually reaches. At most one of the two is
     given; neither scans unfiltered.
 
-    Deliberately does NOT use the server-reported `total` from `fetch_page`'s
-    return tuple as an exhaustion signal: several adapters using this
-    `(records, total)` contract fall back to `total = len(records)` when the
-    server response has no `total` field at all (verified against
-    `httpx_sprint_api.py`), which would make `server_offset *
-    server_page_size >= total` true on the FIRST full page even when more
-    pages genuinely exist -- silently truncating real results. Exhaustion is
-    judged the same way `scan_and_paginate` does: purely by
-    `len(page_items) < server_page_size` (a short page) plus the repeat-page
-    guard below, never by a reported total.
+    The end of the collection is the server-reported `total` (see `collection_exhausted`), the empty
+    page, or a repeated page.
     """
     skip_count = (offset - 1) * limit
     skipped = 0
     results: list[_T] = []
     seen_keys: set[Any] = set()
     server_offset = 1
+    fetched = 0
     is_first_page = True
 
     while len(results) <= limit:
-        page_items, _total = await fetch_page(server_offset, server_page_size)
+        page_items, total = await fetch_page(server_offset, server_page_size)
         if not page_items:
             break
+        fetched += len(page_items)
         if key is not None:
             page_keys = {key(item) for item in page_items}
             if not is_first_page and page_keys and page_keys <= seen_keys:
@@ -349,7 +367,7 @@ async def scan_records_and_paginate(
 
         if len(results) > limit:
             break
-        if len(page_items) < server_page_size:
+        if collection_exhausted(total, fetched):
             break
         server_offset += 1
 
@@ -399,9 +417,6 @@ async def paginate_all(
             seen_keys.update(page_keys)
         is_first_page = False
         items.extend(page_items)
-        if len(items) >= total:
+        if not page_items or len(items) >= total:
             return items
-        next_offset, truncated = paginate_server(offset=offset, limit=page_size, total=total)
-        if not truncated:
-            return items
-        offset = next_offset if next_offset is not None else offset + 1
+        offset += 1

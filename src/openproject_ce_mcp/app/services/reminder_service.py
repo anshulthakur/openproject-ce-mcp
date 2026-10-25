@@ -48,7 +48,6 @@ from ..ports.work_package_lookup_api import WorkPackageLookupApi
 from ..ports.work_package_ref import (
     WorkPackageIdResolver,
     WorkPackageProjectAllowedBulkCheck,
-    WorkPackageProjectAllowedCheck,
 )
 from ..ports.work_package_resolution import WorkPackageAllowedContext
 from ..version_gate import call_version_gated
@@ -64,7 +63,6 @@ class ReminderService:
         settings: Settings,
         project_id_to_identifier: Mapping[int, str],
         resolve_work_package_id: WorkPackageIdResolver,
-        work_package_project_allowed: WorkPackageProjectAllowedCheck,
         work_package_project_allowed_bulk: WorkPackageProjectAllowedBulkCheck,
     ) -> None:
         self._api = api
@@ -72,7 +70,6 @@ class ReminderService:
         self._settings = settings
         self._project_id_to_identifier = project_id_to_identifier
         self._resolve_work_package_id = resolve_work_package_id
-        self._work_package_project_allowed = work_package_project_allowed
         self._work_package_project_allowed_bulk = work_package_project_allowed_bulk
 
     def _stamp(self, summary: ReminderSummary) -> ReminderSummary:
@@ -130,7 +127,6 @@ class ReminderService:
                 lambda: self._api.fetch_page(offset=o, page_size=ps), feature="Reminders", floor="16.1"
             ),
             normalize=lambda raw: self._stamp(self._api.to_record(raw).summary()),
-            item_allowed=None,
             item_allowed_bulk=item_allowed_bulk if allowlisted else None,
             server_page_size=self._settings.max_page_size,
             offset=offset,

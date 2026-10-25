@@ -97,7 +97,7 @@ async def test_gather_in_current_context_returns_results_in_order() -> None:
 
 @pytest.mark.asyncio
 async def test_merge_waits_for_a_still_running_sibling_before_reraising() -> None:
-    """Regression (found by a Codex review, 2026-09): the earlier fix's own
+    """Regression: the earlier fix's own
     test above (test_gather_in_current_context_merges_before_reraising_on_
     exception) used two coroutines that both complete within the same event
     loop tick, so it could not catch this -- asyncio.gather(...,

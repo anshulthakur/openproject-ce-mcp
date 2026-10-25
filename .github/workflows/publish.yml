@@ -193,7 +193,7 @@ jobs:
               for problem in "${problems[@]}"; do
                 echo "::error::Published release $tag: $problem" >&2
               done
-              echo "::error::This workflow never changes a published release; see RELEASE.md step 12 (Published release missing an asset)." >&2
+              echo "::error::This workflow never changes a published release; add the missing asset by hand." >&2
               exit 1
             fi
             echo "Release $tag is already published with matching assets; nothing to do."

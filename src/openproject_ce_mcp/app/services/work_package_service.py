@@ -62,7 +62,7 @@ have work-package writes enabled with reads entirely disabled, and every
 write method must keep working in that configuration (the same reasoning
 already documented for the auto-derivation's `status_api` bypass above).
 
-`_stamp`/`_stamp_detail` zero `description_truncated`/`description_length`
+`stamp_summary`/`stamp_detail` (`_work_package_presentation`) zero `description_truncated`/`description_length`
 (plus, for `WorkPackageSummary` only, `has_description`) when the
 `description` field itself is hidden -- mirrors `_stamp_project`
 (`app/services/project_service.py`) and `TimeEntryService._stamp`'s
@@ -109,7 +109,6 @@ from ...models import (
     BulkWorkPackageWriteResult,
     SortCriterion,
     WorkPackageDetail,
-    WorkPackageGroupSums,
     WorkPackageListResult,
     WorkPackageSummary,
     WorkPackageWriteResult,
@@ -125,8 +124,8 @@ from ..errors import (
     PermissionDeniedError,
     ProjectScopeDeniedError,
 )
-from ..pagination import effective_limit, paginate_server
-from ..policies import access, hidden_fields
+from ..pagination import collection_exhausted, effective_limit, paginate_server
+from ..policies import access, hidden_fields, work_package_query_policy
 from ..policies import work_package_policy as _work_package_policy
 from ..policies.scope import (
     ensure_project_link_allowed,
@@ -135,7 +134,7 @@ from ..policies.scope import (
     scope_allows_all,
 )
 from ..policies.scope import id_from_href as _id_from_href
-from ..ports.activity_api import ActivityApi
+from ..ports.activity_api import ActivityApi, ActivityRecord
 from ..ports.assignee_ref import AssigneeRefResolver
 from ..ports.current_user import CurrentUserLookup
 from ..ports.principal_ref import PrincipalRefResolver
@@ -143,21 +142,30 @@ from ..ports.priority_ref import PriorityRefResolver
 from ..ports.project_ref import ProjectRefResolver
 from ..ports.project_resolution import ProjectResolutionContext, WorkPackageResolutionContext
 from ..ports.readable_projects import ReadableProjects
+from ..ports.scoped_reference import ScopedReferencesAllowedBulkCheck
 from ..ports.sprint_ref import SprintIdResolver
 from ..ports.status_priority_type_api import StatusPriorityTypeApi
 from ..ports.status_ref import StatusRefResolver
 from ..ports.type_ref import TypeRefResolver
+from ..ports.user_names import UserNames
 from ..ports.version_ref import VersionIdResolver
-from ..ports.work_package_api import WorkPackageApi
+from ..ports.work_package_api import WorkPackageApi, WorkPackageRecord
 from ..ports.work_package_ref import (
     WorkPackageIdResolver,
     WorkPackageProjectAllowedBulkCheck,
-    WorkPackageProjectAllowedCheck,
     work_package_ref,
 )
 from ..ports.work_package_resolution import WorkPackageAllowedContext
+from ..resource_href import ResourceLinks
 from ..version_gate import call_query_version_gated
-from ._work_package_parents import parent_href, without_parent_unless, without_uncovered_parents
+from ._work_package_parents import parent_href, without_parent_unless
+from ._work_package_presentation import present_detail, present_summaries, stamp_detail
+from ._work_package_references import (
+    field_with_visible_options,
+    groups_for_result,
+    hidden_references_replaced,
+    visible_references,
+)
 from ._work_package_write_helpers import (
     resolve_custom_field_key,
     resolve_custom_field_links,
@@ -368,71 +376,6 @@ def _trim_text(value: Any, *, limit: int = SUBJECT_LIMIT) -> str | None:
 # equivalent comment.
 
 
-def _mask_custom_field_keys(values: dict[str, Any] | None, *, settings: Settings) -> dict[str, Any] | None:
-    """Key-only hide-on-read for a `custom_fields` dict.
-
-    Per the approved strategy, hide-on-read matches ONLY the raw
-    `customField<N>` key/wildcard against `OPENPROJECT_HIDE_CUSTOM_FIELDS`,
-    NEVER the friendly name -- unlike the write path's
-    `ensure_custom_field_writable`, which matches both the resolved schema
-    field name AND the key (a friendly-name-only hide pattern configured for
-    writes has no effect on reads; this is a deliberate, documented
-    asymmetry -- see docs/field-hiding.md). `custom_field_hidden` is called
-    with the SAME raw key as both its `field_name` and `key` arguments
-    (matching `ensure_custom_field_input_writable`'s own key-only-context
-    call shape) so only a pattern actually matching the raw key can hide it.
-
-    Returns the original object unchanged (same identity) when nothing was
-    actually removed -- including when `values` is empty/None -- rather than
-    always rebuilding a new dict; only a genuine removal allocates.
-    """
-    if not values:
-        return values
-    if not settings.hide_custom_fields:
-        return values
-    filtered = {
-        key: value
-        for key, value in values.items()
-        if not hidden_fields.custom_field_hidden(key, key, settings=settings)
-    }
-    if len(filtered) == len(values):
-        return values
-    return filtered or None
-
-
-def _mask_custom_comments_by_hidden_field_ids(
-    comments: dict[str, str] | None,
-    *,
-    custom_fields: dict[str, Any] | None,
-    masked_custom_fields: dict[str, Any] | None,
-) -> dict[str, str] | None:
-    """Hide a `customComment<N>` entry whenever its matching `customField<N>`
-    entry was just removed by `_mask_custom_field_keys` above.
-
-    `custom_comments` is keyed `customComment<N>`, never `customField<N>` --
-    `hidden_fields.custom_field_hidden` patterns are written against the
-    `customField<N>` form (per docs/field-hiding.md), so matching a
-    `customComment<N>` key against them directly would never hide anything.
-    Instead, derive which numeric ids were actually removed from
-    `custom_fields` (comparing before/after) and drop the corresponding
-    `customComment<N>` entries -- this is what "a hidden customField<N> also
-    hides its customComment<N> counterpart" actually requires.
-    """
-    if not comments:
-        return comments
-    if custom_fields is masked_custom_fields:
-        return comments
-    before_ids = {key[len("customField") :] for key in (custom_fields or {})}
-    after_ids = {key[len("customField") :] for key in (masked_custom_fields or {})}
-    removed_ids = before_ids - after_ids
-    if not removed_ids:
-        return comments
-    filtered = {key: value for key, value in comments.items() if key[len("customComment") :] not in removed_ids}
-    if len(filtered) == len(comments):
-        return comments
-    return filtered or None
-
-
 def _bulk_item_result(*, index: int, result: WorkPackageWriteResult) -> BulkWorkPackageItemResult:
     """ "success" is defined purely by `result.ready` (i.e. no OpenProject
     validation errors), not by whether the result was already confirmed -- a
@@ -494,6 +437,11 @@ def _log_bulk_cancellation(
     )
 
 
+def _requested(**parameters: Any) -> list[str]:
+    """The names of the filter parameters a call actually set."""
+    return [name for name, value in parameters.items() if value is not None and value is not False and value != []]
+
+
 class WorkPackageService:
     def __init__(
         self,
@@ -514,8 +462,9 @@ class WorkPackageService:
         status_api: StatusPriorityTypeApi,
         activity_api: ActivityApi,
         current_user: CurrentUserLookup,
-        work_package_project_allowed: WorkPackageProjectAllowedCheck,
         work_package_project_allowed_bulk: WorkPackageProjectAllowedBulkCheck,
+        references_allowed: ScopedReferencesAllowedBulkCheck,
+        user_names: UserNames,
         api_prefix: str,
     ) -> None:
         self._api = api
@@ -534,8 +483,10 @@ class WorkPackageService:
         self._status_api = status_api
         self._activity_api = activity_api
         self._current_user = current_user
-        self._work_package_project_allowed = work_package_project_allowed
         self._work_package_project_allowed_bulk = work_package_project_allowed_bulk
+        self._references_allowed = references_allowed
+        self._resource_links = ResourceLinks(settings.base_url)
+        self._user_names = user_names
         self._api_prefix = api_prefix
         # Shared across every get_batch() call on this Service instance (not
         # constructed per-call), so N genuinely bounds this Service's total
@@ -549,95 +500,6 @@ class WorkPackageService:
         # (a task holding this semaphore's last permit for its own get()
         # call, while a nested allowlist check waits on the same semaphore).
         self._batch_read_semaphore = asyncio.Semaphore(10)
-
-    def _stamp(self, summary: WorkPackageSummary) -> WorkPackageSummary:
-        if hidden_fields.field_hidden("work_package", "description", settings=self._settings):
-            summary = dataclasses.replace(
-                summary, description_truncated=False, description_length=None, has_description=False
-            )
-        summary = self._mask_custom_field_values(summary)
-        return self._apply_work_package_hidden_fields(summary)
-
-    def _stamp_detail(self, detail: WorkPackageDetail) -> WorkPackageDetail:
-        if hidden_fields.field_hidden("work_package", "description", settings=self._settings):
-            detail = dataclasses.replace(detail, description_truncated=False, description_length=None)
-        detail = self._mask_custom_field_values(detail)
-        return self._apply_work_package_hidden_fields(detail)
-
-    def _apply_work_package_hidden_fields(self, value: Any) -> Any:
-        """Single entry point for version/target_versions coupled-alias masking
-        AND the generic per-field apply_hidden_fields stamp, in the correct
-        order. version/target_versions read from and write to the same
-        underlying OpenProject data -- hiding either via
-        OPENPROJECT_HIDE_WORK_PACKAGE_FIELDS must hide both, or the other
-        field trivially leaks the "hidden" one back out under a different
-        name. See `hidden_fields.apply_hidden_fields_with_aliases`, shared
-        with QueryExecutionService's own execute() masking so the alias-pair
-        knowledge lives in one place, not duplicated across both call sites.
-        """
-        return hidden_fields.apply_hidden_fields_with_aliases(
-            "work_package", value, settings=self._settings, aliases={"version": None, "target_versions": []}
-        )
-
-    def _mask_custom_field_values(self, value: Any) -> Any:
-        """Key-only hide-on-read masking for `custom_fields`/`custom_comments`,
-        shared by `_stamp`/`_stamp_detail` (both `WorkPackageSummary` and
-        `WorkPackageDetail` carry the same three fields, see models.py).
-
-        `custom_fields` is masked directly against `OPENPROJECT_HIDE_CUSTOM_FIELDS`
-        (its keys ARE `customField<N>`). `custom_comments` is keyed
-        `customComment<N>` instead, so it cannot be matched against the same
-        hide patterns directly -- it is masked by deriving which
-        `customField<N>` ids were actually removed above and dropping the
-        matching `customComment<N>` entries (see
-        `_mask_custom_comments_by_hidden_field_ids`), which is what "a hidden
-        customField<N> also hides its customComment<N> counterpart" requires.
-
-        Also fixes a hidden-field-metadata leak: when the WHOLE `custom_fields`
-        field is hidden via `OPENPROJECT_HIDE_WORK_PACKAGE_FIELDS=custom_fields`
-        (checked separately from the key-only OPENPROJECT_HIDE_CUSTOM_FIELDS
-        match above), `custom_fields_truncated` must also reset to False --
-        mirroring how this method's caller already resets
-        description_truncated/description_length/has_description when
-        `description` itself is hidden (see docstring above); leaving a
-        truncation flag dangling once the field itself is masked would leak
-        metadata about hidden data. Same treatment for
-        custom_comments/custom_comments_truncated. When only SOME keys are
-        masked via the key-only custom-field hide (not the whole field), the
-        truncated flags are left as originally computed (the raw-payload
-        pre-mask truncation signal) -- unlike `_filter_hierarchy_allowlist`'s
-        children_truncated/ancestors_truncated re-derivation (a scope-allowlist
-        visibility concern: leaving that flag stale could disclose the mere
-        existence of hierarchy members outside the caller's project scope),
-        the custom-field key-only hide is a configured field-name redaction,
-        not a scope/visibility signal -- a caller who already knows some
-        custom fields exist (they configured the hide list) learns nothing
-        new from a truncated flag computed before that redaction.
-        """
-        custom_fields = _mask_custom_field_keys(value.custom_fields, settings=self._settings)
-        custom_comments = _mask_custom_comments_by_hidden_field_ids(
-            value.custom_comments, custom_fields=value.custom_fields, masked_custom_fields=custom_fields
-        )
-        custom_fields_truncated = value.custom_fields_truncated
-        custom_comments_truncated = value.custom_comments_truncated
-        if hidden_fields.field_hidden("work_package", "custom_fields", settings=self._settings):
-            custom_fields_truncated = False
-        if hidden_fields.field_hidden("work_package", "custom_comments", settings=self._settings):
-            custom_comments_truncated = False
-        if (
-            custom_fields is value.custom_fields
-            and custom_comments is value.custom_comments
-            and custom_fields_truncated == value.custom_fields_truncated
-            and custom_comments_truncated == value.custom_comments_truncated
-        ):
-            return value
-        return dataclasses.replace(
-            value,
-            custom_fields=custom_fields,
-            custom_comments=custom_comments,
-            custom_fields_truncated=custom_fields_truncated,
-            custom_comments_truncated=custom_comments_truncated,
-        )
 
     def _stamp_activity(self, summary: Any) -> Any:
         return hidden_fields.apply_hidden_fields("activity", summary, settings=self._settings)
@@ -661,15 +523,16 @@ class WorkPackageService:
         return WorkPackageResolutionContext(ProjectResolutionContext(self._resolve_project_ref))
 
     async def _present(self, raw_items: builtins.list[dict[str, Any]]) -> builtins.list[WorkPackageSummary]:
-        # Hidden-field stamping must come last: dataclasses.replace drops the dynamic `_hidden_keys`.
-        summaries = [self._api.to_record(item, text_limit=self._settings.text_limit).summary for item in raw_items]
-        covered = await without_uncovered_parents(
-            summaries,
+        return await present_summaries(
+            [self._api.to_record(item, text_limit=self._settings.text_limit) for item in raw_items],
             settings=self._settings,
             api_prefix=self._api_prefix,
             project_allowed_bulk=self._work_package_project_allowed_bulk,
+            references_allowed=self._references_allowed,
         )
-        return [self._stamp(summary) for summary in covered]
+
+    async def _detail_of(self, record: WorkPackageRecord) -> WorkPackageDetail:
+        return await present_detail(record, settings=self._settings, references_allowed=self._references_allowed)
 
     def _payload_allowed(self, payload: dict[str, Any]) -> bool:
         return _work_package_policy.work_package_payload_allowed(
@@ -767,7 +630,18 @@ class WorkPackageService:
         # and expected to honor that, but this is still a hard safety net
         # against a server (or a misbehaving mock) that returns more.
         raw_items = allowed_items[:limit]
-        results = await self._present(raw_items)
+        records = [self._api.to_record(item, text_limit=self._settings.text_limit) for item in raw_items]
+        visible = await visible_references(
+            records=records, groups=page.groups or (), settings=self._settings, check=self._references_allowed
+        )
+        results = await present_summaries(
+            records,
+            visible=visible,
+            settings=self._settings,
+            api_prefix=self._api_prefix,
+            project_allowed_bulk=self._work_package_project_allowed_bulk,
+            references_allowed=self._references_allowed,
+        )
         server_total = page.server_total if page.server_total is not None else len(results)
         # If the allowlist check actually dropped something here, the
         # server-side filter this path relies on did not fully hold --
@@ -784,14 +658,21 @@ class WorkPackageService:
             next_offset = (offset + 1) if truncated else None
         groups = (
             [
-                WorkPackageGroupSums(value=g.get("value"), count=g.get("count", 0), sums=g.get("sums"))
-                for g in page.raw_groups
+                dataclasses.replace(
+                    group,
+                    sums=work_package_query_policy.sums_without_hidden_fields(group.sums, settings=self._settings),
+                )
+                for group in groups_for_result(page.groups, group_by=group_by, visible=visible)
             ]
-            if requested_sums and aggregates_hold and page.raw_groups is not None
+            if requested_sums and aggregates_hold and page.groups is not None
             else None
         )
         # The server computed them over the rows it returned, which include the dropped ones.
-        total_sums = page.raw_total_sums if requested_sums and aggregates_hold else None
+        total_sums = (
+            work_package_query_policy.sums_without_hidden_fields(page.raw_total_sums, settings=self._settings)
+            if requested_sums and aggregates_hold
+            else None
+        )
         return WorkPackageListResult(
             offset=offset,
             limit=limit,
@@ -826,12 +707,13 @@ class WorkPackageService:
         first `(offset - 1) * limit` already-seen allowed matches, then
         collect up to `limit + 1` allowed matches (the +1st proves a further
         match exists, rather than assuming it from a full raw page) before
-        stopping, either because enough were found or because the server
-        ran out of raw elements (`len(raw_elements) < server_page_size`,
-        never from `total`, which is not trustworthy under a restricted
-        scope -- server_total below reflects only what this scan collected
-        and observed, not the true global total, matching every other
-        restricted-scope pagination path in this codebase).
+        stopping, either because enough were found or because the raw
+        elements fetched reach the server's `total` (`collection_exhausted`;
+        a short page proves nothing, the server cuts the page size). That
+        `total` only ends the scan: it is never reported, because under a
+        restricted scope it counts records outside the scope -- the total
+        below reflects only what this scan collected, matching every other
+        restricted-scope pagination path in this codebase.
 
         No aggregates here: `include_sums`/`groups` are computed by
         OpenProject over the whole query, independent of this method's
@@ -845,6 +727,7 @@ class WorkPackageService:
         results: list[dict[str, Any]] = []
         server_offset = 1
         server_page_size = min(self._settings.max_page_size, self._settings.max_results)
+        fetched = 0
 
         while len(results) <= limit:
             page = await self._api.list(
@@ -869,7 +752,8 @@ class WorkPackageService:
 
             if len(results) > limit:
                 break
-            if len(page.raw_elements) < server_page_size:
+            fetched += len(page.raw_elements)
+            if collection_exhausted(page.server_total, fetched):
                 break
             server_offset += 1
 
@@ -1052,6 +936,29 @@ class WorkPackageService:
         custom_field_filters: dict[str, dict[str, Any]] | None = None,
     ) -> WorkPackageListResult:
         access.ensure_read_enabled("work_package", settings=self._settings)
+        work_package_query_policy.ensure_query_allowed(
+            settings=self._settings,
+            filters=_requested(
+                search=search,
+                project=project,
+                custom_field_filters=custom_field_filters or None,
+                status=status,
+                open_only=open_only,
+                assignee_me=assignee_me,
+                assignee=assignee,
+                priority=priority,
+                created_on=created_on,
+                created_between=created_between,
+                updated_on=updated_on,
+                updated_between=updated_between,
+                due_on=due_on,
+                due_between=due_between,
+                overdue_only=overdue_only,
+                due_within_days=due_within_days,
+            ),
+            sort_fields=[criterion.field for criterion in sort_by or []],
+            group_by=group_by,
+        )
         effective = effective_limit(limit, settings=self._settings)
         if not self._settings.read_projects:
             return _empty_list_result(offset=offset, limit=effective)
@@ -1181,6 +1088,32 @@ class WorkPackageService:
         custom_field_filters: dict[str, dict[str, Any]] | None = None,
     ) -> WorkPackageListResult:
         access.ensure_read_enabled("work_package", settings=self._settings)
+        work_package_query_policy.ensure_query_allowed(
+            settings=self._settings,
+            filters=_requested(
+                observed_in_version=observed_in_version,
+                project=project,
+                custom_field_filters=custom_field_filters or None,
+                type=type,
+                version=version,
+                version_status=version_status,
+                open_only=open_only,
+                assignee_me=assignee_me,
+                assignee=assignee,
+                status=status,
+                priority=priority,
+                created_on=created_on,
+                created_between=created_between,
+                updated_on=updated_on,
+                updated_between=updated_between,
+                due_on=due_on,
+                due_between=due_between,
+                overdue_only=overdue_only,
+                due_within_days=due_within_days,
+            ),
+            sort_fields=[criterion.field for criterion in sort_by or []],
+            group_by=group_by,
+        )
         effective = effective_limit(limit, settings=self._settings)
         if not self._settings.read_projects:
             return _empty_list_result(offset=offset, limit=effective)
@@ -1280,6 +1213,9 @@ class WorkPackageService:
 
     async def list_my_open(self, *, offset: int = 1, limit: int | None = None) -> WorkPackageListResult:
         access.ensure_read_enabled("work_package", settings=self._settings)
+        work_package_query_policy.ensure_query_allowed(
+            settings=self._settings, filters=["assignee_me", "open_only"], sort_fields=[], group_by=None
+        )
         effective = effective_limit(limit, settings=self._settings)
         if not self._settings.read_projects:
             return _empty_list_result(offset=offset, limit=effective)
@@ -1392,7 +1328,7 @@ class WorkPackageService:
             settings=self._settings,
             project_id_to_identifier=self._project_id_to_identifier,
         )
-        detail = await self._filter_hierarchy_allowlist(record.to_detail())
+        detail = await self._filter_hierarchy_allowlist(await self._detail_of(record))
         # Hidden-field stamping MUST run after _filter_hierarchy_allowlist,
         # never before: apply_hidden_fields sets `_hidden_keys` as a dynamic
         # (non-dataclass-field) attribute, and dataclasses.replace() -- which
@@ -1404,7 +1340,7 @@ class WorkPackageService:
         # work_package field (e.g. description) regardless of whether
         # children/ancestors were even present on that particular work
         # package.
-        return self._stamp_detail(detail)
+        return stamp_detail(detail, settings=self._settings)
 
     async def get_batch(
         self, *, ids: builtins.list[int | str], text_limit: int | None = None
@@ -1519,7 +1455,7 @@ class WorkPackageService:
         form = await self._api.validate_create(project, schema_payload)
         return (await self._api.parse_form(form, resolve_links=True, allowed_values_cache=allowed_values_cache)).schema
 
-    def _apply_custom_fields(
+    async def _apply_custom_fields(
         self,
         payload: dict[str, Any],
         links: dict[str, Any],
@@ -1535,6 +1471,9 @@ class WorkPackageService:
             )
             location = field.get("location")
             if location == "_links":
+                field = await field_with_visible_options(
+                    field, links=self._resource_links, settings=self._settings, check=self._references_allowed
+                )
                 hrefs = resolve_custom_field_links(field, raw_value, schema_key)
                 if len(hrefs) == 1:
                     links[schema_key] = {"href": hrefs[0]}
@@ -1760,7 +1699,7 @@ class WorkPackageService:
                 hidden_fields.ensure_field_writable("work_package", "project_phase", settings=self._settings)
                 links["projectPhase"] = {"href": resolve_schema_option_href(schema, "projectPhase", project_phase)}
             if custom_fields:
-                self._apply_custom_fields(payload, links, schema, custom_fields)
+                await self._apply_custom_fields(payload, links, schema, custom_fields)
 
         if links:
             payload["_links"] = links
@@ -1771,7 +1710,7 @@ class WorkPackageService:
         if outcome.detail is not None:
             # outcome.detail is a WorkPackageRecord (commit_create's/
             # commit_update's return shape, same lazy-detail shape get()
-            # itself consumes) -- must call .to_detail() before any
+            # itself consumes) -- must build the detail before any
             # dataclasses.replace()-based transform, which requires an actual
             # WorkPackageDetail instance, not the Record wrapping it.
             #
@@ -1781,14 +1720,14 @@ class WorkPackageService:
             # running the same allowlist filter here keeps the masking-order
             # contract identical to get()'s, rather than assuming it can
             # never matter. As in get(): _filter_hierarchy_allowlist must run
-            # BEFORE _stamp_detail, never after -- _filter_hierarchy_allowlist
+            # BEFORE stamp_detail, never after -- _filter_hierarchy_allowlist
             # calls dataclasses.replace() whenever the read scope is
-            # restricted, which would silently drop _stamp_detail's
+            # restricted, which would silently drop stamp_detail's
             # _hidden_keys tag if stamping ran first, leaking hidden fields
             # under a restricted scope. Filter first, stamp last, matching
             # get()'s ordering exactly.
-            filtered = await self._filter_hierarchy_allowlist(outcome.detail.to_detail())
-            detail = self._stamp_detail(filtered)
+            filtered = await self._filter_hierarchy_allowlist(await self._detail_of(outcome.detail))
+            detail = stamp_detail(filtered, settings=self._settings)
         return WorkPackageWriteResult(
             action=action,
             state=outcome.state,
@@ -1894,8 +1833,8 @@ class WorkPackageService:
                 text_limit=FORMATTABLE_LIMIT,
             ),
             committed_identity=lambda record: {
-                "work_package_id": record.summary.id,
-                "project": record.summary.project,
+                "work_package_id": record.id,
+                "project": record.project,
             },
             rejected_message="OpenProject rejected the proposed changes. Fix the validation errors before confirming.",
             preview_message="OpenProject validated the change. Ask for confirmation, then call again with confirm=true to write it.",
@@ -1984,8 +1923,8 @@ class WorkPackageService:
                 text_limit=FORMATTABLE_LIMIT,
             ),
             committed_identity=lambda record: {
-                "work_package_id": record.summary.id,
-                "project": record.summary.project,
+                "work_package_id": record.id,
+                "project": record.project,
             },
             rejected_message="OpenProject rejected the proposed changes. Fix the validation errors before confirming.",
             preview_message="OpenProject validated the subtask. Ask for confirmation, then call again with confirm=true to create it.",
@@ -2105,8 +2044,8 @@ class WorkPackageService:
                 # OpenProject's own validation requires the OPPOSITE target
                 # depending on whether an estimate exists: remainingTime must
                 # be exactly "PT0H" when estimatedTime is set, but must be
-                # null/absent when it isn't -- live-verified against real
-                # OpenProject. "Effective" estimate: this same call's own
+                # null/absent when it isn't -- OpenProject
+                # enforces this. "Effective" estimate: this same call's own
                 # estimated_time if it set one, else the work package's
                 # existing value from the pre-write GET.
                 effective_estimated_time = (
@@ -2216,6 +2155,16 @@ class WorkPackageService:
             resolution_context=wp_context,
         )
 
+        hidden_replaced = await hidden_references_replaced(
+            current_record, payload.get("_links", {}), settings=self._settings, check=self._references_allowed
+        )
+        if hidden_replaced:
+            raise InvalidInputError(
+                f"Work package {ref} has {hidden_replaced} version or sprint assignment(s) in a project "
+                "OPENPROJECT_READ_PROJECTS does not cover or the token cannot see, which this change would replace or remove. "
+                "Leave the version, target versions, sprint or version custom fields unchanged."
+            )
+
         auto_percentage, auto_remaining = await self._auto_derive_progress_on_close(
             status=status,
             percentage_done=percentage_done,
@@ -2275,8 +2224,8 @@ class WorkPackageService:
                 text_limit=FORMATTABLE_LIMIT,
             ),
             committed_identity=lambda record: {
-                "work_package_id": record.summary.id,
-                "project": record.summary.project,
+                "work_package_id": record.id,
+                "project": record.project,
             },
             rejected_message="OpenProject rejected the proposed changes. Fix the validation errors before confirming.",
             preview_message="OpenProject validated the change. Ask for confirmation, then call again with confirm=true to write it.",
@@ -2373,7 +2322,9 @@ class WorkPackageService:
             settings=self._settings,
             project_id_to_identifier=self._project_id_to_identifier,
         )
-        detail = self._stamp_detail(await self._filter_hierarchy_allowlist(record.to_detail()))
+        detail = stamp_detail(
+            await self._filter_hierarchy_allowlist(await self._detail_of(record)), settings=self._settings
+        )
         payload = {"id": detail.id, "subject": detail.subject, "lockVersion": detail.lock_version}
 
         async def _commit(p: dict[str, Any]) -> None:
@@ -2402,42 +2353,6 @@ class WorkPackageService:
             result=outcome.detail,
             **outcome.identity,
         )
-
-    async def _fill_missing_activity_user(self, activity: dict[str, Any]) -> dict[str, Any]:
-        """Best-effort: fill in a missing `_links.user` on a freshly-posted activity.
-
-        The activities POST response can be leaner than a subsequent GET and
-        omit `_links.user` entirely, even though the activity was persisted
-        correctly. Re-fetches the canonical activity by id (via the injected
-        `ActivityApi`, not a duplicated Adapter method -- see
-        `app/ports/activity_api.py`'s module docstring) and merges in its
-        `_links.user`. A failure here (404, permission, timeout, ...) must
-        never turn an already-successful write into a reported error, so it
-        is swallowed and just logged -- the caller then simply keeps user
-        unset. Only attempted when the response carries a usable id and when
-        `user` isn't configured hidden for activities anyway, since fetching
-        it would just be discarded.
-        """
-        if hidden_fields.field_hidden("activity", "user", settings=self._settings):
-            return activity
-        activity_links = activity.get("_links", {})
-        activity_id = activity.get("id")
-        existing_user_title = _trim_text((activity_links.get("user") or {}).get("title"))
-        if existing_user_title or not (isinstance(activity_id, int) and activity_id > 0):
-            return activity
-        try:
-            fetched_activity = await self._activity_api.get_raw(activity_id)
-        except OpenProjectError:
-            LOGGER.warning(
-                "add_comment: fallback fetch of activity %s for a missing user link failed; "
-                "the comment was still saved, user stays unset.",
-                activity_id,
-            )
-            return activity
-        fetched_user_link = fetched_activity.get("_links", {}).get("user")
-        if not fetched_user_link:
-            return activity
-        return {**activity, "_links": {**activity_links, "user": fetched_user_link}}
 
     async def add_comment(
         self,
@@ -2473,7 +2388,6 @@ class WorkPackageService:
 
         access.ensure_write_enabled("work_package", settings=self._settings)
         activity = await self._api.post_comment(ref, comment=comment, internal=internal, notify=notify)
-        activity = await self._fill_missing_activity_user(activity)
         # OpenProject can aggregate a new note into an existing, more recent
         # journal entry (e.g. a prior status change) instead of always
         # creating a fresh one. When that happens, this endpoint's response
@@ -2484,7 +2398,10 @@ class WorkPackageService:
         # non-aggregated comment, which sacrifices its own correct timestamp
         # too. `comment`/`id` are unaffected by this and still reflect the
         # activities POST response.
-        raw_summary = self._activity_api.to_record(activity).to_summary(FORMATTABLE_LIMIT, details=False)
+        activity_record = self._activity_api.to_record(activity)
+        raw_summary = activity_record.to_summary(
+            FORMATTABLE_LIMIT, details=False, user=await self._written_comment_user(activity_record)
+        )
         normalized_activity = self._replace_and_restamp("activity", raw_summary, created_at=None)
         return ActivityWriteResult(
             action="comment",
@@ -2496,6 +2413,17 @@ class WorkPackageService:
             validation_errors={},
             result=normalized_activity,
         )
+
+    async def _written_comment_user(self, activity_record: ActivityRecord) -> str | None:
+        """The name of the user of a comment that was just written; the write already happened, so a
+        lookup that fails leaves the name out instead of failing the call."""
+        if activity_record.user_id is None or hidden_fields.field_hidden("activity", "user", settings=self._settings):
+            return None
+        try:
+            return (await self._user_names([activity_record.user_id]))[activity_record.user_id]
+        except OpenProjectError:
+            LOGGER.warning("The name of the user of a written comment could not be read; the comment was saved.")
+            return None
 
     async def update_comment(
         self,
@@ -2557,7 +2485,10 @@ class WorkPackageService:
 
         access.ensure_write_enabled("work_package", settings=self._settings)
         updated = await self._activity_api.update_comment(activity_id, comment=comment)
-        summary = self._activity_api.to_record(updated).to_summary(FORMATTABLE_LIMIT, details=False)
+        updated_record = self._activity_api.to_record(updated)
+        summary = updated_record.to_summary(
+            FORMATTABLE_LIMIT, details=False, user=await self._written_comment_user(updated_record)
+        )
         return ActivityWriteResult(
             action="update_comment",
             state="confirmed",

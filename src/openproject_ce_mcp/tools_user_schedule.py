@@ -19,7 +19,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from mcp.server.mcpserver import Context
-from pydantic import Field, StrictInt
+from pydantic import Field
 
 from .models import (
     UserNonWorkingTimeListResult,
@@ -219,7 +219,7 @@ async def create_user_working_hours(
     friday_hours: Annotated[float | None, Field(description=_NEW_HOURS)] = None,
     saturday_hours: Annotated[float | None, Field(description=_NEW_HOURS)] = None,
     sunday_hours: Annotated[float | None, Field(description=_NEW_HOURS)] = None,
-    availability_factor: Annotated[StrictInt | None, Field(description=_AVAILABILITY)] = None,
+    availability_factor: Annotated[int | None, Field(description=_AVAILABILITY)] = None,
     confirm: Confirm = False,
 ) -> UserWorkingHoursWriteResult:
     """Create a new weekly working-hours schedule version for a user, effective from valid_from.
@@ -265,7 +265,7 @@ async def update_user_working_hours(
     friday_hours: Annotated[float | None, Field(description=_HOURS)] = None,
     saturday_hours: Annotated[float | None, Field(description=_HOURS)] = None,
     sunday_hours: Annotated[float | None, Field(description=_HOURS)] = None,
-    availability_factor: Annotated[StrictInt | None, Field(description=_AVAILABILITY)] = None,
+    availability_factor: Annotated[int | None, Field(description=_AVAILABILITY)] = None,
     confirm: Confirm = False,
 ) -> UserWorkingHoursWriteResult:
     """Correct an existing working-hours schedule entry in place; omitted fields stay unchanged.

@@ -1324,15 +1324,11 @@ async def test_add_work_package_comment_suppresses_aggregated_journal_details() 
     await client.aclose()
 
 
-@pytest.mark.asyncio
-async def test_add_work_package_comment_fetches_missing_user_via_fallback() -> None:
-    """OpenProject's activities POST response can omit _links.user entirely,
-    even though the comment was saved correctly. When that happens and the
-    response carries a usable id, the client re-fetches the canonical
-    activity to fill in user.
-    """
+def _comment_handler(user_href: str | None, *, users: dict[str, httpx.Response] | None = None, calls: list[str]):
+    links = {"user": {"href": user_href}} if user_href else {}
 
     async def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(f"{request.method} {request.url.path}")
         if request.url.path == "/api/v3/work_packages/42" and request.method == "GET":
             return httpx.Response(
                 200,
@@ -1342,108 +1338,85 @@ async def test_add_work_package_comment_fetches_missing_user_via_fallback() -> N
         if request.url.path == "/api/v3/work_packages/42/activities" and request.method == "POST":
             return httpx.Response(
                 201,
-                json={
-                    "id": 79,
-                    "_type": "Activity::Comment",
-                    "version": 5,
-                    "comment": {"raw": "Looks good to me."},
-                    "_links": {},
-                },
+                json={"id": 79, "_type": "Activity::Comment", "comment": {"raw": "Ok."}, "_links": links},
                 request=request,
             )
-        if request.url.path == "/api/v3/activities/79" and request.method == "GET":
-            return httpx.Response(
-                200,
-                json={"id": 79, "_links": {"user": {"title": "Jane Reviewer"}}},
-                request=request,
-            )
+        if request.url.path in (users or {}):
+            return (users or {})[request.url.path]
         raise AssertionError(f"Unexpected request: {request.method} {request.url}")
 
-    client = OpenProjectClient(_base_settings(enable_work_package_write=True), transport=httpx.MockTransport(handler))
+    return handler
 
-    result = await client.work_package.add_comment(
-        work_package_id=42,
-        comment="Looks good to me.",
-        confirm=True,
+
+@pytest.mark.asyncio
+async def test_add_work_package_comment_names_its_user_by_one_lookup_of_the_user_id() -> None:
+    """The activities representer links the user by href only, so the name is read from the user."""
+    calls: list[str] = []
+    users = {"/api/v3/users/4": httpx.Response(200, json={"id": 4, "name": "Jane Reviewer"})}
+    client = OpenProjectClient(
+        _base_settings(enable_work_package_write=True),
+        transport=httpx.MockTransport(_comment_handler("/api/v3/users/4", users=users, calls=calls)),
     )
-
-    assert result.state == "confirmed"
-    assert result.result is not None
-    assert result.result.user == "Jane Reviewer"
-
-    await client.aclose()
-
-
-@pytest.mark.asyncio
-async def test_add_work_package_comment_fallback_get_also_missing_user_stays_none() -> None:
-    async def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/api/v3/work_packages/42" and request.method == "GET":
-            return httpx.Response(
-                200,
-                json={"id": 42, "_links": {"project": {"href": "/api/v3/projects/1", "title": "Demo"}}},
-                request=request,
-            )
-        if request.url.path == "/api/v3/work_packages/42/activities" and request.method == "POST":
-            return httpx.Response(
-                201,
-                json={"id": 80, "_type": "Activity::Comment", "version": 5, "comment": {"raw": "Ok."}, "_links": {}},
-                request=request,
-            )
-        if request.url.path == "/api/v3/activities/80" and request.method == "GET":
-            return httpx.Response(200, json={"id": 80, "_links": {}}, request=request)
-        raise AssertionError(f"Unexpected request: {request.method} {request.url}")
-
-    client = OpenProjectClient(_base_settings(enable_work_package_write=True), transport=httpx.MockTransport(handler))
 
     result = await client.work_package.add_comment(work_package_id=42, comment="Ok.", confirm=True)
 
-    assert result.state == "confirmed"
-    assert result.result is not None
-    assert result.result.user is None
-
+    assert result.result is not None and result.result.user == "Jane Reviewer"
+    assert calls.count("GET /api/v3/users/4") == 1
+    assert "GET /api/v3/activities/79" not in calls
     await client.aclose()
 
 
 @pytest.mark.asyncio
-async def test_add_work_package_comment_fallback_get_failure_does_not_fail_comment(caplog) -> None:
-    """A failing fallback lookup (404/permission/timeout/...) must not turn an
-    already-persisted comment into a reported tool error."""
+async def test_add_work_package_comment_without_a_user_link_looks_up_no_name() -> None:
+    calls: list[str] = []
+    client = OpenProjectClient(
+        _base_settings(enable_work_package_write=True),
+        transport=httpx.MockTransport(_comment_handler(None, calls=calls)),
+    )
 
-    async def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/api/v3/work_packages/42" and request.method == "GET":
-            return httpx.Response(
-                200,
-                json={"id": 42, "_links": {"project": {"href": "/api/v3/projects/1", "title": "Demo"}}},
-                request=request,
-            )
-        if request.url.path == "/api/v3/work_packages/42/activities" and request.method == "POST":
-            return httpx.Response(
-                201,
-                json={"id": 81, "_type": "Activity::Comment", "version": 5, "comment": {"raw": "Ok."}, "_links": {}},
-                request=request,
-            )
-        if request.url.path == "/api/v3/activities/81" and request.method == "GET":
-            return httpx.Response(404, json={"message": "not found"}, request=request)
-        raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+    result = await client.work_package.add_comment(work_package_id=42, comment="Ok.", confirm=True)
 
-    client = OpenProjectClient(_base_settings(enable_work_package_write=True), transport=httpx.MockTransport(handler))
+    assert result.result is not None and result.result.user is None
+    assert not [call for call in calls if "/users/" in call]
+    await client.aclose()
 
-    with caplog.at_level(logging.WARNING, logger="openproject_ce_mcp.client"):
+
+@pytest.mark.asyncio
+async def test_add_work_package_comment_keeps_a_saved_comment_when_the_name_cannot_be_read(caplog) -> None:
+    """The comment is persisted before the name is read; a failing lookup must not report it as an error."""
+    calls: list[str] = []
+    users = {"/api/v3/users/4": httpx.Response(500, json={"message": "boom"})}
+    client = OpenProjectClient(
+        _base_settings(enable_work_package_write=True),
+        transport=httpx.MockTransport(_comment_handler("/api/v3/users/4", users=users, calls=calls)),
+    )
+
+    with caplog.at_level(logging.WARNING):
         result = await client.work_package.add_comment(work_package_id=42, comment="Ok.", confirm=True)
 
     assert result.state == "confirmed"
-    assert result.result is not None
-    assert result.result.user is None
-    assert any("fallback fetch of activity 81" in r.message for r in caplog.records)
-
+    assert result.result is not None and result.result.user is None
     await client.aclose()
 
 
 @pytest.mark.asyncio
-async def test_add_work_package_comment_skips_fallback_without_usable_activity_id() -> None:
-    """No id (or an unusable one) on the POST response must not trigger a
-    fallback GET - normalize_activity() already requires a usable id and its
-    existing behavior for that case is left untouched by this fix."""
+async def test_add_work_package_comment_leaves_the_name_out_of_the_lookup_when_user_is_hidden() -> None:
+    calls: list[str] = []
+    settings = _base_settings(enable_work_package_write=True, hidden_fields={"activity": ("user",)})
+    client = OpenProjectClient(
+        settings, transport=httpx.MockTransport(_comment_handler("/api/v3/users/4", calls=calls))
+    )
+
+    result = await client.work_package.add_comment(work_package_id=42, comment="Ok.", confirm=True)
+
+    assert result.result is not None and result.result._hidden_keys == frozenset({"user"})
+    assert not [call for call in calls if "/users/" in call]
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_add_work_package_comment_requires_an_id_on_the_posted_activity() -> None:
+    """normalize_activity() already requires a usable id; a response without one fails as it always did."""
 
     async def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/api/v3/work_packages/42" and request.method == "GET":
@@ -1453,11 +1426,9 @@ async def test_add_work_package_comment_skips_fallback_without_usable_activity_i
                 request=request,
             )
         if request.url.path == "/api/v3/work_packages/42/activities" and request.method == "POST":
-            # No "id" key at all - a GET to /api/v3/activities/... would be a
-            # protocol error, so the handler intentionally has no route for it.
             return httpx.Response(
                 201,
-                json={"_type": "Activity::Comment", "version": 5, "comment": {"raw": "Ok."}, "_links": {}},
+                json={"_type": "Activity::Comment", "comment": {"raw": "Ok."}, "_links": {}},
                 request=request,
             )
         raise AssertionError(f"Unexpected request: {request.method} {request.url}")
@@ -1466,48 +1437,6 @@ async def test_add_work_package_comment_skips_fallback_without_usable_activity_i
 
     with pytest.raises(KeyError):
         await client.work_package.add_comment(work_package_id=42, comment="Ok.", confirm=True)
-
-    await client.aclose()
-
-
-@pytest.mark.asyncio
-async def test_add_work_package_comment_skips_fallback_fetch_when_user_hidden() -> None:
-    """A configured OPENPROJECT_HIDE_ACTIVITY_FIELDS=user must still hide user
-    on the result, and the fallback fetch must not even be attempted - it
-    would just be discarded, so it's wasted work."""
-    fallback_get_calls = {"count": 0}
-
-    async def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/api/v3/work_packages/42" and request.method == "GET":
-            return httpx.Response(
-                200,
-                json={"id": 42, "_links": {"project": {"href": "/api/v3/projects/1", "title": "Demo"}}},
-                request=request,
-            )
-        if request.url.path == "/api/v3/work_packages/42/activities" and request.method == "POST":
-            return httpx.Response(
-                201,
-                json={"id": 82, "_type": "Activity::Comment", "version": 5, "comment": {"raw": "Ok."}, "_links": {}},
-                request=request,
-            )
-        if request.url.path == "/api/v3/activities/82" and request.method == "GET":
-            fallback_get_calls["count"] += 1
-            return httpx.Response(
-                200,
-                json={"id": 82, "_links": {"user": {"title": "Jane Reviewer"}}},
-                request=request,
-            )
-        raise AssertionError(f"Unexpected request: {request.method} {request.url}")
-
-    settings = _base_settings(enable_work_package_write=True, hide_activity_fields=("user",))
-    client = OpenProjectClient(settings, transport=httpx.MockTransport(handler))
-
-    result = await client.work_package.add_comment(work_package_id=42, comment="Ok.", confirm=True)
-
-    assert result.state == "confirmed"
-    payload = _to_payload(result)
-    assert "user" not in payload["result"]
-    assert fallback_get_calls["count"] == 0
 
     await client.aclose()
 
@@ -1535,10 +1464,12 @@ async def test_add_work_package_comment_hides_other_configured_activity_fields()
                     "_type": "Activity::Comment",
                     "version": 5,
                     "comment": {"raw": "Secret note."},
-                    "_links": {"user": {"title": "Jane Reviewer"}},
+                    "_links": {"user": {"href": "/api/v3/users/4"}},
                 },
                 request=request,
             )
+        if request.url.path == "/api/v3/users/4":
+            return httpx.Response(200, json={"id": 4, "name": "Jane Reviewer"}, request=request)
         raise AssertionError(f"Unexpected request: {request.method} {request.url}")
 
     settings = _base_settings(enable_work_package_write=True, hide_activity_fields=("version",))

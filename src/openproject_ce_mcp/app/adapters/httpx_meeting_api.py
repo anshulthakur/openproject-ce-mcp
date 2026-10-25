@@ -22,14 +22,6 @@ off `template&.duration`, no formatter) -- see httpx_recurring_meeting_api.py.
 `participants` is `_embedded.participants`, each a full UserRepresenter;
 `recurringMeeting` link is present only when `recurring_meeting_id` is set on
 a materialized-from-a-recurring-template meeting.
-
-Uses the same message-first `_normalize_validation_errors` shape as
-`httpx_board_api.py`/`httpx_membership_api.py`/`httpx_user_api.py` (not the
-formattable-text-first `normalize_form_validation_errors` from `_text.py`):
-Meeting's own writable fields (title/location/duration/state/sharing/notify/
-startTime/participants) have no `formattable_property` field of their own
-(that appears one layer down, on Agenda Items'/Outcomes' `notes`), so there is
-no formattable-text validation-error shape to extract here.
 """
 
 from __future__ import annotations
@@ -43,6 +35,7 @@ from ..transport.protocol import Transport
 from ._text import SUBJECT_LIMIT
 from ._text import id_from_href as _id_from_href
 from ._text import link_title as _link_title
+from ._text import normalize_form_validation_errors as _normalize_validation_errors
 from ._text import trim_text as _trim_text
 
 
@@ -88,21 +81,6 @@ def normalize_meeting(payload: dict[str, Any]) -> MeetingSummary:
         created_at=payload.get("createdAt"),
         updated_at=payload.get("updatedAt"),
     )
-
-
-def _normalize_validation_errors(value: Any) -> dict[str, str]:
-    if not isinstance(value, dict):
-        return {}
-    normalized: dict[str, str] = {}
-    for key, entry in value.items():
-        message = None
-        if isinstance(entry, dict):
-            message = _trim_text(entry.get("message"), limit=SUBJECT_LIMIT)
-        if message is None:
-            message = _trim_text(entry, limit=SUBJECT_LIMIT)
-        if message:
-            normalized[str(key)] = message
-    return normalized
 
 
 class HttpxMeetingApi:

@@ -81,7 +81,7 @@ from .tools_validation import (
     _validate_work_package_ref,
 )
 
-# Real enum values from MeetingOutcome (op-sources: modules/meeting/app/models/
+# Real enum values from MeetingOutcome (OpenProject source: modules/meeting/app/models/
 # meeting_outcome.rb) -- OpenProject itself rejects any other value with an
 # internal server error (500), not a clean 422, so this must be checked
 # client-side rather than left to the server's own validation.
@@ -749,7 +749,9 @@ async def list_recurring_meetings(
 
 
 @register_tool
-async def get_recurring_meeting(ctx: Context, recurring_meeting_id: int) -> RecurringMeetingSummary:
+async def get_recurring_meeting(
+    ctx: Context, recurring_meeting_id: Annotated[int, Field(description=_RECURRING_MEETING_ID)]
+) -> RecurringMeetingSummary:
     """Get a single OpenProject recurring meeting series by id.
 
     Requires OpenProject 17.4+.
@@ -837,7 +839,7 @@ async def create_recurring_meeting(
 @register_tool
 async def update_recurring_meeting(
     ctx: Context,
-    recurring_meeting_id: int,
+    recurring_meeting_id: Annotated[int, Field(description=_RECURRING_MEETING_ID)],
     title: str | None = None,
     frequency: str | None = None,
     start_time: str | None = None,
@@ -889,7 +891,9 @@ async def update_recurring_meeting(
 
 @register_tool
 async def delete_recurring_meeting(
-    ctx: Context, recurring_meeting_id: int, confirm: Confirm = False
+    ctx: Context,
+    recurring_meeting_id: Annotated[int, Field(description=_RECURRING_MEETING_ID)],
+    confirm: Confirm = False,
 ) -> RecurringMeetingWriteResult:
     """Delete a recurring meeting series with all its occurrences, past and future.
 
@@ -933,7 +937,7 @@ _VALID_OCCURRENCE_FILTERS: set[str] = {"upcoming", "past", "cancelled", "open"}
 @register_tool
 async def list_recurring_meeting_occurrences(
     ctx: Context,
-    recurring_meeting_id: int,
+    recurring_meeting_id: Annotated[int, Field(description=_RECURRING_MEETING_ID)],
     filter: str = "upcoming",
     limit: Annotated[
         int | None,
@@ -967,7 +971,7 @@ async def list_recurring_meeting_occurrences(
 @register_tool
 async def init_recurring_meeting_occurrence(
     ctx: Context,
-    recurring_meeting_id: int,
+    recurring_meeting_id: Annotated[int, Field(description=_RECURRING_MEETING_ID)],
     start_time: str,
     confirm: Confirm = False,
 ) -> RecurringMeetingOccurrenceWriteResult:
@@ -998,7 +1002,7 @@ async def init_recurring_meeting_occurrence(
 @register_tool
 async def cancel_recurring_meeting_occurrence(
     ctx: Context,
-    recurring_meeting_id: int,
+    recurring_meeting_id: Annotated[int, Field(description=_RECURRING_MEETING_ID)],
     start_time: str,
     confirm: Confirm = False,
 ) -> RecurringMeetingOccurrenceWriteResult:

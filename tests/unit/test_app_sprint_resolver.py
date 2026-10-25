@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 from _client_test_helpers import make_settings
 
@@ -174,6 +176,23 @@ async def test_resolve_id_pages_across_multiple_server_pages() -> None:
 
 
 @pytest.mark.asyncio
+async def test_resolve_id_reads_on_while_a_server_that_cut_the_page_size_has_more_pages() -> None:
+    api = _FakeSprintApi(
+        pages=[
+            ([_record(1, "Sprint 1"), _record(2, "Sprint 2")], 4),
+            ([_record(3, "Sprint 3"), _record(4, "Sprint 4")], 4),
+        ]
+    )
+    settings = dataclasses.replace(make_settings(), max_page_size=50)
+    resolver = SprintResolver(
+        api=api, resolve_project_ref=_resolve_project_ref, settings=settings, project_id_to_identifier={}
+    )
+
+    assert await resolver.resolve_id("Sprint 4", project="demo") == "4"
+    assert api.calls == [(1, 50), (2, 50)]
+
+
+@pytest.mark.asyncio
 async def test_resolve_id_terminates_when_server_ignores_offset_and_repeats_the_first_page() -> None:
     """Regression test for the repeated-page-ids termination safeguard: a
     server that silently ignores offset/pageSize and always returns the
@@ -202,3 +221,16 @@ async def test_resolve_id_reads_non_ascii_digits_as_a_name(name: str) -> None:
         api=api, resolve_project_ref=_resolve_project_ref, settings=make_settings(), project_id_to_identifier={}
     )
     assert await resolver.resolve_id(name, project="demo") == "11"
+
+
+@pytest.mark.asyncio
+async def test_resolve_id_by_name_works_with_project_reads_disabled() -> None:
+    """A work package write resolves a sprint name; the project read gate is the project tools'."""
+    resolver = SprintResolver(
+        api=_FakeSprintApi(pages=[([_record(9, "Sprint 9", defining_workspace_id=1)], 1)]),
+        resolve_project_ref=_resolve_project_ref,
+        settings=dataclasses.replace(make_settings(), enable_project_read=False),
+        project_id_to_identifier={1: "demo"},
+    )
+
+    assert await resolver.resolve_id("Sprint 9", project="demo") == "9"

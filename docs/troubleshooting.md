@@ -77,7 +77,7 @@ environment instead.
 
 ### Codex
 
-When Codex is installed, `doctor` runs `codex mcp list --json` twice: in the
+When Codex is installed, `doctor` runs `codex mcp list --json` up to twice: in the
 current directory and in an empty temporary directory, which shows the
 user-level configuration that applies everywhere else. Codex merges up to eight
 configuration layers, and some of them (enterprise cloud configuration, macOS

@@ -22,8 +22,6 @@ from openproject_ce_mcp.app.services.project_service import ProjectAdminService,
 from openproject_ce_mcp.models import ProjectDetail, ProjectPhase, ProjectSummary
 from openproject_ce_mcp.presentation import _to_payload
 
-BASE_URL = "https://op.example.com"
-
 
 def _payload(project_id: int = 6, name: str = "Demo Project", identifier: str = "demo", **extra) -> dict:
     payload = {
@@ -161,7 +159,6 @@ def _service(api: _FakeProjectApi | None = None, *, settings=None) -> ProjectSer
         settings=settings,
         project_id_to_identifier={},
         resolver=_resolver(api, settings=settings),
-        base_url=BASE_URL,
         api_prefix="/api/v3/",
     )
 
@@ -195,7 +192,6 @@ def _admin_service(api: _FakeProjectApi | None = None, *, settings=None) -> Proj
         settings=settings,
         project_id_to_identifier={},
         resolver=_resolver(api, settings=settings),
-        base_url=BASE_URL,
     )
 
 
@@ -659,7 +655,6 @@ async def test_update_builds_parent_href_from_this_service_s_own_api_prefix() ->
         settings=settings,
         project_id_to_identifier={},
         resolver=resolver,
-        base_url=BASE_URL,
         api_prefix="/custom/v9/",
     )
 
@@ -677,7 +672,6 @@ async def test_create_preview_does_not_write_to_the_cache() -> None:
         settings=make_settings(),
         project_id_to_identifier=project_id_to_identifier,
         resolver=_resolver(api),
-        base_url=BASE_URL,
         api_prefix="/api/v3/",
     )
 
@@ -696,7 +690,6 @@ async def test_update_preview_does_not_write_to_the_cache() -> None:
         settings=settings,
         project_id_to_identifier=project_id_to_identifier,
         resolver=_resolver(api, settings=settings),
-        base_url=BASE_URL,
         api_prefix="/api/v3/",
     )
 
@@ -983,7 +976,6 @@ def _scoped_service(record: ProjectRecord, *, read, known=None) -> ProjectServic
         settings=settings,
         project_id_to_identifier={6: "demo", **(known or {})},
         resolver=_resolver(api, settings=settings),
-        base_url=BASE_URL,
         api_prefix="/api/v3/",
     )
 
@@ -1047,7 +1039,6 @@ async def test_admin_context_leaves_out_an_uncovered_parent_of_its_project() -> 
         settings=settings,
         project_id_to_identifier={6: "demo"},
         resolver=_resolver(api, settings=settings),
-        base_url=BASE_URL,
     )
 
     context = await service.get_admin_context("demo")
@@ -1081,15 +1072,11 @@ async def test_copy_shows_no_title_of_a_link_into_another_project_and_commits_th
 
 @pytest.mark.asyncio
 async def test_admin_context_leaves_out_versions_defined_in_projects_the_read_scope_does_not_cover() -> None:
-    def version(version_id: int, name: str, project_id: int) -> dict:
-        return {
-            "id": version_id,
-            "name": name,
-            "_links": {
-                "self": {"href": f"/api/v3/versions/{version_id}", "title": name},
-                "definingProject": {"href": f"/api/v3/projects/{project_id}"},
-            },
-        }
+    def version(version_id: int, name: str, project_id: int | None) -> dict:
+        links: dict = {"self": {"href": f"/api/v3/versions/{version_id}", "title": name}}
+        if project_id is not None:
+            links["definingProject"] = {"href": f"/api/v3/projects/{project_id}"}
+        return {"_type": "Version", "id": version_id, "name": name, "_links": links}
 
     api = _FakeProjectApi()
     api.schema = {
@@ -1097,7 +1084,9 @@ async def test_admin_context_leaves_out_versions_defined_in_projects_the_read_sc
             "name": "Target",
             "type": "Version",
             "writable": True,
-            "_embedded": {"allowedValues": [version(1, "Own", 6), version(2, "Shared in", 9)]},
+            "_embedded": {
+                "allowedValues": [version(1, "Own", 6), version(2, "Shared in", 9), version(3, "Unlinked", None)]
+            },
         }
     }
     settings = dataclasses.replace(make_settings(), read_projects=("demo",))
@@ -1106,7 +1095,6 @@ async def test_admin_context_leaves_out_versions_defined_in_projects_the_read_sc
         settings=settings,
         project_id_to_identifier={6: "demo"},
         resolver=_resolver(api, settings=settings),
-        base_url=BASE_URL,
     )
 
     context = await service.get_admin_context("demo")
@@ -1139,3 +1127,13 @@ async def test_an_ancestor_without_an_id_stays_under_every_project_scope() -> No
 
     assert project.ancestors is not None
     assert len(project.ancestors) == 1
+
+
+@pytest.mark.asyncio
+async def test_list_checks_read_enabled() -> None:
+    settings = dataclasses.replace(make_settings(), enable_project_read=False)
+    api = _FakeProjectApi()
+    service = _service(api, settings=settings)
+
+    with pytest.raises(PermissionDeniedError, match="OPENPROJECT_ENABLE_PROJECT_READ"):
+        await service.list()

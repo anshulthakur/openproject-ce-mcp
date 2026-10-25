@@ -15,11 +15,11 @@ Service normalizes survivors via the injected `WorkPackageApi.to_record()`
 `httpx_work_package_api.py`, which would violate the Service->Port-only
 dependency rule enforced by `tests/test_architecture_boundaries.py`).
 
-The raw server-reported `total` on `_embedded.results` is deliberately NOT
-exposed as a page-level total here -- it can leak the existence of matches in
-projects the caller cannot see (the query executes with the API token's full
-server-side permissions, not scoped to OPENPROJECT_READ_PROJECTS). The
-Service computes its own, allowlist-safe total from the filtered survivors.
+The raw server-reported `total` on `_embedded.results` is carried only so the service can tell the
+end of the collection from a page the server cut short. It can leak the existence of matches in
+projects the caller cannot see (the query executes with the API token's full server-side
+permissions, not scoped to OPENPROJECT_READ_PROJECTS), so the service never reports it: it computes
+its own, allowlist-safe total from the filtered survivors.
 """
 
 from __future__ import annotations
@@ -31,6 +31,7 @@ from typing import Any, Protocol
 @dataclass(frozen=True)
 class QueryResultPage:
     raw_elements: list[dict[str, Any]]  # UNFILTERED, UNNORMALIZED raw HAL work-package elements
+    server_total: int | None
 
 
 class QueryExecutionApi(Protocol):

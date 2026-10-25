@@ -6,11 +6,17 @@ parent, the activity's project list and a write preview's links must not name th
 
 from __future__ import annotations
 
+import dataclasses
+import json
 import uuid
 
 import pytest
 
+from openproject_ce_mcp.app.errors import InvalidInputError
+from openproject_ce_mcp.app.services._work_package_references import HIDDEN_GROUP_LABEL
+from openproject_ce_mcp.app.services.work_package_service import CLEAR_VERSION
 from openproject_ce_mcp.client import OpenProjectClient
+from openproject_ce_mcp.models import SortCriterion
 
 from .conftest import disposable_project_identifier
 
@@ -130,3 +136,92 @@ async def test_activity_details_are_left_out_unless_the_read_scope_allows_all(
             assert row.details is None
             assert row.details_omitted is True
         assert secret not in str(scoped)
+
+
+def _text(result: object) -> str:
+    return json.dumps(dataclasses.asdict(result), default=str)  # type: ignore[call-overload]
+
+
+async def _work_package_with_a_hidden_version(
+    test_project: str, project_refs: list[str], wp_ids: list[int], start_scoped_client
+) -> tuple[object, str, str, int]:
+    """(client over every project, name of a system-wide version defined in another project, subject, id of
+    a work package of the test project that uses it)."""
+    everywhere = await start_scoped_client(read_projects=("*",), write_projects=("*",))
+    other_project = disposable_project_identifier()
+    created_project = await everywhere.project.create(
+        name=f"[integration-test] {other_project}", identifier=other_project, confirm=True
+    )
+    assert created_project.ready, created_project.validation_errors
+    project_refs.append(other_project)
+
+    secret = f"[integration-test] secret {uuid.uuid4().hex[:8]}"
+    version = await everywhere.version.create(project=other_project, name=secret, sharing="system", confirm=True)
+    assert version.ready, version.validation_errors
+    subject = f"[integration-test] shared version {uuid.uuid4().hex[:8]}"
+    created = await everywhere.work_package.create(
+        project=test_project, type="Task", subject=subject, version=secret, confirm=True
+    )
+    assert created.ready, created.validation_errors
+    wp_ids.append(created.work_package_id)
+
+    return everywhere, secret, subject, created.work_package_id
+
+
+async def test_work_package_results_leave_out_a_version_defined_outside_the_read_scope(
+    test_project: str, project_refs: list[str], wp_ids: list[int], start_scoped_client
+) -> None:
+    everywhere, secret, subject, wp_id = await _work_package_with_a_hidden_version(
+        test_project, project_refs, wp_ids, start_scoped_client
+    )
+
+    scoped = await start_scoped_client(read_projects=(test_project,), write_projects=(test_project,))
+    reads = {
+        "get": await scoped.work_package.get(wp_id),
+        "get_batch": await scoped.work_package.get_batch(ids=[wp_id]),
+        "list": await scoped.work_package.list(
+            project=test_project, limit=100, sort_by=[SortCriterion(field="id", direction="desc")]
+        ),
+        "search": await scoped.work_package.search(search=subject),
+        "grouped": await scoped.work_package.list(
+            project=test_project, limit=100, group_by="version", include_sums=True
+        ),
+        "update": await scoped.work_package.update(work_package_id=wp_id, subject=subject, confirm=True),
+        "delete_preview": await scoped.work_package.delete(work_package_id=wp_id, confirm=False),
+    }
+
+    for path, result in reads.items():
+        assert secret not in _text(result), path
+    assert wp_id in [row.id for row in reads["list"].results]
+    assert HIDDEN_GROUP_LABEL in [g.value for g in reads["grouped"].groups or []]
+    assert reads["grouped"].total_sums is not None
+
+    open_detail = await everywhere.work_package.get(wp_id)
+    assert secret in _text(open_detail)
+    open_groups = await everywhere.work_package.list(
+        project=test_project, limit=100, group_by="version", include_sums=True
+    )
+    assert secret in [g.value for g in open_groups.groups or []]
+
+
+async def test_an_update_refuses_to_remove_a_version_the_read_scope_hides(
+    test_project: str, project_refs: list[str], wp_ids: list[int], start_scoped_client
+) -> None:
+    everywhere, secret, subject, wp_id = await _work_package_with_a_hidden_version(
+        test_project, project_refs, wp_ids, start_scoped_client
+    )
+    scoped = await start_scoped_client(read_projects=(test_project,), write_projects=(test_project,))
+
+    with pytest.raises(InvalidInputError) as refused:
+        await scoped.work_package.update(work_package_id=wp_id, version=CLEAR_VERSION, confirm=True)
+
+    assert secret not in str(refused.value)
+    assert secret in _text(await everywhere.work_package.get(wp_id))
+
+    renamed = await scoped.work_package.update(work_package_id=wp_id, subject=f"{subject} renamed", confirm=True)
+    assert renamed.ready, renamed.validation_errors
+    assert secret in _text(await everywhere.work_package.get(wp_id))
+
+    cleared = await everywhere.work_package.update(work_package_id=wp_id, version=CLEAR_VERSION, confirm=True)
+    assert cleared.ready, cleared.validation_errors
+    assert secret not in _text(await everywhere.work_package.get(wp_id))

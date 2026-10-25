@@ -339,6 +339,21 @@ def test_normalize_time_entry_extracts_entity_and_project_fields() -> None:
     assert entry.spent_on == "2026-03-20"
 
 
+def test_normalize_time_entry_reads_the_id_of_the_user_from_the_link() -> None:
+    payload = _time_entry_payload()
+    payload["_links"]["user"] = {"href": "/api/v3/users/5", "title": "Admin"}
+
+    assert normalize_time_entry_raw(payload, text_limit=None).user_id == 5
+
+
+@pytest.mark.parametrize("link", [None, {"title": "Admin"}, {"href": "/api/v3/groups/"}])
+def test_normalize_time_entry_has_no_user_id_without_a_usable_user_link(link: object) -> None:
+    payload = _time_entry_payload()
+    payload["_links"]["user"] = link
+
+    assert normalize_time_entry_raw(payload, text_limit=None).user_id is None
+
+
 def test_normalize_time_entry_falls_back_to_work_package_link_when_entity_absent() -> None:
     """`entity` doesn't exist as a link key before OpenProject 16.6 (server
     representer only has `workPackage` there, verified against source) --

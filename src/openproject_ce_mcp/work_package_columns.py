@@ -116,3 +116,60 @@ def group_by_description() -> str:
         f"Newer columns need an OpenProject release: {describe_floors()}; target_versions is version under its newer name. "
         "sprint and backlog_bucket also need the Backlogs module in a project where you may view sprints."
     )
+
+
+# The result fields that show what a sort or group column orders or labels by. Ordering or grouping
+# by a field shows its values just as the field does, so a hidden field closes the column too. A
+# column without an entry names a value no result field carries and nothing can hide.
+COLUMN_RESULT_FIELDS: dict[str, tuple[str, ...]] = {
+    "project": ("project",),
+    "subject": ("subject",),
+    "type": ("type",),
+    "status": ("status",),
+    "priority": ("priority",),
+    "author": ("author",),
+    "assigned_to": ("assignee",),
+    "assignee": ("assignee",),
+    "responsible": ("responsible",),
+    "updated_at": ("updated_at",),
+    "category": ("category",),
+    "version": ("version", "target_versions"),
+    "target_versions": ("version", "target_versions"),
+    "start_date": ("start_date",),
+    "due_date": ("due_date",),
+    "estimated_hours": ("estimated_time",),
+    "estimated_time": ("estimated_time",),
+    "remaining_hours": ("remaining_time",),
+    "remaining_time": ("remaining_time",),
+    "done_ratio": ("percentage_done",),
+    "percentage_done": ("percentage_done",),
+    "created_at": ("created_at",),
+    "duration": ("duration",),
+    "project_phase": ("project_phase",),
+    "sprint": ("sprint",),
+}
+COLUMNS_WITHOUT_RESULT_FIELD = frozenset({"id", "observed_in_versions", "story_points", "position", "backlog_bucket"})
+
+# The same for the filter parameters of the list and search tools.
+FILTER_RESULT_FIELDS: dict[str, tuple[str, ...]] = {
+    "project": ("project",),
+    "search": ("subject",),
+    "custom_field_filters": ("custom_fields",),
+    "type": ("type",),
+    "version": ("version", "target_versions"),
+    "version_status": ("version", "target_versions"),
+    "observed_in_version": ("observed_in_versions",),
+    "open_only": ("status",),
+    "assignee_me": ("assignee",),
+    "assignee": ("assignee",),
+    "status": ("status",),
+    "priority": ("priority",),
+    "created_on": ("created_at",),
+    "created_between": ("created_at",),
+    "updated_on": ("updated_at",),
+    "updated_between": ("updated_at",),
+    "due_on": ("due_date",),
+    "due_between": ("due_date",),
+    "overdue_only": ("due_date", "status"),
+    "due_within_days": ("due_date",),
+}

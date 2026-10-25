@@ -467,3 +467,115 @@ def test_a_project_link_is_read_under_the_instances_own_prefix_first() -> None:
 
     assert scope.parse_project_href("/api/api/v3/projects/7", settings=settings) == scope.LinkedProject(7)
     assert scope.parse_project_href("/api/v3/projects/7", settings=settings) == scope.PrefixMismatch("/api/v3/")
+
+
+_ALLOWED_PROJECT = {"href": "/api/v3/projects/1"}
+_FOREIGN_PROJECT = {"href": "/api/v3/projects/9"}
+
+
+def _shared_resource(resource_type: str, links: dict) -> dict:
+    return {"_type": resource_type, "id": 5, "_links": links}
+
+
+@pytest.mark.parametrize(
+    ("resource_type", "key"),
+    [("Version", "definingProject"), ("Sprint", "definingWorkspace"), ("BacklogBucket", "definingWorkspace")],
+)
+def test_a_shared_resource_is_kept_only_when_its_defining_project_is_covered(resource_type: str, key: str) -> None:
+    settings = dataclasses.replace(make_settings(), read_projects=("demo",))
+    ids = {1: "demo"}
+
+    def allowed(links: dict) -> bool:
+        return scope.defining_project_allowed(
+            _shared_resource(resource_type, links), settings=settings, project_id_to_identifier=ids
+        )
+
+    assert allowed({key: _ALLOWED_PROJECT}) is True
+    assert allowed({key: _FOREIGN_PROJECT}) is False
+
+
+@pytest.mark.parametrize("resource_type", ["Version", "Sprint", "BacklogBucket"])
+@pytest.mark.parametrize(("read_projects", "expected"), [(("demo",), False), (("*",), True)])
+def test_a_shared_resource_without_a_defining_project_link_counts_like_the_undisclosed_project(
+    resource_type: str, read_projects: tuple[str, ...], expected: bool
+) -> None:
+    """OpenProject 16.x leaves the link out and 17.x renders the undisclosed placeholder when the
+    token cannot see the project; the two must not behave differently."""
+    settings = dataclasses.replace(make_settings(), read_projects=read_projects)
+
+    def allowed(links: dict) -> bool:
+        return scope.defining_project_allowed(
+            _shared_resource(resource_type, links), settings=settings, project_id_to_identifier={1: "demo"}
+        )
+
+    missing = allowed({"self": {"href": "/api/v3/versions/5"}})
+    undisclosed = allowed(
+        {
+            "definingProject": {"href": "urn:openproject-org:api:v3:undisclosed"},
+            "definingWorkspace": {"href": "urn:openproject-org:api:v3:undisclosed"},
+        }
+    )
+    assert (missing, undisclosed) == (expected, expected)
+
+
+@pytest.mark.parametrize("read_projects", [("demo",), ("*",)])
+def test_a_malformed_defining_project_link_is_denied_under_every_scope(read_projects: tuple[str, ...]) -> None:
+    settings = dataclasses.replace(make_settings(), read_projects=read_projects)
+
+    assert (
+        scope.defining_project_allowed(
+            _shared_resource("Version", {"definingProject": {"href": "/api/v3/projects/not-a-number-/x/"}}),
+            settings=settings,
+            project_id_to_identifier={1: "demo"},
+        )
+        is False
+    )
+
+
+@pytest.mark.parametrize("resource_type", ["Status", "Priority", "User", "Category", "CustomOption", "Type"])
+def test_a_resource_that_is_not_project_bound_passes_without_a_defining_project_link(resource_type: str) -> None:
+    settings = dataclasses.replace(make_settings(), read_projects=("demo",))
+
+    assert (
+        scope.defining_project_allowed(
+            _shared_resource(resource_type, {"self": {"href": "/api/v3/statuses/5"}}),
+            settings=settings,
+            project_id_to_identifier={1: "demo"},
+        )
+        is True
+    )
+
+
+@pytest.mark.parametrize(("read_projects", "expected"), [(("demo",), False), (("*",), True)])
+def test_the_version_sprint_and_bucket_policies_share_the_rule_for_a_missing_link(
+    read_projects: tuple[str, ...], expected: bool
+) -> None:
+    from openproject_ce_mcp.app.policies.backlog_bucket_policy import backlog_bucket_payload_allowed
+    from openproject_ce_mcp.app.policies.sprint_policy import sprint_payload_allowed
+    from openproject_ce_mcp.app.policies.version_policy import version_payload_allowed
+
+    settings = dataclasses.replace(make_settings(), read_projects=read_projects)
+    ids = {1: "demo"}
+    workspace = {"defining_workspace_payload": None, "defining_workspace_link": None}
+
+    assert version_payload_allowed({"_links": {}}, settings=settings, project_id_to_identifier=ids) is expected
+    assert sprint_payload_allowed(**workspace, settings=settings, project_id_to_identifier=ids) is expected
+    assert backlog_bucket_payload_allowed(**workspace, settings=settings, project_id_to_identifier=ids) is expected
+
+
+@pytest.mark.parametrize(
+    ("read_projects", "write_projects", "expected"),
+    [(("*",), ("*",), True), (("*",), ("demo",), False), (("demo",), ("*",), False), (("demo",), ("demo",), False)],
+)
+def test_a_write_to_a_resource_without_a_defining_project_link_needs_the_wildcard_scope_on_both_sides(
+    read_projects: tuple[str, ...], write_projects: tuple[str, ...], expected: bool
+) -> None:
+    settings = dataclasses.replace(make_settings(), read_projects=read_projects, write_projects=write_projects)
+
+    try:
+        scope.ensure_defining_project_write_link_allowed(None, settings=settings, project_id_to_identifier={1: "demo"})
+        allowed = True
+    except PermissionDeniedError:
+        allowed = False
+
+    assert allowed is expected

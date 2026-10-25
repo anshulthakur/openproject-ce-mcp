@@ -399,16 +399,18 @@ directory reads only the server's own resources in a body (the response itself,
 everything under `_embedded`, and a job status's `payload`), never a free-form
 property such as a grid's `options`. A project representation there is recorded
 as is; a linked id the last scan never saw is looked up with
-`GET /projects/{id}`, at most ten at a time. A known project is looked up again
-whenever its recorded identifier alone would admit a link to it and was read
-before the response arrived, since a link carries no identifier and the recorded
-one may predate a rename. Every entry carries the moment the read it came from
-began, for a project shown in a response the moment its request was sent
-(`LearningTransport` asks the directory before each request): older data never
-overwrites newer, and a response shares only a lookup that started after it
-arrived. A failed lookup, or one that returns no identifier, forgets the project
-unless a read that began later has recorded it since, so a stale identifier
-never admits. Out-of-scope projects are remembered for five minutes, then
+`GET /projects/{id}`, at most ten at a time. A known project is read again, all
+such projects of a response in one id-filtered request, whenever its recorded
+identifier alone would admit a link to it and was read before the response
+arrived, since a link carries no identifier and the recorded one may predate a
+rename; once per tool call is enough (`app/call_scope.py`, opened at the tool
+boundary), and outside a tool call every response reads again. Every entry
+carries the moment the read it came from began, for a project shown in a
+response the moment its request was sent (`LearningTransport` asks the directory
+before each request): older data never overwrites newer, and a response shares
+only a lookup that started after it arrived. A failed lookup or re-read, or an
+answer without an identifier, forgets the project unless a read that began later
+has recorded it since, so a stale identifier never admits. Out-of-scope projects are remembered for five minutes, then
 re-checked. The global `list_work_packages` filters on the projects the
 directory reports as readable (read scope matched, not archived), rescans when
 the last scan is older than five minutes, and first re-reads every one of them
@@ -426,7 +428,9 @@ project link: exactly what OpenProject emits for this instance,
 path or an absolute URL on the instance's origin, without query, fragment,
 parameters, dot segments or percent-encoding, the id within PostgreSQL's
 bigint. The root path comes from `OPENPROJECT_BASE_URL`. Every allowlist check
-classifies a link through it before any wildcard shortcut, so a link to
+classifies a link through it before any wildcard shortcut (the one display-only
+exception is `project_named_by_link_allowed`, which judges the project links of
+a time entry activity, named by identifier and title, against the directory), so a link to
 another host or another resource is denied under every scope; the directory,
 work package writes, capabilities, time entries and embedded projects read
 project ids through it too. A link with the right shape under another root
@@ -826,9 +830,23 @@ Important properties of the current model:
   projects and versions of other projects or carry the value of a hidden
   field, so otherwise the details are left out and `details_omitted` is true;
   comments, user and time stay
+- a work package result names a version, sprint or backlog bucket only when its defining
+  project is covered by `OPENPROJECT_READ_PROJECTS`. They can be shared into a covered project from
+  one that is not, and the link a work package carries names them without their project. The
+  service decides once per call and hands the adapters a `VisibleReferences`: `WorkPackageRecord`
+  builds a summary or detail only with it, and an adapter keeps a title only for a reference in it,
+  for a custom field link into a resource without a project, and for nothing else, so a link it
+  cannot read in the exact shape of this instance loses its title. The defining project comes from
+  one `GET versions/{id}`, `sprints/{id}` or `backlog_buckets/{id}` per distinct reference, remembered
+  for five minutes; the verdict is computed again on every call from the remembered project. A
+  resource the token cannot see counts as not covered, a failed lookup fails the read, and under
+  `*` nothing is looked up. `version` names the alias only when the whole assignment is that one
+  visible version, and a group named after a reference that is not visible keeps its count and sums
+  under the label `[outside read scope]`. A write that would replace such a reference is refused
+  (names stay secret, their existence does not)
 - `render_text` is refused unless `OPENPROJECT_READ_PROJECTS` is `*` and no
   field of work packages, projects, versions, documents, meetings, posts,
-  users, groups or views is hidden. OpenProject expands macros such as
+  users, groups, principals or views is hidden. OpenProject expands macros such as
   `#123`, `version#4`, `project#5` or `view#6` into the name or display id of
   the record they name, in markdown and plain text alike and whatever its
   project; the request carries no record to check them against

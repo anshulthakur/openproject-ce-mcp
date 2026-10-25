@@ -5,7 +5,7 @@ import dataclasses
 import pytest
 from _client_test_helpers import make_settings
 
-from openproject_ce_mcp.app.errors import InvalidInputError
+from openproject_ce_mcp.app.errors import InvalidInputError, PermissionDeniedError
 from openproject_ce_mcp.app.ports.version_api import VersionPage, VersionRecord
 from openproject_ce_mcp.app.resolvers.version_resolver import VersionResolver
 from openproject_ce_mcp.models import VersionSummary
@@ -192,3 +192,36 @@ async def test_the_error_names_no_scope_reason_when_every_project_is_readable() 
         await _resolver([_record(8, "Own")]).resolve_id("Nope", project="demo")
 
     assert "OPENPROJECT_READ_PROJECTS" not in str(caught.value)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("read_projects", "allowed"), [(("*",), True), (("demo",), False)])
+async def test_a_numeric_version_without_a_defining_project_link_follows_the_undisclosed_rule(
+    read_projects: tuple[str, ...], allowed: bool
+) -> None:
+    record = dataclasses.replace(_record(8, "v1.0"), defining_project_link=None)
+    resolver = VersionResolver(
+        api=_FakeVersionApi([record]),
+        resolve_project_ref=_resolve_project_ref,
+        settings=dataclasses.replace(make_settings(), read_projects=read_projects),
+        project_id_to_identifier={6: "demo"},
+    )
+
+    if allowed:
+        assert await resolver.resolve_id("8", project=None) == "8"
+    else:
+        with pytest.raises(PermissionDeniedError):
+            await resolver.resolve_id("8", project=None)
+
+
+@pytest.mark.asyncio
+async def test_resolve_by_name_works_with_version_reads_disabled() -> None:
+    """A work package write resolves a version name; the version read gate is the version tools'."""
+    resolver = VersionResolver(
+        api=_FakeVersionApi([_record(8, "v1.0")]),
+        resolve_project_ref=_resolve_project_ref,
+        settings=dataclasses.replace(make_settings(), enable_version_read=False),
+        project_id_to_identifier={6: "demo"},
+    )
+
+    assert await resolver.resolve_id("v1.0", project="demo") == "8"

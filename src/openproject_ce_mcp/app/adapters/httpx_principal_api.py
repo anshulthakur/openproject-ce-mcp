@@ -24,7 +24,7 @@ def normalize_principal(payload: dict[str, Any]) -> PrincipalSummary:
     No login/status fields: `list_principals` hits `GET /api/v3/principals`
     with no `select` parameter, which always takes the SQL fast-path
     representer (`UserSqlRepresenter`/`GroupSqlRepresenter`/
-    `PlaceholderUserSqlRepresenter`, verified against op-sources 17.7) --
+    `PlaceholderUserSqlRepresenter`, verified against the OpenProject 17.7 source) --
     none of those declare a `login` or `status` property, only
     `_type`/`id`/`name`/`email` (`firstname`/`lastname` conditionally).
     `login`/`status` exist only on the full single-resource `UserRepresenter`
@@ -43,6 +43,10 @@ def normalize_principal(payload: dict[str, Any]) -> PrincipalSummary:
 class HttpxPrincipalApi:
     def __init__(self, transport: Transport) -> None:
         self._transport = transport
+
+    async def get_user_name(self, user_id: int) -> str | None:
+        payload = await self._transport.get_json(f"users/{user_id}")
+        return _trim_text(payload.get("name"), limit=SUBJECT_LIMIT)
 
     async def list_principals(
         self, *, search: str | None, offset: int, page_size: int

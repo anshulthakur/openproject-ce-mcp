@@ -460,11 +460,16 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "0ccdbfb24bb031aee2f7ce43e91ec6dca6bebb20397d4f7af094c6d88669ac27",
         "input_schema": {
             "properties": {
-                "recurring_meeting_id": {"title": "Recurring Meeting Id", "type": "integer"},
+                "recurring_meeting_id": {
+                    "description": "Recurring meeting series id, from list_recurring_meetings.",
+                    "title": "Recurring Meeting Id",
+                    "type": "integer",
+                },
                 "start_time": {"title": "Start Time", "type": "string"},
                 "confirm": {
                     "default": False,
-                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "description": "false: preview only, nothing changes. true: applies "
+                    "it; get the user's approval of the preview first.",
                     "title": "Confirm",
                     "type": "boolean",
                 },
@@ -2221,10 +2226,15 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "43ae5fd738c956310a114a2262296efe3ed8460cd122d6314557d58fa1b46191",
         "input_schema": {
             "properties": {
-                "recurring_meeting_id": {"title": "Recurring Meeting Id", "type": "integer"},
+                "recurring_meeting_id": {
+                    "description": "Recurring meeting series id, from list_recurring_meetings.",
+                    "title": "Recurring Meeting Id",
+                    "type": "integer",
+                },
                 "confirm": {
                     "default": False,
-                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "description": "false: preview only, nothing changes. true: applies "
+                    "it; get the user's approval of the preview first.",
                     "title": "Confirm",
                     "type": "boolean",
                 },
@@ -4457,7 +4467,13 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
     "get_recurring_meeting": {
         "description_hash": "41ebf6423d80b94fd1b95afc3220066057ab9abe6a3aa0a51025fffbd8e9d0ff",
         "input_schema": {
-            "properties": {"recurring_meeting_id": {"title": "Recurring Meeting Id", "type": "integer"}},
+            "properties": {
+                "recurring_meeting_id": {
+                    "description": "Recurring meeting series id, from list_recurring_meetings.",
+                    "title": "Recurring Meeting Id",
+                    "type": "integer",
+                }
+            },
             "required": ["recurring_meeting_id"],
             "title": "get_recurring_meetingArguments",
             "type": "object",
@@ -4703,6 +4719,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                     "default": None,
                     "title": "Comment Length",
                 },
+                "user_id": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None, "title": "User Id"},
             },
             "required": [
                 "id",
@@ -5154,11 +5171,16 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "35dbe2869fd52bcaf3610430a2057310bce8a835babf0b522479c595427a4e3e",
         "input_schema": {
             "properties": {
-                "recurring_meeting_id": {"title": "Recurring Meeting Id", "type": "integer"},
+                "recurring_meeting_id": {
+                    "description": "Recurring meeting series id, from list_recurring_meetings.",
+                    "title": "Recurring Meeting Id",
+                    "type": "integer",
+                },
                 "start_time": {"title": "Start Time", "type": "string"},
                 "confirm": {
                     "default": False,
-                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "description": "false: preview only, nothing changes. true: applies "
+                    "it; get the user's approval of the preview first.",
                     "title": "Confirm",
                     "type": "boolean",
                 },
@@ -5965,12 +5987,18 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "bc32b29a4047525a2e5bf79bbec0583b23461076a22a1cadf23a304de98cb450",
         "input_schema": {
             "properties": {
-                "recurring_meeting_id": {"title": "Recurring Meeting Id", "type": "integer"},
+                "recurring_meeting_id": {
+                    "description": "Recurring meeting series id, from list_recurring_meetings.",
+                    "title": "Recurring Meeting Id",
+                    "type": "integer",
+                },
                 "filter": {"default": "upcoming", "title": "Filter", "type": "string"},
                 "limit": {
                     "anyOf": [{"type": "integer"}, {"type": "null"}],
                     "default": None,
-                    "description": 'Number of occurrences, only for filter="upcoming" (OpenProject default: 20); the other filters return their full set. Not paged.',
+                    "description": 'Number of occurrences, only for filter="upcoming" '
+                    "(OpenProject default: 20); the other filters return "
+                    "their full set. Not paged.",
                     "title": "Limit",
                 },
             },
@@ -6204,7 +6232,8 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "project": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
-                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
+                    "description": "Project identifier, id, or name; a unique part of a "
+                    "name or identifier also matches.",
                     "title": "Project",
                 },
                 "work_package_id": {
@@ -6243,7 +6272,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
-                    "description": "Fields to return; a requested unset field comes back as null. Allowed: activity, comment, comment_length, comment_truncated, created_at, end_time, entity_id, entity_name, entity_type, hours, id, ongoing, project, spent_on, start_time, updated_at, user.",
+                    "description": "Fields to return; a requested unset field comes back as "
+                    "null. Allowed: activity, comment, comment_length, "
+                    "comment_truncated, created_at, end_time, entity_id, "
+                    "entity_name, entity_type, hours, id, ongoing, project, "
+                    "spent_on, start_time, updated_at, user, user_id.",
                     "title": "Select",
                 },
                 "include_total_hours": {"default": False, "title": "Include Total Hours", "type": "boolean"},
@@ -6763,13 +6796,14 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_READ",),
     },
     "list_work_packages": {
-        "description_hash": "ae1b5cc8fb4592b6fc375e26c40f8191f6acc24754e0a9ed2df0d3386f632721",
+        "description_hash": "2bbbfe0b0dffd927a477cfba14196091a7e435e761629b9ddcc972ca148c0f9d",
         "input_schema": {
             "properties": {
                 "project": {
                     "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
                     "default": None,
-                    "description": "Project identifier, id, or name; a unique part of a name or identifier also matches.",
+                    "description": "Project identifier, id, or name; a unique part of a "
+                    "name or identifier also matches.",
                     "title": "Project",
                 },
                 "type": {
@@ -6836,13 +6870,40 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "sort_by": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
-                    "description": 'Sort criteria as "field:direction" or "field-direction" (e.g. ["status:desc", "priority-asc"]); the direction defaults to asc. Fields: assigned_to, assignee, author, backlog_bucket, category, created_at, done_ratio, due_date, duration, estimated_hours, estimated_time, id, observed_in_versions, percentage_done, position, priority, project, project_phase, remaining_hours, remaining_time, responsible, sprint, start_date, status, story_points, subject, target_versions, type, updated_at, version, or a custom field\'s cf_<id>. Newer columns need an OpenProject release: project_phase 16.1+, sprint 17.4+, backlog_bucket 17.6+, target_versions 17.8+, observed_in_versions 17.9+; target_versions is version under its newer name. sprint and backlog_bucket also need the Backlogs module in a project where you may view sprints.',
+                    "description": 'Sort criteria as "field:direction" or '
+                    '"field-direction" (e.g. ["status:desc", '
+                    '"priority-asc"]); the direction defaults to asc. '
+                    "Fields: assigned_to, assignee, author, backlog_bucket, "
+                    "category, created_at, done_ratio, due_date, duration, "
+                    "estimated_hours, estimated_time, id, "
+                    "observed_in_versions, percentage_done, position, "
+                    "priority, project, project_phase, remaining_hours, "
+                    "remaining_time, responsible, sprint, start_date, "
+                    "status, story_points, subject, target_versions, type, "
+                    "updated_at, version, or a custom field's cf_<id>. "
+                    "Newer columns need an OpenProject release: "
+                    "project_phase 16.1+, sprint 17.4+, backlog_bucket "
+                    "17.6+, target_versions 17.8+, observed_in_versions "
+                    "17.9+; target_versions is version under its newer "
+                    "name. sprint and backlog_bucket also need the Backlogs "
+                    "module in a project where you may view sprints.",
                     "title": "Sort By",
                 },
                 "group_by": {
                     "anyOf": [{"type": "string"}, {"type": "null"}],
                     "default": None,
-                    "description": "One field to group the results by: assigned_to, assignee, author, backlog_bucket, category, done_ratio, observed_in_versions, percentage_done, priority, project, project_phase, responsible, sprint, status, target_versions, type, version, or a custom field's cf_<id>. Newer columns need an OpenProject release: project_phase 16.1+, sprint 17.4+, backlog_bucket 17.6+, target_versions 17.8+, observed_in_versions 17.9+; target_versions is version under its newer name. sprint and backlog_bucket also need the Backlogs module in a project where you may view sprints.",
+                    "description": "One field to group the results by: assigned_to, "
+                    "assignee, author, backlog_bucket, category, "
+                    "done_ratio, observed_in_versions, percentage_done, "
+                    "priority, project, project_phase, responsible, "
+                    "sprint, status, target_versions, type, version, or a "
+                    "custom field's cf_<id>. Newer columns need an "
+                    "OpenProject release: project_phase 16.1+, sprint "
+                    "17.4+, backlog_bucket 17.6+, target_versions 17.8+, "
+                    "observed_in_versions 17.9+; target_versions is "
+                    "version under its newer name. sprint and "
+                    "backlog_bucket also need the Backlogs module in a "
+                    "project where you may view sprints.",
                     "title": "Group By",
                 },
                 "offset": {
@@ -6860,7 +6921,22 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 "select": {
                     "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                     "default": None,
-                    "description": "Fields to return; a requested unset field comes back as null. Allowed: assignee, author, category, created_at, custom_comments, custom_comments_truncated, custom_fields, custom_fields_truncated, derived_due_date, derived_estimated_time, derived_percentage_done, derived_remaining_time, derived_start_date, description, description_length, description_truncated, display_id, due_date, duration, estimated_time, has_description, has_project_attributes, id, ignore_non_working_days, observed_in_versions, parent_display_id, parent_id, percentage_done, priority, project, project_phase, readonly, remaining_time, responsible, schedule_manually, spent_time, sprint, start_date, status, subject, target_versions, type, updated_at, version.",
+                    "description": "Fields to return; a requested unset field comes back as "
+                    "null. Allowed: assignee, author, category, created_at, "
+                    "custom_comments, custom_comments_truncated, "
+                    "custom_fields, custom_fields_truncated, "
+                    "derived_due_date, derived_estimated_time, "
+                    "derived_percentage_done, derived_remaining_time, "
+                    "derived_start_date, description, description_length, "
+                    "description_truncated, display_id, due_date, duration, "
+                    "estimated_time, has_description, "
+                    "has_project_attributes, id, ignore_non_working_days, "
+                    "observed_in_versions, parent_display_id, parent_id, "
+                    "percentage_done, priority, project, project_phase, "
+                    "readonly, remaining_time, responsible, "
+                    "schedule_manually, spent_time, sprint, start_date, "
+                    "status, subject, target_versions, type, updated_at, "
+                    "version.",
                     "title": "Select",
                 },
                 "include_sums": {"default": False, "title": "Include Sums", "type": "boolean"},
@@ -6935,7 +7011,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_PERSONAL_READ", "OPENPROJECT_ENABLE_PERSONAL_WRITE"),
     },
     "render_text": {
-        "description_hash": "2d58caf2f1ef52118bd781c63e458471b54daafacac687a303f8e753d052b4c8",
+        "description_hash": "9286a4407546667f6471497502abe4031a0922101cfcbe0bda040b4f5def5e07",
         "input_schema": {
             "properties": {
                 "text": {"title": "Text", "type": "string"},
@@ -7917,7 +7993,11 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "description_hash": "b0dc25684d91522c9b168ee7d9c037abaafd08314f27fd148067cebfcecfaada",
         "input_schema": {
             "properties": {
-                "recurring_meeting_id": {"title": "Recurring Meeting Id", "type": "integer"},
+                "recurring_meeting_id": {
+                    "description": "Recurring meeting series id, from list_recurring_meetings.",
+                    "title": "Recurring Meeting Id",
+                    "type": "integer",
+                },
                 "title": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Title"},
                 "frequency": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Frequency"},
                 "start_time": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Start Time"},
@@ -7931,7 +8011,8 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 },
                 "confirm": {
                     "default": False,
-                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "description": "false: preview only, nothing changes. true: applies "
+                    "it; get the user's approval of the preview first.",
                     "title": "Confirm",
                     "type": "boolean",
                 },
@@ -8368,7 +8449,7 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "capability_env_vars": ("OPENPROJECT_ENABLE_VERSION_WRITE", "OPENPROJECT_ENABLE_VERSION_READ"),
     },
     "update_work_package": {
-        "description_hash": "33c0beb6f23585fb4b3cc0425916f4e15f0fcebb4874b5a008f814ea5b4d73dd",
+        "description_hash": "1f45dd75eba9f9d64761e4643e5d3f2fd5b98615117f9a71c8290bb40f7beaf1",
         "input_schema": {
             "properties": {
                 "work_package_id": {
@@ -8473,7 +8554,8 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
                 },
                 "confirm": {
                     "default": False,
-                    "description": "false: preview only, nothing changes. true: applies it; get the user's approval of the preview first.",
+                    "description": "false: preview only, nothing changes. true: applies "
+                    "it; get the user's approval of the preview first.",
                     "title": "Confirm",
                     "type": "boolean",
                 },

@@ -93,10 +93,6 @@ async def _resolve_project_ref_denied(project_ref, *, write: bool = False, conte
     raise PermissionDeniedError("OpenProject writes to this project are disabled.")
 
 
-async def _resolve_project_id_ok(project_ref, *, write: bool = False):
-    return "6"
-
-
 async def _resolve_principal_id_ok(ref):
     return "5"
 
@@ -106,7 +102,6 @@ def _service(
     api: _FakeMeetingApi | None = None,
     settings=None,
     resolve_project_ref=None,
-    resolve_project_id=None,
     resolve_principal_id=None,
 ) -> MeetingService:
     return MeetingService(
@@ -114,7 +109,6 @@ def _service(
         settings=settings or make_settings(),
         project_id_to_identifier={6: "demo"},
         resolve_project_ref=resolve_project_ref or _resolve_project_ref_ok,
-        resolve_project_id=resolve_project_id or _resolve_project_id_ok,
         resolve_principal_id=resolve_principal_id or _resolve_principal_id_ok,
         api_prefix="/api/v3/",
     )

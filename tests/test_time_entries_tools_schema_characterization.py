@@ -104,7 +104,7 @@ def test_list_time_entries_schema() -> None:
             "select": {
                 "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
                 "default": None,
-                "description": "Fields to return; a requested unset field comes back as null. Allowed: activity, comment, comment_length, comment_truncated, created_at, end_time, entity_id, entity_name, entity_type, hours, id, ongoing, project, spent_on, start_time, updated_at, user.",
+                "description": "Fields to return; a requested unset field comes back as null. Allowed: activity, comment, comment_length, comment_truncated, created_at, end_time, entity_id, entity_name, entity_type, hours, id, ongoing, project, spent_on, start_time, updated_at, user, user_id.",
                 "title": "Select",
             },
             "include_total_hours": {"default": False, "title": "Include Total Hours", "type": "boolean"},
@@ -302,6 +302,18 @@ def test_get_time_entry_schema() -> None:
                 ],
                 "default": None,
                 "title": "Comment Length",
+            },
+            "user_id": {
+                "anyOf": [
+                    {
+                        "type": "integer",
+                    },
+                    {
+                        "type": "null",
+                    },
+                ],
+                "default": None,
+                "title": "User Id",
             },
         },
         "required": [

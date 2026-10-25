@@ -1,16 +1,12 @@
 """Application Service for the Time Entries domain.
 
 Depends on `TimeEntryApi`, `ProjectApi` (for the activity-fallback project
-walk AND for `list_time_entries`'s numeric-user-id lookup, via `UserApi`),
-`WorkPackageLookupApi`, `WorkPackageIdResolver`, `ProjectRefResolver`,
-`ProjectIdResolver`, `PrincipalRefResolver`, and `CurrentUserLookup` --
-NOT `WorkPackageProjectAllowedCheck` (unlike Relations): no Time Entries path
+walk), `WorkPackageLookupApi`, `ProjectRefResolver`, `ProjectIdResolver` and
+`PrincipalRefResolver` -- NOT
+`WorkPackageProjectAllowedBulkCheck` (unlike Relations): no Time Entries path
 dereferences an already-known work-package link the way Relations' from/to
-sides do. `list_all` only needs `resolve_work_package_id` to resolve a
-caller-supplied reference to a numeric id (used for the post-normalize entity
-match -- no allowlist check of its own here); `create` fetches the work
-package itself via
-`WorkPackageLookupApi.get(...)` and checks its OWN `_links.project` directly,
+sides do. `list_all` and `create` fetch the work package themselves via
+`WorkPackageLookupApi.get(...)` and check its OWN `_links.project` directly,
 the same pattern `get`/`update`/`delete` use on the time entry's own project
 link.
 
@@ -39,23 +35,20 @@ through to `TimeEntryApi.fetch_activities_for_entity`, which sends the
 `entity` link (not `project`) whenever a work package is already known --
 this ordering must survive byte-for-byte; see that adapter's implementation.
 
-`list_all`'s `user="me"` filter uses `CurrentUserLookup` (bound to
-`self.get_current_user`, gates on the `"principal"` scope, returns the RAW
-name) rather than `UserApi.get_user("me")` -- deliberately not
-interchangeable (different scope gate, different name-truncation behavior).
-A numeric `user` filters via `UserApi.get_user(user_ref)` instead.
+`list_all` filters by the user's id: `PrincipalRefResolver` turns "me", an id or an exact name into
+one, and an entry matches by the id in its user link, never by a display name two users can share.
 """
 
 from __future__ import annotations
 
 import dataclasses
+import math
 import re
 from collections.abc import Mapping
 from typing import Any
 
 from ...config import Settings
 from ...models import (
-    CurrentUser,
     TimeEntryActivityListResult,
     TimeEntryActivitySummary,
     TimeEntryListResult,
@@ -65,17 +58,14 @@ from ...models import (
 from ...work_package_reference import is_numeric_ref
 from ..api_href import api_href as _api_href
 from ..errors import InvalidInputError, NotFoundError, OpenProjectServerError, PermissionDeniedError
-from ..pagination import effective_limit, fetch_bounded_and_paginate
+from ..pagination import collection_exhausted, effective_limit, fetch_bounded_and_paginate
 from ..policies import access, hidden_fields
 from ..policies import scope as scope_policy
-from ..ports.current_user import CurrentUserLookup
 from ..ports.principal_ref import PrincipalRefResolver
 from ..ports.project_api import ProjectApi
 from ..ports.project_ref import ProjectIdResolver, ProjectRefResolver
 from ..ports.time_entry_api import TimeEntryApi
-from ..ports.user_api import UserApi
 from ..ports.work_package_lookup_api import WorkPackageLookupApi
-from ..ports.work_package_ref import WorkPackageIdResolver
 from ..resolvers.project_query import fetch_project_page
 from ._write_outcome import _finalize_write
 from .project_scoped_list import SUBJECT_LIMIT
@@ -113,7 +103,8 @@ def _duration_to_seconds(value: str) -> float | None:
     match = _ISO8601_DURATION_PARSE_RE.fullmatch(value)
     if match is None:
         return None
-    return sum(float(v) * _SECONDS_PER_UNIT[unit] for unit, v in match.groupdict().items() if v is not None)
+    seconds = sum(float(v) * _SECONDS_PER_UNIT[unit] for unit, v in match.groupdict().items() if v is not None)
+    return seconds if math.isfinite(seconds) else None
 
 
 def _seconds_to_duration(total_seconds: float) -> str:
@@ -124,40 +115,40 @@ def _seconds_to_duration(total_seconds: float) -> str:
     return f"PT{body}" if body else "PT0S"
 
 
+# The name and the id of the user show the same person: hiding one hides both.
+_USER_ALIASES: dict[str, Any] = {"user": None, "user_id": None}
+
+
 class TimeEntryService:
     def __init__(
         self,
         *,
         api: TimeEntryApi,
         project_api: ProjectApi,
-        user_api: UserApi,
         work_package_lookup_api: WorkPackageLookupApi,
         settings: Settings,
         project_id_to_identifier: Mapping[int, str],
-        resolve_work_package_id: WorkPackageIdResolver,
         resolve_project_ref: ProjectRefResolver,
         resolve_project_id: ProjectIdResolver,
         resolve_principal_id: PrincipalRefResolver,
-        get_current_user: CurrentUserLookup,
         api_prefix: str,
     ) -> None:
         self._api = api
         self._project_api = project_api
-        self._user_api = user_api
         self._work_package_lookup_api = work_package_lookup_api
         self._settings = settings
         self._project_id_to_identifier = project_id_to_identifier
-        self._resolve_work_package_id = resolve_work_package_id
         self._resolve_project_ref = resolve_project_ref
         self._resolve_project_id = resolve_project_id
         self._resolve_principal_id = resolve_principal_id
-        self._get_current_user = get_current_user
         self._api_prefix = api_prefix
 
     def _stamp(self, summary: TimeEntrySummary) -> TimeEntrySummary:
         if hidden_fields.field_hidden("time_entry", "comment", settings=self._settings):
             summary = dataclasses.replace(summary, comment=None, comment_truncated=False, comment_length=None)
-        return hidden_fields.apply_hidden_fields("time_entry", summary, settings=self._settings)
+        return hidden_fields.apply_hidden_fields_with_aliases(
+            "time_entry", summary, settings=self._settings, aliases=_USER_ALIASES
+        )
 
     def _stamp_activity(self, summary: TimeEntryActivitySummary) -> TimeEntryActivitySummary:
         return hidden_fields.apply_hidden_fields("time_entry_activity", summary, settings=self._settings)
@@ -268,16 +259,7 @@ class TimeEntryService:
             project_payload = await self._resolve_project_ref(project)
             filter_project_id = int(project_payload["id"])
 
-        user_name: str | None = None
-        if user is not None:
-            if user.casefold() == "me":
-                current_user: CurrentUser = await self._get_current_user()
-                user_name = current_user.name
-            elif is_numeric_ref(user):
-                user_record = await self._user_api.get_user(user)
-                user_name = user_record.summary.name
-            else:
-                user_name = user
+        user_id = int(await self._resolve_principal_id(user)) if user is not None else None
 
         resolved_limit = effective_limit(limit, settings=self._settings)
 
@@ -305,8 +287,10 @@ class TimeEntryService:
                 normalized.entity_type == "WorkPackage" and normalized.entity_id == resolved_work_package_id
             ):
                 return False
-            if user_name is not None and (normalized.user or "").casefold() != user_name.casefold():
-                return False
+            if user_id is not None:
+                user_link = item.get("_links", {}).get("user")
+                if scope_policy.id_from_href(user_link.get("href") if isinstance(user_link, dict) else None) != user_id:
+                    return False
             if spent_on_from is not None and (normalized.spent_on is None or normalized.spent_on < spent_on_from):
                 return False
             return not (spent_on_to is not None and (normalized.spent_on is None or normalized.spent_on > spent_on_to))
@@ -366,6 +350,7 @@ class TimeEntryService:
         walk_offset = 1
         page_size = self._settings.max_page_size
         seen_ids: set[Any] = set()
+        fetched = 0
         for _ in range(_TOTAL_HOURS_MAX_PAGES):
             raw_page = await fetch_page(walk_offset, page_size)
             elements = [item for item in raw_page.get("_embedded", {}).get("elements", []) if isinstance(item, dict)]
@@ -383,7 +368,8 @@ class TimeEntryService:
                 seconds = _duration_to_seconds(summary.hours) if summary.hours else None
                 if seconds is not None:
                     total_seconds += seconds
-            if len(elements) < page_size:
+            fetched += len(elements)
+            if collection_exhausted(raw_page.get("total"), fetched):
                 return _seconds_to_duration(total_seconds), False
             walk_offset += 1
         return _seconds_to_duration(total_seconds), True
@@ -442,7 +428,7 @@ class TimeEntryService:
             # workPackage setter literally calls the entity setter), but the
             # `entity` link key itself doesn't exist before 16.6 and is
             # silently dropped there -- see httpx_time_entry_api.py's
-            # fetch_activities_for_entity for the live-verified detail.
+            # fetch_activities_for_entity for the detail.
             links["workPackage"] = {"href": _api_href(f"work_packages/{work_package_id}", api_prefix=self._api_prefix)}
         elif project is not None:
             hidden_fields.ensure_field_writable("time_entry", "project", settings=self._settings)

@@ -134,7 +134,7 @@ async def test_client_counts_a_real_request_with_retries_enabled() -> None:
 
 @pytest.mark.asyncio
 async def test_client_does_not_double_wrap_a_caller_supplied_retry_transport() -> None:
-    """Regression (Codex review round 9): a caller-supplied RetryTransport
+    """Regression: a caller-supplied RetryTransport
     (a documented, supported construction path) used to be hidden inside an
     outer CountingTransport before the RetryTransport double-wrap check ran,
     so that check's isinstance(transport, RetryTransport) failed and a
@@ -168,7 +168,7 @@ async def test_client_does_not_double_wrap_a_caller_supplied_retry_transport() -
 
 @pytest.mark.asyncio
 async def test_client_recounts_correctly_when_caller_wraps_retry_transport_in_counting_transport() -> None:
-    """Regression (Codex review round 10): a caller-supplied
+    """Regression: a caller-supplied
     CountingTransport(RetryTransport(...)) -- the OPPOSITE nesting order
     from the case above -- is a valid chain a caller could build. Round 9's
     fix only recognized a bare RetryTransport at the top of the chain; here
@@ -202,7 +202,7 @@ async def test_client_recounts_correctly_when_caller_wraps_retry_transport_in_co
 
 @pytest.mark.asyncio
 async def test_client_does_not_double_count_when_caller_wraps_counting_transport_in_retry_transport() -> None:
-    """Regression (Codex review round 10): the opposite ordering,
+    """Regression: the opposite ordering,
     RetryTransport(CountingTransport(...)) -- a caller-supplied
     CountingTransport nested INSIDE their own RetryTransport. Round 9's fix
     unconditionally injected a second CountingTransport around the caller's
@@ -271,7 +271,7 @@ async def test_client_with_no_transport_argument_at_all_still_counts_correctly()
 
 @pytest.mark.asyncio
 async def test_client_with_no_transport_preserves_verify_ssl_false() -> None:
-    """Regression (Codex review round 11): with no caller-supplied
+    """Regression: with no caller-supplied
     transport, an earlier version of this code always constructed its own
     bare httpx.AsyncHTTPTransport() (no verify= argument at all) rather than
     letting httpx.AsyncClient build its own verify_ssl-configured default --
@@ -291,7 +291,7 @@ async def test_client_with_no_transport_preserves_verify_ssl_false() -> None:
 
 @pytest.mark.asyncio
 async def test_client_with_no_transport_still_resolves_https_proxy_env_var(monkeypatch) -> None:
-    """Regression (Codex review round 11): an earlier version of this code
+    """Regression: an earlier version of this code
     passed an explicit `transport=`/`mounts=` to httpx.AsyncClient's own
     constructor whenever no caller transport was supplied -- either one
     disabled httpx's own environment-variable-based proxy resolution
@@ -315,7 +315,7 @@ async def test_client_with_no_transport_still_resolves_https_proxy_env_var(monke
 
 @pytest.mark.asyncio
 async def test_client_counts_the_innermost_of_two_nested_caller_retry_transports() -> None:
-    """Regression (Codex review round 11): find_in_chain returns the
+    """Regression: find_in_chain returns the
     OUTERMOST match, but CountingTransport must sit inside the INNERMOST
     RetryTransport -- a chain can validly nest more than one (however
     unusual), and only the layer actually closest to the real network sees

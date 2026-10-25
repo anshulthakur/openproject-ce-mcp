@@ -3,7 +3,7 @@ Meetings, Meeting Agenda Items, Meeting Sections, Meeting Outcomes,
 Recurring Meetings + virtual Occurrences.
 
 Requires OpenProject 17.4+ for Meetings/Recurring Meetings -- the meetings
-module does not exist on 16.6 (verified against op-sources: 16.6/17.3 carry
+module does not exist on 16.6 (verified against the OpenProject source: 16.6/17.3 carry
 only `meetings`+`attachments`, no `meeting_agenda_items`/`meeting_sections`/
 `recurring_meetings` directories at all). Meeting Agenda Items, Sections,
 and Outcomes additionally require 17.6+: the top-level collection route each
@@ -550,7 +550,7 @@ async def test_create_get_update_delete_meeting_outcome(
     agenda_item_id = agenda_result.agenda_item_id
 
     # MeetingOutcome#editable? requires meeting.in_progress? (verified against
-    # op-sources: modules/meeting/app/models/meeting_outcome.rb and the
+    # the OpenProject source: modules/meeting/app/models/meeting_outcome.rb and the
     # module's own request specs, which build their outcome fixtures with
     # state: :in_progress) -- a freshly created meeting defaults to "open"
     # and outcome writes are rejected with "This outcome is not editable

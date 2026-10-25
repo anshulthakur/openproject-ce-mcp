@@ -28,8 +28,8 @@ from collections.abc import Mapping
 from ...config import Settings
 from ...work_package_reference import is_numeric_ref
 from ..errors import InvalidInputError, NotFoundError
-from ..pagination import paginate_server
-from ..policies import access, sprint_policy
+from ..pagination import collection_exhausted
+from ..policies import sprint_policy
 from ..ports.project_ref import ProjectRefResolver
 from ..ports.project_resolution import ProjectResolutionContext
 from ..ports.sprint_api import SprintApi
@@ -71,7 +71,6 @@ class SprintResolver:
         # Page-walk real server pages via list_for_project directly, trusting
         # its reported `total` (mirrors VersionResolver.resolve_id's genuine
         # server-paginated project path).
-        access.ensure_read_enabled("project", settings=self._settings)
         project_payload = await self._resolve_project_ref(project, context=context)
         project_id = int(project_payload["id"])
         page_size = self._settings.max_page_size
@@ -79,6 +78,7 @@ class SprintResolver:
         seen_ids: set[int] = set()
         offset = 1
         is_first_page = True
+        fetched = 0
         while True:
             try:
                 records, total = await self._api.list_for_project(project_id, offset=offset, page_size=page_size)
@@ -106,10 +106,10 @@ class SprintResolver:
                     continue
                 if record.lookup_name.casefold() == sprint_ref.casefold():
                     matches.append(str(record.summary.id))
-            next_offset, _truncated = paginate_server(offset=offset, limit=page_size, total=total)
-            if next_offset is None:
+            fetched += len(records)
+            if not records or collection_exhausted(total, fetched):
                 break
-            offset = next_offset
+            offset += 1
         if not matches:
             raise InvalidInputError(f"OpenProject sprint '{sprint_ref}' was not found in project '{project}'.")
         if len(matches) > 1:

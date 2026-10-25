@@ -2,9 +2,7 @@
 
 No `httpx` import (depends on the `Transport` Protocol only). `_trim_text`/
 `_link_title`/`_id_from_href`/`_origin_from_url`/`SUBJECT_LIMIT` are shared
-via `app/adapters/_text.py`. Still has its own `_normalize_validation_errors`
-(differs behaviorally from Version's/Project's -- see `_text.py`'s module
-docstring for why it isn't shared) and `_link_to_api_path` (see
+via `app/adapters/_text.py`. Still has its own `_link_to_api_path` (see
 HttpxProjectApi's copy of the same name for the full rationale: an absolute
 href whose origin differs from this instance's configured origin is rejected
 BEFORE any authenticated request is made).
@@ -22,23 +20,9 @@ from ..transport.protocol import Transport
 from ._text import SUBJECT_LIMIT
 from ._text import id_from_href as _id_from_href
 from ._text import link_title as _link_title
+from ._text import normalize_form_validation_errors as _normalize_validation_errors
 from ._text import origin_from_url as _origin_from_url
 from ._text import trim_text as _trim_text
-
-
-def _normalize_validation_errors(value: Any) -> dict[str, str]:
-    if not isinstance(value, dict):
-        return {}
-    normalized: dict[str, str] = {}
-    for key, entry in value.items():
-        message = None
-        if isinstance(entry, dict):
-            message = _trim_text(entry.get("message"), limit=SUBJECT_LIMIT)
-        if message is None:
-            message = _trim_text(entry, limit=SUBJECT_LIMIT)
-        if message:
-            normalized[str(key)] = message
-    return normalized
 
 
 def normalize_membership(payload: dict[str, Any]) -> MembershipSummary:

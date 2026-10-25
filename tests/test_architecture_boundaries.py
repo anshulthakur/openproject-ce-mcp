@@ -1468,8 +1468,9 @@ def test_f3_allowlist_semaphore_is_structurally_separate_from_f6_batch_read_sema
         status_api=_StubWorkPackageApi(),  # type: ignore[arg-type]
         activity_api=_StubWorkPackageApi(),  # type: ignore[arg-type]
         current_user=_unused,  # type: ignore[arg-type]
-        work_package_project_allowed=resolver.project_link_allowed,
         work_package_project_allowed_bulk=resolver.project_links_allowed,
+        references_allowed=_unused,  # type: ignore[arg-type]
+        user_names=_unused,  # type: ignore[arg-type]
         api_prefix="/api/v3/",
     )
 
@@ -1599,7 +1600,6 @@ def test_reminder_service_binds_its_four_dependencies_to_the_right_protocols() -
     from openproject_ce_mcp.app.ports.work_package_ref import (
         WorkPackageIdResolver,
         WorkPackageProjectAllowedBulkCheck,
-        WorkPackageProjectAllowedCheck,
     )
     from openproject_ce_mcp.app.resolvers.work_package_resolver import WorkPackageResolver
     from openproject_ce_mcp.app.services.reminder_service import ReminderService
@@ -1622,13 +1622,6 @@ def test_reminder_service_binds_its_four_dependencies_to_the_right_protocols() -
         "ReminderService.__init__'s resolve_work_package_id param must not be the concrete resolver class"
     )
 
-    assert hints["work_package_project_allowed"] is WorkPackageProjectAllowedCheck, (
-        "ReminderService.__init__'s work_package_project_allowed param must be typed WorkPackageProjectAllowedCheck"
-    )
-    assert hints["work_package_project_allowed"] is not WorkPackageResolver, (
-        "ReminderService.__init__'s work_package_project_allowed param must not be the concrete resolver class"
-    )
-
     assert hints["work_package_project_allowed_bulk"] is WorkPackageProjectAllowedBulkCheck, (
         "ReminderService.__init__'s work_package_project_allowed_bulk param must be typed "
         "WorkPackageProjectAllowedBulkCheck"
@@ -1649,7 +1642,6 @@ def test_notification_service_binds_the_api_param_to_notification_api_specifical
     from openproject_ce_mcp.app.ports.notification_api import NotificationApi
     from openproject_ce_mcp.app.ports.work_package_ref import (
         WorkPackageProjectAllowedBulkCheck,
-        WorkPackageProjectAllowedCheck,
     )
     from openproject_ce_mcp.app.resolvers.work_package_resolver import WorkPackageResolver
     from openproject_ce_mcp.app.services.notification_service import NotificationService
@@ -1658,13 +1650,6 @@ def test_notification_service_binds_the_api_param_to_notification_api_specifical
     assert hints["api"] is NotificationApi, "NotificationService.__init__'s api param must be typed NotificationApi"
     assert hints["api"] is not HttpxNotificationApi, (
         "NotificationService.__init__'s api param must not be the concrete adapter"
-    )
-
-    assert hints["work_package_project_allowed"] is WorkPackageProjectAllowedCheck, (
-        "NotificationService.__init__'s work_package_project_allowed param must be typed WorkPackageProjectAllowedCheck"
-    )
-    assert hints["work_package_project_allowed"] is not WorkPackageResolver, (
-        "NotificationService.__init__'s work_package_project_allowed param must not be the concrete resolver class"
     )
 
     assert hints["work_package_project_allowed_bulk"] is WorkPackageProjectAllowedBulkCheck, (
@@ -1692,7 +1677,6 @@ def test_relation_service_binds_its_dependencies_to_the_right_protocols() -> Non
     from openproject_ce_mcp.app.ports.work_package_ref import (
         WorkPackageIdResolver,
         WorkPackageProjectAllowedBulkCheck,
-        WorkPackageProjectAllowedCheck,
     )
     from openproject_ce_mcp.app.resolvers.work_package_resolver import WorkPackageResolver
     from openproject_ce_mcp.app.services.relation_service import RelationService
@@ -1715,13 +1699,6 @@ def test_relation_service_binds_its_dependencies_to_the_right_protocols() -> Non
         "RelationService.__init__'s resolve_work_package_id param must not be the concrete resolver class"
     )
 
-    assert hints["work_package_project_allowed"] is WorkPackageProjectAllowedCheck, (
-        "RelationService.__init__'s work_package_project_allowed param must be typed WorkPackageProjectAllowedCheck"
-    )
-    assert hints["work_package_project_allowed"] is not WorkPackageResolver, (
-        "RelationService.__init__'s work_package_project_allowed param must not be the concrete resolver class"
-    )
-
     assert hints["work_package_project_allowed_bulk"] is WorkPackageProjectAllowedBulkCheck, (
         "RelationService.__init__'s work_package_project_allowed_bulk param must be typed "
         "WorkPackageProjectAllowedBulkCheck"
@@ -1738,22 +1715,17 @@ def test_time_entry_service_binds_its_dependencies_to_the_right_protocols() -> N
     (WorkPackageIdResolver), and create()/update()/delete() check the time
     entry's own or its work package's project link directly via
     WorkPackageLookupApi/ProjectRefResolver, never via
-    WorkPackageProjectAllowedCheck. All 8 Protocol dependencies must be
+    WorkPackageProjectAllowedCheck. Its Protocol dependencies must be
     pinned."""
     from openproject_ce_mcp.app.adapters.httpx_project_api import HttpxProjectApi
     from openproject_ce_mcp.app.adapters.httpx_time_entry_api import HttpxTimeEntryApi
-    from openproject_ce_mcp.app.adapters.httpx_user_api import HttpxUserApi
     from openproject_ce_mcp.app.adapters.httpx_work_package_lookup_api import HttpxWorkPackageLookupApi
-    from openproject_ce_mcp.app.ports.current_user import CurrentUserLookup
     from openproject_ce_mcp.app.ports.principal_ref import PrincipalRefResolver
     from openproject_ce_mcp.app.ports.project_api import ProjectApi
     from openproject_ce_mcp.app.ports.project_ref import ProjectIdResolver, ProjectRefResolver
     from openproject_ce_mcp.app.ports.time_entry_api import TimeEntryApi
-    from openproject_ce_mcp.app.ports.user_api import UserApi
     from openproject_ce_mcp.app.ports.work_package_lookup_api import WorkPackageLookupApi
-    from openproject_ce_mcp.app.ports.work_package_ref import WorkPackageIdResolver
     from openproject_ce_mcp.app.resolvers.project_resolver import ProjectResolver
-    from openproject_ce_mcp.app.resolvers.work_package_resolver import WorkPackageResolver
     from openproject_ce_mcp.app.services.time_entry_service import TimeEntryService
 
     hints = typing.get_type_hints(TimeEntryService.__init__)
@@ -1768,23 +1740,11 @@ def test_time_entry_service_binds_its_dependencies_to_the_right_protocols() -> N
         "TimeEntryService.__init__'s project_api param must not be the concrete adapter"
     )
 
-    assert hints["user_api"] is UserApi, "TimeEntryService.__init__'s user_api param must be typed UserApi"
-    assert hints["user_api"] is not HttpxUserApi, (
-        "TimeEntryService.__init__'s user_api param must not be the concrete adapter"
-    )
-
     assert hints["work_package_lookup_api"] is WorkPackageLookupApi, (
         "TimeEntryService.__init__'s work_package_lookup_api param must be typed WorkPackageLookupApi"
     )
     assert hints["work_package_lookup_api"] is not HttpxWorkPackageLookupApi, (
         "TimeEntryService.__init__'s work_package_lookup_api param must not be the concrete adapter"
-    )
-
-    assert hints["resolve_work_package_id"] is WorkPackageIdResolver, (
-        "TimeEntryService.__init__'s resolve_work_package_id param must be typed WorkPackageIdResolver"
-    )
-    assert hints["resolve_work_package_id"] is not WorkPackageResolver, (
-        "TimeEntryService.__init__'s resolve_work_package_id param must not be the concrete resolver class"
     )
 
     assert hints["resolve_project_ref"] is ProjectRefResolver, (
@@ -1803,10 +1763,6 @@ def test_time_entry_service_binds_its_dependencies_to_the_right_protocols() -> N
 
     assert hints["resolve_principal_id"] is PrincipalRefResolver, (
         "TimeEntryService.__init__'s resolve_principal_id param must be typed PrincipalRefResolver"
-    )
-
-    assert hints["get_current_user"] is CurrentUserLookup, (
-        "TimeEntryService.__init__'s get_current_user param must be typed CurrentUserLookup"
     )
 
 
@@ -1897,7 +1853,6 @@ def test_work_package_service_binds_the_api_param_to_work_package_api_specifical
     from openproject_ce_mcp.app.ports.work_package_ref import (
         WorkPackageIdResolver,
         WorkPackageProjectAllowedBulkCheck,
-        WorkPackageProjectAllowedCheck,
     )
     from openproject_ce_mcp.app.resolvers.work_package_resolver import WorkPackageResolver
     from openproject_ce_mcp.app.services.work_package_service import WorkPackageService
@@ -1906,13 +1861,6 @@ def test_work_package_service_binds_the_api_param_to_work_package_api_specifical
     assert hints["api"] is WorkPackageApi, "WorkPackageService.__init__'s api param must be typed WorkPackageApi"
     assert hints["api"] is not HttpxWorkPackageApi, (
         "WorkPackageService.__init__'s api param must not be the concrete adapter"
-    )
-
-    assert hints["work_package_project_allowed"] is WorkPackageProjectAllowedCheck, (
-        "WorkPackageService.__init__'s work_package_project_allowed param must be typed WorkPackageProjectAllowedCheck"
-    )
-    assert hints["work_package_project_allowed"] is not WorkPackageResolver, (
-        "WorkPackageService.__init__'s work_package_project_allowed param must not be the concrete resolver class"
     )
 
     assert hints["work_package_project_allowed_bulk"] is WorkPackageProjectAllowedBulkCheck, (

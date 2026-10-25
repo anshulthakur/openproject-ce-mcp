@@ -27,7 +27,7 @@ request URL.
 `TypeRecord`/`TypeSummary` (id/name/color/position/is_default), so Priority
 gets the identical masking treatment as its siblings.
 
-`statuses_cache`/`priorities_cache` are the same `SingletonCache` instances
+`statuses_cache`/`priorities_cache` are the same `CachedValue` instances
 `client.py` also gives `StatusPriorityTypeResolver` -- statuses/priorities
 are instance-global in OpenProject (no `project_id` on the underlying API
 call), safe to cache for the server process's lifetime (see
@@ -47,7 +47,7 @@ from ...models import (
     TypeListResult,
     TypeSummary,
 )
-from ..caches import SingletonCache
+from ..caches import CachedValue
 from ..policies import access, hidden_fields
 from ..ports.project_ref import ProjectRefResolver
 from ..ports.status_priority_type_api import PriorityRecord, StatusPriorityTypeApi, StatusRecord
@@ -60,8 +60,8 @@ class StatusPriorityTypeService:
         api: StatusPriorityTypeApi,
         settings: Settings,
         resolve_project_ref: ProjectRefResolver,
-        statuses_cache: SingletonCache[list[StatusRecord]],
-        priorities_cache: SingletonCache[list[PriorityRecord]],
+        statuses_cache: CachedValue[list[StatusRecord]],
+        priorities_cache: CachedValue[list[PriorityRecord]],
     ) -> None:
         self._api = api
         self._settings = settings
@@ -71,11 +71,9 @@ class StatusPriorityTypeService:
 
     async def list_statuses(self) -> StatusListResult:
         access.ensure_read_enabled("work_package", settings=self._settings)
-        if self._statuses_cache.value is None:
-            self._statuses_cache.value = await self._api.list_statuses()
+        records = await self._statuses_cache.get(self._api.list_statuses)
         results = [
-            hidden_fields.apply_hidden_fields("status", record.summary, settings=self._settings)
-            for record in self._statuses_cache.value
+            hidden_fields.apply_hidden_fields("status", record.summary, settings=self._settings) for record in records
         ]
         return StatusListResult(count=len(results), results=results)
 
@@ -86,11 +84,9 @@ class StatusPriorityTypeService:
 
     async def list_priorities(self) -> PriorityListResult:
         access.ensure_read_enabled("work_package", settings=self._settings)
-        if self._priorities_cache.value is None:
-            self._priorities_cache.value = await self._api.list_priorities()
+        records = await self._priorities_cache.get(self._api.list_priorities)
         results = [
-            hidden_fields.apply_hidden_fields("priority", record.summary, settings=self._settings)
-            for record in self._priorities_cache.value
+            hidden_fields.apply_hidden_fields("priority", record.summary, settings=self._settings) for record in records
         ]
         return PriorityListResult(count=len(results), results=results)
 

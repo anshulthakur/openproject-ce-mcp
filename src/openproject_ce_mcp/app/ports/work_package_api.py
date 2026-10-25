@@ -80,28 +80,56 @@ normalizes only the elements that pass `work_package_payload_allowed`.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 from ...models import SortCriterion, WorkPackageDetail, WorkPackageSummary
 from .project_resolution import WorkPackageResolutionContext
+from .scoped_reference import ScopedReference, VisibleReferences
 
 
 @dataclass(frozen=True)
 class WorkPackagePage:
     raw_elements: list[dict[str, Any]]  # UNFILTERED, UNNORMALIZED raw HAL elements
     server_total: int | None
-    raw_groups: list[dict[str, Any]] | None = None  # top-level `groups`, only when include_sums requested
+    groups: list[WorkPackageGroupRecord] | None = None  # top-level `groups`, only when include_sums requested
     raw_total_sums: dict[str, Any] | None = None  # top-level `totalSums`, only when include_sums requested
 
 
 @dataclass(frozen=True)
+class WorkPackageGroupRecord:
+    """One aggregation group. `references` are the versions and sprints its `valueLink` names; the
+    `value` label is the resource's name."""
+
+    value: Any
+    count: int
+    sums: dict[str, Any] | None
+    references: frozenset[ScopedReference]
+
+
+@dataclass(frozen=True)
 class WorkPackageRecord:
-    summary: WorkPackageSummary
-    to_detail: Callable[[], WorkPackageDetail]  # LAZY -- list()/search() never read this
+    """A work package as read from the API, presentable only with a decision on its references.
+
+    `references` maps the result field that shows a reference (`version`, `target_versions`,
+    `sprint`, `customField<N>`) to the references it names, so a field a
+    hide setting removes costs no lookup.
+    """
+
+    id: int
+    project: str | None
+    references: Mapping[str, frozenset[ScopedReference]]
     payload: dict[str, Any]  # raw HAL payload, _links included (allowlist checks,
     # hierarchy-allowlist filtering need the raw children/ancestors links)
+    summary_factory: Callable[[VisibleReferences], WorkPackageSummary]
+    detail_factory: Callable[[VisibleReferences], WorkPackageDetail]  # LAZY -- list()/search() never call it
+
+    def scoped_summary(self, *, visible: VisibleReferences) -> WorkPackageSummary:
+        return self.summary_factory(visible)
+
+    def scoped_detail(self, *, visible: VisibleReferences) -> WorkPackageDetail:
+        return self.detail_factory(visible)
 
 
 @dataclass(frozen=True)

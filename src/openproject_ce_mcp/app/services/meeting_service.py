@@ -1,10 +1,8 @@
 """Application Service for the Meetings domain.
 
 Depends on the `MeetingApi` Protocol (never `HttpxMeetingApi` concretely --
-enforced by the architecture-boundary test), plus `ProjectRefResolver`,
-`ProjectIdResolver` (kept for symmetry with other write-capable domains, not
-currently used by any method below), and `PrincipalRefResolver` (participant
-resolution). Meetings get their own dedicated `"meeting"` read/write scope
+enforced by the architecture-boundary test), plus `ProjectRefResolver` and
+`PrincipalRefResolver` (participant resolution). Meetings get their own dedicated `"meeting"` read/write scope
 (the domain is large and distinct enough to warrant its own toggle, following
 Boards' precedent), shared by all five sub-resources in this batch.
 
@@ -34,7 +32,7 @@ from ..policies import access, hidden_fields
 from ..policies import scope as scope_policy
 from ..ports.meeting_api import MeetingApi
 from ..ports.principal_ref import PrincipalRefResolver
-from ..ports.project_ref import ProjectIdResolver, ProjectRefResolver
+from ..ports.project_ref import ProjectRefResolver
 from ..version_gate import call_version_gated
 from ._write_outcome import _finalize_write, _WriteOutcome
 
@@ -56,7 +54,6 @@ class MeetingService:
         settings: Settings,
         project_id_to_identifier: Mapping[int, str],
         resolve_project_ref: ProjectRefResolver,
-        resolve_project_id: ProjectIdResolver,
         resolve_principal_id: PrincipalRefResolver,
         api_prefix: str,
     ) -> None:
@@ -64,7 +61,6 @@ class MeetingService:
         self._settings = settings
         self._project_id_to_identifier = project_id_to_identifier
         self._resolve_project_ref = resolve_project_ref
-        self._resolve_project_id = resolve_project_id
         self._resolve_principal_id = resolve_principal_id
         self._api_prefix = api_prefix
 

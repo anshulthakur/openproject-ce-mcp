@@ -38,4 +38,5 @@ class HttpxQueryExecutionApi:
         )
         results = payload.get("_embedded", {}).get("results", {})
         elements = [item for item in results.get("_embedded", {}).get("elements", []) if isinstance(item, dict)]
-        return QueryResultPage(raw_elements=elements)
+        total = results.get("total")
+        return QueryResultPage(raw_elements=elements, server_total=total if isinstance(total, int) else None)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import inspect
 from collections.abc import Iterable
 
 import pytest
@@ -11,26 +12,33 @@ from openproject_ce_mcp import policy_observation
 from openproject_ce_mcp.app.errors import (
     InvalidInputError,
     NotFoundError,
-    OpenProjectError,
     OpenProjectServerError,
     PermissionDeniedError,
     ProjectLinkPrefixError,
     ProjectScopeDeniedError,
 )
 from openproject_ce_mcp.app.ports.activity_api import ActivityRecord
+from openproject_ce_mcp.app.ports.scoped_reference import ScopedReference
 from openproject_ce_mcp.app.ports.status_priority_type_api import StatusRecord
-from openproject_ce_mcp.app.ports.work_package_api import WorkPackageFormResult, WorkPackagePage, WorkPackageRecord
+from openproject_ce_mcp.app.ports.work_package_api import (
+    WorkPackageFormResult,
+    WorkPackageGroupRecord,
+    WorkPackagePage,
+    WorkPackageRecord,
+)
 from openproject_ce_mcp.app.ports.work_package_resolution import WorkPackageAllowedContext
 from openproject_ce_mcp.app.resolvers.work_package_resolver import WorkPackageResolver
-from openproject_ce_mcp.app.services.work_package_service import WorkPackageService
+from openproject_ce_mcp.app.services.work_package_service import CLEAR_VERSION, WorkPackageService
 from openproject_ce_mcp.models import (
     ActivitySummary,
     CurrentUser,
+    SortCriterion,
     StatusSummary,
     WorkPackageDetail,
     WorkPackageGroupSums,
     WorkPackageSummary,
 )
+from openproject_ce_mcp.work_package_columns import FILTER_RESULT_FIELDS
 
 PROJECT_ID_TO_IDENTIFIER = {1: "demo", 20: "other"}
 
@@ -118,10 +126,17 @@ def _payload(wp_id: int = 6, *, project_href: str = "/api/v3/projects/1", projec
     }
 
 
-def _record(wp_id: int = 6, *, summary=None, detail=None, payload=None) -> WorkPackageRecord:
+def _record(wp_id: int = 6, *, summary=None, detail=None, payload=None, references=None) -> WorkPackageRecord:
     s = summary or _summary(wp_id)
     d = detail or _detail(wp_id)
-    return WorkPackageRecord(summary=s, to_detail=lambda: d, payload=payload or _payload(wp_id))
+    return WorkPackageRecord(
+        id=s.id,
+        project=s.project,
+        references=references or {},
+        payload=payload or _payload(wp_id),
+        summary_factory=lambda _visible: s,
+        detail_factory=lambda _visible: d,
+    )
 
 
 class _FakeWorkPackageApi:
@@ -170,7 +185,16 @@ class _FakeWorkPackageApi:
         return WorkPackagePage(
             raw_elements=self._raw_elements,
             server_total=self._server_total,
-            raw_groups=self._raw_groups if include_sums else None,
+            groups=(
+                [
+                    WorkPackageGroupRecord(
+                        value=g.get("value"), count=g.get("count", 0), sums=g.get("sums"), references=frozenset()
+                    )
+                    for g in self._raw_groups
+                ]
+                if include_sums and self._raw_groups is not None
+                else None
+            ),
             raw_total_sums=self._raw_total_sums if include_sums else None,
         )
 
@@ -323,38 +347,39 @@ class _FakeStatusApi:
 
 class _FakeActivityApi:
     def __init__(self) -> None:
-        self.get_raw_calls: list[int] = []
-        self.next_get_raw: dict | None = None
         self.details_requested: list[bool] = []
 
     async def list_for_work_package(self, work_package_id: int):
         return []
 
     def to_record(self, payload: dict) -> ActivityRecord:
-        def to_summary(text_limit, *, details):
+        def to_summary(text_limit, *, details, user):
             self.details_requested.append(details)
             return ActivitySummary(
                 id=payload["id"],
                 type=payload.get("_type"),
                 version=None,
-                user=payload.get("_links", {}).get("user", {}).get("title"),
+                user=user,
                 comment=(payload.get("comment") or {}).get("raw"),
                 created_at=payload.get("createdAt"),
                 details=[{"raw": d["raw"]} for d in payload.get("details", [])] if details else None,
                 details_omitted=not details,
             )
 
-        return ActivityRecord(to_summary=to_summary)
-
-    async def get_raw(self, activity_id: int) -> dict:
-        self.get_raw_calls.append(activity_id)
-        if self.next_get_raw is not None:
-            return self.next_get_raw
-        return {"id": activity_id, "_type": "Activity", "_links": {}}
+        href = payload.get("_links", {}).get("user", {}).get("href")
+        return ActivityRecord(to_summary=to_summary, user_id=int(href.rsplit("/", 1)[-1]) if href else None)
 
 
 async def _no_project_allowed(href: str, *, context: WorkPackageAllowedContext | None = None) -> bool:
     return False
+
+
+async def _no_user_names(user_ids):
+    return dict.fromkeys(user_ids)
+
+
+async def _all_references_allowed(references):
+    return dict.fromkeys(references, True)
 
 
 async def _all_project_allowed(href: str, *, context: WorkPackageAllowedContext | None = None) -> bool:
@@ -409,8 +434,10 @@ def _service(
     readable_projects: _ReadableIds | None = None,
     work_package_project_allowed=None,
     work_package_project_allowed_bulk=None,
+    references_allowed=None,
     status_api: _FakeStatusApi | None = None,
     activity_api: _FakeActivityApi | None = None,
+    user_names=None,
     resolve_work_package_id=None,
 ) -> tuple[WorkPackageService, _FakeWorkPackageApi]:
     fake_api = api or _FakeWorkPackageApi()
@@ -471,10 +498,11 @@ def _service(
         resolve_work_package_id=resolve_work_package_id or default_resolve_work_package_id,
         status_api=status_api or _FakeStatusApi(),
         activity_api=activity_api or _FakeActivityApi(),
+        user_names=user_names or _no_user_names,
         current_user=current_user,
-        work_package_project_allowed=work_package_project_allowed or _all_project_allowed,
         work_package_project_allowed_bulk=work_package_project_allowed_bulk
         or _bulk_from_single(work_package_project_allowed or _all_project_allowed),
+        references_allowed=references_allowed or _all_references_allowed,
         api_prefix="/api/v3/",
     )
     return service, fake_api
@@ -552,7 +580,7 @@ async def test_list_my_open_checks_read_enabled_before_current_user_lookup() -> 
 @pytest.mark.asyncio
 async def test_list_my_open_exposes_custom_fields_via_same_normalize_path() -> None:
     """Smoke-level regression guard: list_my_open_work_packages
-    reuses the same normalize_work_package_summary/WorkPackageService._stamp
+    reuses the same normalize_work_package_summary/stamp_summary
     path as list()/search() -- custom_fields must appear automatically, with
     no list_my_open-specific production code required."""
     summary_with_cf = dataclasses.replace(_summary(6), custom_fields={"customField1": "Acme Corp"})
@@ -721,7 +749,8 @@ async def test_search_pagination_hints_do_not_leak_untrusted_total() -> None:
     """search() has no restricted-scope project_id filter branch at all --
     next_offset/truncated must NOT be derived from the server's secret total,
     only from whether the raw page came back full."""
-    api = _FakeWorkPackageApi(raw_elements=[_payload(1)], server_total=50)
+    hidden = [_payload(100 + n, project_href="/api/v3/projects/2", project_title="Secret") for n in range(49)]
+    api = _FakeWorkPackageApi(raw_elements=[_payload(1), *hidden], server_total=50)
     service, _ = _service(api, settings=dataclasses.replace(make_settings(), read_projects=("demo",)))
 
     result = await service.search(search="foo", limit=5)
@@ -1087,7 +1116,7 @@ async def test_get_partial_key_only_hide_leaves_truncated_flag_as_originally_com
     computed (the raw-payload pre-mask truncation signal) -- a documented
     choice, distinct from _filter_hierarchy_allowlist's scope-allowlist
     re-derivation (a different class of leak; see _mask_custom_field_values'
-    docstring)."""
+    docstring in _work_package_presentation)."""
     detail_with_cf = dataclasses.replace(
         _detail(6), custom_fields={"customField1": "a", "customField2": "b"}, custom_fields_truncated=True
     )
@@ -1104,7 +1133,7 @@ async def test_get_partial_key_only_hide_leaves_truncated_flag_as_originally_com
 
 @pytest.mark.asyncio
 async def test_get_no_hide_custom_fields_configured_leaves_dict_identity_unchanged() -> None:
-    """No OPENPROJECT_HIDE_CUSTOM_FIELDS configured -> _mask_custom_field_keys
+    """No OPENPROJECT_HIDE_CUSTOM_FIELDS configured -> _mask_custom_field_keys (in _work_package_presentation)
     returns the original dict object unchanged (no rebuild), per the
     documented no-op-avoidance in _mask_custom_field_keys."""
     original = {"customField1": "a"}
@@ -1241,7 +1270,7 @@ async def test_get_batch_partial_failure() -> None:
 @pytest.mark.asyncio
 async def test_get_batch_exposes_custom_fields_via_same_normalize_path() -> None:
     """Smoke-level regression guard: get_work_packages (batch)
-    reuses the same normalize_work_package_detail/WorkPackageService._stamp
+    reuses the same normalize_work_package_detail/stamp_detail
     path as get() -- custom_fields/custom_comments must appear automatically,
     with no batch-specific production code required."""
     detail_with_cf = dataclasses.replace(_detail(6), custom_fields={"customField1": "Acme Corp"})
@@ -1348,9 +1377,8 @@ async def test_get_batch_hierarchy_filtering_completes_under_a_timeout_while_f6_
         (and its real, separate `_allowlist_semaphore`) instead of a fake
         bulk callback that never touches the actual F3 semaphore -- a fake
         callback would only prove F6 doesn't deadlock on ITSELF, not that F6
-        and the real F3 semaphore are safe together (2nd Codex review round
-        finding: the original version of this test used a fake bulk hook and
-        so never actually exercised the real semaphore it claims to prove
+        and the real F3 semaphore are safe together (a fake bulk hook
+        would never exercise the real semaphore this test claims to prove
         independence from)."""
 
         async def get(self, work_package_ref: str) -> dict:
@@ -2518,9 +2546,8 @@ async def test_update_version_rejected_against_multi_target_version_work_package
 
 @pytest.mark.asyncio
 async def test_update_version_clear_rejected_against_multi_target_version_work_package() -> None:
-    # Correction from Codex's review: CLEAR_VERSION must NOT be excluded from
-    # the guard -- clearing to zero via the legacy field is exactly as
-    # destructive as collapsing to one.
+    # CLEAR_VERSION must NOT be excluded from the guard -- clearing to zero via
+    # the legacy field is exactly as destructive as collapsing to one.
     from openproject_ce_mcp.app.services.work_package_service import CLEAR_VERSION
 
     api = _FakeWorkPackageApi()
@@ -3285,79 +3312,66 @@ async def test_add_comment_result_masked_when_comment_hidden_in_output() -> None
 
 
 # ----------------------------------------------------------------------
-# _fill_missing_activity_user
+# The user of a posted comment
 # ----------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
-async def test_fill_missing_activity_user_success_merges_fetched_user_link() -> None:
+class _UserNames:
+    def __init__(self, names: dict[int, str | None]) -> None:
+        self._names = names
+        self.calls: list[list[int]] = []
+
+    async def __call__(self, user_ids):
+        ids = list(user_ids)
+        self.calls.append(ids)
+        return {user_id: self._names.get(user_id) for user_id in ids}
+
+
+def _service_naming(names: _UserNames, **kwargs):
     activity_api = _FakeActivityApi()
-    activity_api.next_get_raw = {"id": 55, "_links": {"user": {"title": "Jane"}}}
-    api = _FakeWorkPackageApi()
-    service, _ = _service(api, activity_api=activity_api)
-
-    result = await service._fill_missing_activity_user({"id": 55, "_links": {}})
-
-    assert result["_links"]["user"]["title"] == "Jane"
-    assert activity_api.get_raw_calls == [55]
-
-
-@pytest.mark.asyncio
-async def test_fill_missing_activity_user_skipped_when_already_present() -> None:
-    activity_api = _FakeActivityApi()
-    api = _FakeWorkPackageApi()
-    service, _ = _service(api, activity_api=activity_api)
-
-    activity = {"id": 55, "_links": {"user": {"title": "Existing"}}}
-    result = await service._fill_missing_activity_user(activity)
-
-    assert result is activity
-    assert activity_api.get_raw_calls == []
+    service, _ = _service(_FakeWorkPackageApi(), activity_api=activity_api, user_names=names, **kwargs)
+    return service
 
 
 @pytest.mark.asyncio
-async def test_fill_missing_activity_user_skipped_when_hidden() -> None:
-    activity_api = _FakeActivityApi()
+async def test_a_posted_comment_names_its_user_from_the_user_id_of_the_response() -> None:
+    names = _UserNames({4: "Jane"})
+    service = _service_naming(names)
+    result = await _comment_as(service, {"id": 55, "_links": {"user": {"href": "/api/v3/users/4"}}})
+
+    assert result.result is not None and result.result.user == "Jane"
+    assert names.calls == [[4]]
+
+
+@pytest.mark.asyncio
+async def test_a_posted_comment_without_a_user_link_asks_for_no_name() -> None:
+    names = _UserNames({})
+    service = _service_naming(names)
+
+    result = await _comment_as(service, {"id": 55, "_links": {}})
+
+    assert result.result is not None and result.result.user is None
+    assert names.calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_posted_comment_asks_for_no_name_when_the_user_is_a_hidden_activity_field() -> None:
+    names = _UserNames({4: "Jane"})
     settings = dataclasses.replace(make_settings(), hidden_fields={"activity": ("user",)})
-    api = _FakeWorkPackageApi()
-    service, _ = _service(api, activity_api=activity_api, settings=settings)
+    service = _service_naming(names, settings=settings)
 
-    activity = {"id": 55, "_links": {}}
-    result = await service._fill_missing_activity_user(activity)
+    result = await _comment_as(service, {"id": 55, "_links": {"user": {"href": "/api/v3/users/4"}}})
 
-    assert result is activity
-    assert activity_api.get_raw_calls == []
+    assert result.result is not None and result.result.user is None
+    assert names.calls == []
 
 
-@pytest.mark.asyncio
-async def test_fill_missing_activity_user_skipped_when_no_usable_id() -> None:
-    activity_api = _FakeActivityApi()
-    api = _FakeWorkPackageApi()
-    service, _ = _service(api, activity_api=activity_api)
+async def _comment_as(service, activity: dict):
+    async def post_comment(work_package_ref, *, comment, internal, notify):
+        return {**activity, "comment": {"raw": comment}}
 
-    activity = {"id": None, "_links": {}}
-    result = await service._fill_missing_activity_user(activity)
-
-    assert result is activity
-    assert activity_api.get_raw_calls == []
-
-
-@pytest.mark.asyncio
-async def test_fill_missing_activity_user_swallows_fetch_failure() -> None:
-    class _FailingActivityApi(_FakeActivityApi):
-        async def get_raw(self, activity_id: int) -> dict:
-            self.get_raw_calls.append(activity_id)
-            raise OpenProjectError("boom")
-
-    activity_api = _FailingActivityApi()
-    api = _FakeWorkPackageApi()
-    service, _ = _service(api, activity_api=activity_api)
-
-    activity = {"id": 55, "_links": {}}
-    result = await service._fill_missing_activity_user(activity)
-
-    assert result is activity
-    assert activity_api.get_raw_calls == [55]
+    service._api.post_comment = post_comment
+    return await service.add_comment(work_package_id=6, comment="Hello", confirm=True)
 
 
 # ----------------------------------------------------------------------
@@ -3928,3 +3942,267 @@ async def test_list_rows_do_not_look_up_a_parent_that_is_a_row_of_the_same_page(
 
     assert {row.id: row.parent_id for row in result.results} == {1: 2, 2: None}
     assert looked_up == ["/api/v3/work_packages/20"]
+
+
+_HIDDEN_VERSION = ScopedReference("version", 7)
+_HIDDEN_SPRINT = ScopedReference("sprint", 3)
+
+
+async def _only_visible(references):
+    return {reference: reference not in {_HIDDEN_VERSION, _HIDDEN_SPRINT} for reference in references}
+
+
+def _service_holding_hidden_assignments(settings=None):
+    api = _FakeWorkPackageApi()
+    api._records_by_id[6] = _record(
+        6,
+        references={
+            "target_versions": frozenset({_HIDDEN_VERSION, ScopedReference("version", 8)}),
+            "version": frozenset({_HIDDEN_VERSION}),
+            "sprint": frozenset({_HIDDEN_SPRINT}),
+        },
+    )
+    restricted = dataclasses.replace(make_settings(), read_projects=("demo",), write_projects=("demo",))
+    service, _ = _service(api, settings=settings or restricted, references_allowed=_only_visible)
+    return service, api
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "change", [{"target_versions": ["Own"]}, {"target_versions": []}, {"version": "Own"}, {"version": CLEAR_VERSION}]
+)
+async def test_update_refuses_a_change_of_the_version_that_would_remove_a_hidden_assignment(change) -> None:
+    service, api = _service_holding_hidden_assignments()
+
+    with pytest.raises(InvalidInputError, match=r"has 1 version or sprint assignment\(s\)"):
+        await service.update(work_package_id=6, confirm=True, **change)
+
+    assert api.validate_update_calls == [] and api.commit_update_calls == []
+
+
+@pytest.mark.asyncio
+async def test_update_refuses_a_change_of_the_sprint_that_would_remove_a_hidden_assignment() -> None:
+    service, api = _service_holding_hidden_assignments()
+
+    with pytest.raises(InvalidInputError, match=r"has 1 version or sprint assignment\(s\)"):
+        await service.update(work_package_id=6, sprint="Sprint 1", confirm=True)
+
+    assert api.commit_update_calls == []
+
+
+@pytest.mark.asyncio
+async def test_the_refusal_names_a_count_and_no_version() -> None:
+    service, _ = _service_holding_hidden_assignments()
+
+    with pytest.raises(InvalidInputError) as raised:
+        await service.update(work_package_id=6, target_versions=["Own"])
+
+    assert "7" not in str(raised.value) and "Own" not in str(raised.value)
+
+
+@pytest.mark.asyncio
+async def test_update_of_other_fields_goes_ahead_while_the_work_package_holds_hidden_assignments() -> None:
+    service, api = _service_holding_hidden_assignments()
+
+    result = await service.update(work_package_id=6, subject="New", confirm=True)
+
+    assert result.ready and api.commit_update_calls
+
+
+@pytest.mark.asyncio
+async def test_update_goes_ahead_under_a_wildcard_scope_where_nothing_is_hidden() -> None:
+    settings = dataclasses.replace(make_settings(), read_projects=("*",), write_projects=("*",))
+    service, api = _service_holding_hidden_assignments(settings)
+
+    result = await service.update(work_package_id=6, target_versions=["Own"], confirm=True)
+
+    assert result.ready and api.commit_update_calls
+
+
+@pytest.mark.asyncio
+async def test_bulk_update_reports_the_refusal_for_the_item_and_updates_the_others() -> None:
+    service, api = _service_holding_hidden_assignments()
+    api._records_by_id[7] = _record(7)
+
+    result = await service.bulk_update(
+        items=[
+            {"work_package_id": 6, "target_versions": ["Own"]},
+            {"work_package_id": 7, "target_versions": ["Own"]},
+        ],
+        confirm=True,
+    )
+
+    assert [(item.success, item.error is not None) for item in result.items] == [(False, True), (True, False)]
+    assert "assignment(s)" in (result.items[0].error or "")
+    assert [ref for ref, _ in api.commit_update_calls] == ["7"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("hidden", "call"),
+    [
+        ("version", {"group_by": "version", "include_sums": True}),
+        ("target_versions", {"group_by": "version", "include_sums": True}),
+        ("status", {"group_by": "status"}),
+        ("assignee", {"sort_by": [SortCriterion(field="assigned_to", direction="asc")]}),
+        ("due_date", {"due_between": ["2026-01-01", "2026-12-31"]}),
+        ("status", {"open_only": True}),
+        ("assignee", {"assignee_me": True}),
+    ],
+)
+async def test_list_refuses_to_query_by_a_hidden_field(hidden: str, call: dict) -> None:
+    settings = dataclasses.replace(make_settings(), hidden_fields={"work_package": (hidden,)})
+    service, api = _service(settings=settings)
+
+    with pytest.raises(PermissionDeniedError, match="is hidden by OPENPROJECT_HIDE_WORK_PACKAGE_FIELDS"):
+        await service.list(**call)
+
+    assert api.list_calls == []
+
+
+@pytest.mark.asyncio
+async def test_search_refuses_to_query_by_a_hidden_field() -> None:
+    settings = dataclasses.replace(make_settings(), hidden_fields={"work_package": ("priority",)})
+    service, api = _service(settings=settings)
+
+    with pytest.raises(PermissionDeniedError, match="'priority' is hidden"):
+        await service.search(search="x", priority="High")
+
+    assert api.list_calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("hidden", ["assignee", "status"])
+async def test_list_my_open_is_refused_while_the_assignee_or_the_status_is_hidden(hidden: str) -> None:
+    settings = dataclasses.replace(make_settings(), hidden_fields={"work_package": (hidden,)})
+    service, api = _service(settings=settings)
+
+    with pytest.raises(PermissionDeniedError, match=f"'{hidden}' is hidden"):
+        await service.list_my_open()
+
+    assert api.list_calls == []
+
+
+@pytest.mark.asyncio
+async def test_list_queries_by_a_field_that_is_not_hidden_while_another_one_is() -> None:
+    settings = dataclasses.replace(make_settings(), hidden_fields={"work_package": ("description",)})
+    service, api = _service(settings=settings)
+
+    await service.list(group_by="status", sort_by=[SortCriterion(field="priority", direction="desc")], open_only=True)
+
+    assert len(api.list_calls) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("hidden", ["version", "target_versions"])
+@pytest.mark.parametrize("column", ["version", "target_versions"])
+async def test_the_two_names_of_the_version_column_close_together(hidden: str, column: str) -> None:
+    settings = dataclasses.replace(make_settings(), hidden_fields={"work_package": (hidden,)})
+    service, _ = _service(settings=settings)
+
+    with pytest.raises(PermissionDeniedError, match="cannot be used to group"):
+        await service.list(group_by=column)
+
+
+@pytest.mark.asyncio
+async def test_a_filter_set_to_zero_is_still_a_filter_on_the_hidden_field() -> None:
+    settings = dataclasses.replace(make_settings(), hidden_fields={"work_package": ("due_date",)})
+    service, _ = _service(settings=settings)
+
+    with pytest.raises(PermissionDeniedError, match="'due_date' is hidden"):
+        await service.list(due_within_days=0)
+
+
+@pytest.mark.asyncio
+async def test_list_leaves_the_sums_of_a_hidden_field_out_of_the_totals_and_the_groups() -> None:
+    raw_groups = [{"value": "New", "count": 3, "sums": {"estimatedTime": "P1D", "storyPoints": 5}}]
+    api = _FakeWorkPackageApi(
+        raw_groups=raw_groups, raw_total_sums={"estimatedTime": "P2D", "storyPoints": 9, "remainingTime": "PT1H"}
+    )
+    settings = dataclasses.replace(make_settings(), hidden_fields={"work_package": ("estimated_time",)})
+    service, _ = _service(api, settings=settings)
+
+    result = await service.list(group_by="status", include_sums=True)
+
+    assert result.total_sums == {"storyPoints": 9, "remainingTime": "PT1H"}
+    assert [g.sums for g in result.groups or []] == [{"storyPoints": 5}]
+
+
+_FILTER_SAMPLES: dict[str, object] = {
+    "project": "demo",
+    "search": "needle",
+    "custom_field_filters": {"cf_1": {"operator": "=", "values": ["a"]}},
+    "type": "Task",
+    "version": "v1",
+    "version_status": "open",
+    "observed_in_version": "v1",
+    "open_only": True,
+    "assignee_me": True,
+    "assignee": "me",
+    "status": "New",
+    "priority": "High",
+    "created_on": "2026-01-01",
+    "created_between": ["2026-01-01", "2026-02-01"],
+    "updated_on": "2026-01-01",
+    "updated_between": ["2026-01-01", "2026-02-01"],
+    "due_on": "2026-01-01",
+    "due_between": ["2026-01-01", "2026-02-01"],
+    "overdue_only": True,
+    "due_within_days": 3,
+}
+
+
+def _filter_cases() -> list[tuple[str, str, str]]:
+    cases = []
+    for method in ("list", "search"):
+        accepted = inspect.signature(getattr(WorkPackageService, method)).parameters
+        for parameter, fields in FILTER_RESULT_FIELDS.items():
+            if parameter in accepted:
+                cases.extend((method, parameter, field) for field in fields)
+    return cases
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("method", "parameter", "field"), _filter_cases())
+async def test_a_filter_on_a_hidden_field_is_refused_by_the_list_and_search_tools(
+    method: str, parameter: str, field: str
+) -> None:
+    api = _FakeWorkPackageApi()
+    settings = dataclasses.replace(make_settings(), read_projects=("*",), hidden_fields={"work_package": (field,)})
+    service, _ = _service(api, settings=settings)
+    arguments: dict[str, object] = {parameter: _FILTER_SAMPLES[parameter]}
+    if method == "search":
+        arguments.setdefault("search", "needle")
+
+    with pytest.raises(PermissionDeniedError, match="cannot be used to filter"):
+        await getattr(service, method)(**arguments)
+
+    assert api.list_calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("hidden_name", ["Secret release", "Invented release"])
+async def test_a_version_custom_field_cannot_be_set_to_or_probed_for_a_version_outside_the_read_scope(
+    hidden_name: str,
+) -> None:
+    restricted = dataclasses.replace(make_settings(), read_projects=("demo",), write_projects=("demo",))
+    service, _ = _service(settings=restricted, references_allowed=_only_visible)
+    schema = {
+        "customField3": {
+            "name": "Target",
+            "location": "_links",
+            "_embedded": {
+                "allowedValues": [
+                    {"name": "Secret release", "_links": {"self": {"href": "/api/v3/versions/7"}}},
+                    {"name": "Own release", "_links": {"self": {"href": "/api/v3/versions/8"}}},
+                ]
+            },
+        }
+    }
+
+    with pytest.raises(InvalidInputError, match=f"'{hidden_name}' is not allowed"):
+        await service._apply_custom_fields({}, {}, schema, {"Target": hidden_name})
+
+    links: dict = {}
+    await service._apply_custom_fields({}, links, schema, {"Target": "Own release"})
+    assert links == {"customField3": {"href": "/api/v3/versions/8"}}

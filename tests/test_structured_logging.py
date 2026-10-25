@@ -115,7 +115,7 @@ class _BrokenRequestIdCtx:
 async def test_broken_request_id_lookup_does_not_mask_the_real_tool_error(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Regression (Codex review round 6): the wrapper read
+    """Regression: the wrapper read
     `getattr(ctx, "request_id", None)` -- plain getattr() only catches
     AttributeError, so a request_id property raising ValueError propagated
     straight out of the wrapper, before the try block even started,

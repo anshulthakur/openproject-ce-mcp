@@ -80,6 +80,7 @@ def normalize_time_entry_raw(payload: dict[str, Any], *, text_limit: int | None)
     # fallback loses no coverage on older servers).
     entity_link = links.get("entity") or links.get("workPackage")
     entity_href = entity_link.get("href") if isinstance(entity_link, dict) else None
+    user_link = links.get("user")
     trimmed, truncated, full_length = _extract_formattable_text_with_meta(payload.get("comment"), limit=text_limit)
     return TimeEntrySummary(
         id=int(payload["id"]),
@@ -88,6 +89,7 @@ def normalize_time_entry_raw(payload: dict[str, Any], *, text_limit: int | None)
         entity_id=_id_from_href(entity_href),
         entity_name=_link_title(entity_link),
         user=_link_title(links.get("user")),
+        user_id=_id_from_href(user_link.get("href") if isinstance(user_link, dict) else None),
         activity=_link_title(links.get("activity")),
         hours=_trim_text(payload.get("hours"), limit=SUBJECT_LIMIT),
         spent_on=_trim_text(payload.get("spentOn"), limit=SUBJECT_LIMIT),

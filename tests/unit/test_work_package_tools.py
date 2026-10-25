@@ -370,6 +370,16 @@ async def test_list_work_packages_returns_version_and_description_flags() -> Non
                 json={"_type": "Project", "id": 1, "name": "Demo", "identifier": "demo", "_links": {}},
                 request=request,
             )
+        if request.url.path == "/api/v3/versions/8":
+            return httpx.Response(
+                200,
+                json={
+                    "id": 8,
+                    "name": "Q2",
+                    "_links": {"definingProject": {"href": "/api/v3/projects/1", "title": "Demo"}},
+                },
+                request=request,
+            )
         if request.url.path == "/api/v3/work_packages":
             return httpx.Response(
                 200,
@@ -385,7 +395,7 @@ async def test_list_work_packages_returns_version_and_description_flags() -> Non
                                     "type": {"title": "Feature"},
                                     "status": {"title": "Open"},
                                     "project": {"href": "/api/v3/projects/1", "title": "Demo"},
-                                    "version": {"title": "Q2"},
+                                    "version": {"href": "/api/v3/versions/8", "title": "Q2"},
                                 },
                             }
                         ]

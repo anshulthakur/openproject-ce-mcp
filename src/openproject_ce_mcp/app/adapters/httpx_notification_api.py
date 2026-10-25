@@ -22,6 +22,7 @@ import json
 from typing import Any
 
 from ...models import NotificationSummary
+from ..pagination import page_is_last
 from ..ports.notification_api import NotificationPage, NotificationRecord
 from ..transport.protocol import Transport
 from ._text import SUBJECT_LIMIT
@@ -98,7 +99,7 @@ class HttpxNotificationApi:
         elements = payload.get("_embedded", {}).get("elements", [])
         records = [self._record(item) for item in elements if isinstance(item, dict)]
         total = int(payload.get("total", len(records)))
-        exhausted = offset * limit >= total
+        exhausted = page_is_last(payload, offset=offset, requested_page_size=limit, total=total)
         return NotificationPage(records=records, total=total, exhausted=exhausted)
 
     async def mark_read(self, notification_id: int) -> None:

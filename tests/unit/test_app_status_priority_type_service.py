@@ -5,7 +5,7 @@ import dataclasses
 import pytest
 from _client_test_helpers import make_settings
 
-from openproject_ce_mcp.app.caches import SingletonCache
+from openproject_ce_mcp.app.caches import CachedValue
 from openproject_ce_mcp.app.errors import PermissionDeniedError
 from openproject_ce_mcp.app.ports.status_priority_type_api import PriorityRecord, StatusRecord, TypeRecord
 from openproject_ce_mcp.app.services.status_priority_type_service import StatusPriorityTypeService
@@ -112,16 +112,16 @@ def _service(
     *,
     settings=None,
     resolve_project_ref=_resolve_project_ref,
-    statuses_cache: SingletonCache | None = None,
-    priorities_cache: SingletonCache | None = None,
+    statuses_cache: CachedValue | None = None,
+    priorities_cache: CachedValue | None = None,
 ) -> StatusPriorityTypeService:
     api = api or _FakeStatusPriorityTypeApi()
     return StatusPriorityTypeService(
         api=api,
         settings=settings or make_settings(),
         resolve_project_ref=resolve_project_ref,
-        statuses_cache=statuses_cache if statuses_cache is not None else SingletonCache(),
-        priorities_cache=priorities_cache if priorities_cache is not None else SingletonCache(),
+        statuses_cache=statuses_cache if statuses_cache is not None else CachedValue(),
+        priorities_cache=priorities_cache if priorities_cache is not None else CachedValue(),
     )
 
 
@@ -186,7 +186,7 @@ async def test_list_statuses_does_not_call_the_api_twice() -> None:
 async def test_list_statuses_still_gates_a_read_after_the_cache_is_populated() -> None:
     """A cache hit must not bypass the read-enablement gate -- the gate check
     runs on every call, only the underlying API fetch is skipped."""
-    cache: SingletonCache = SingletonCache()
+    cache: CachedValue = CachedValue()
     api = _FakeStatusPriorityTypeApi()
     service = _service(api, statuses_cache=cache)
     await service.list_statuses()
@@ -294,9 +294,9 @@ async def test_list_statuses_shares_its_cache_with_the_resolver() -> None:
     from openproject_ce_mcp.app.resolvers.status_priority_type_resolver import StatusPriorityTypeResolver
 
     api = _FakeStatusPriorityTypeApi()
-    statuses_cache: SingletonCache = SingletonCache()
+    statuses_cache: CachedValue = CachedValue()
     service = _service(api, statuses_cache=statuses_cache)
-    resolver = StatusPriorityTypeResolver(api=api, statuses_cache=statuses_cache, priorities_cache=SingletonCache())
+    resolver = StatusPriorityTypeResolver(api=api, statuses_cache=statuses_cache, priorities_cache=CachedValue())
 
     await service.list_statuses()
     await resolver.resolve_status_id("In progress")

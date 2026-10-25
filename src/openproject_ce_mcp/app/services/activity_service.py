@@ -33,11 +33,14 @@ elements about to be discarded.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from ...config import Settings
 from ...models import ActivityListResult, ActivitySummary
 from ..pagination import effective_limit
 from ..policies import access, activity_policy, hidden_fields
-from ..ports.activity_api import ActivityApi
+from ..ports.activity_api import ActivityApi, ActivityRecord
+from ..ports.user_names import UserNames
 from ..ports.work_package_ref import WorkPackageIdResolver
 
 
@@ -48,13 +51,23 @@ class ActivityService:
         api: ActivityApi,
         settings: Settings,
         resolve_work_package_id: WorkPackageIdResolver,
+        user_names: UserNames,
     ) -> None:
         self._api = api
         self._settings = settings
         self._resolve_work_package_id = resolve_work_package_id
+        self._user_names = user_names
 
     def _stamp(self, summary: ActivitySummary) -> ActivitySummary:
         return hidden_fields.apply_hidden_fields("activity", summary, settings=self._settings)
+
+    async def _names_of(self, records: Sequence[ActivityRecord]) -> dict[int, str | None]:
+        """The names of the users of `records`; none when `user` is a hidden activity field."""
+        if hidden_fields.field_hidden("activity", "user", settings=self._settings):
+            return {}
+        return await self._user_names(
+            list(dict.fromkeys(record.user_id for record in records if record.user_id is not None))
+        )
 
     async def list_for_work_package(
         self, work_package_id: int | str, *, limit: int | None = None, text_limit: int | None = None
@@ -68,5 +81,13 @@ class ActivityService:
         # only on the survivors, preserving slice-before-normalize order.
         sliced = records[-resolved_limit:]
         details = activity_policy.details_allowed(self._settings)
-        results = [self._stamp(record.to_summary(text_limit, details=details)) for record in reversed(sliced)]
+        names = await self._names_of(sliced)
+        results = [
+            self._stamp(
+                record.to_summary(
+                    text_limit, details=details, user=None if record.user_id is None else names.get(record.user_id)
+                )
+            )
+            for record in reversed(sliced)
+        ]
         return ActivityListResult(count=len(results), results=results)

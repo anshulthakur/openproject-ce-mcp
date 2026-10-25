@@ -48,7 +48,7 @@ def test_link_branch_delegates_to_ensure_project_link_allowed() -> None:
 
 # ── Regression: policy_observation instrumentation ─────────────────────────
 #
-# Found during a Codex review of release/0.5.0: the embedded-payload branch
+# The embedded-payload branch
 # (payload already resolved, no link to delegate to scope.py's already-
 # instrumented ensure_project_link_allowed) raised ProjectScopeDeniedError
 # directly without ever recording policy_observation.

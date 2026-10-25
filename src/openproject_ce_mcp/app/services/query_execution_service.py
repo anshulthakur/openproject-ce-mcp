@@ -37,14 +37,15 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from ...config import Settings
-from ...models import WorkPackageListResult, WorkPackageSummary
+from ...models import WorkPackageListResult
 from ..pagination import effective_limit, fetch_bounded_and_paginate
-from ..policies import access, hidden_fields
+from ..policies import access
 from ..policies.work_package_policy import work_package_payload_allowed
 from ..ports.query_execution_api import QueryExecutionApi
-from ..ports.work_package_api import WorkPackageApi
+from ..ports.scoped_reference import ScopedReferencesAllowedBulkCheck
+from ..ports.work_package_api import WorkPackageApi, WorkPackageRecord
 from ..ports.work_package_ref import WorkPackageProjectAllowedBulkCheck
-from ._work_package_parents import without_uncovered_parents
+from ._work_package_presentation import present_summaries
 
 
 class QueryExecutionService:
@@ -56,6 +57,7 @@ class QueryExecutionService:
         settings: Settings,
         project_id_to_identifier: Mapping[int, str],
         work_package_project_allowed_bulk: WorkPackageProjectAllowedBulkCheck,
+        references_allowed: ScopedReferencesAllowedBulkCheck,
         api_prefix: str,
     ) -> None:
         self._api = api
@@ -63,6 +65,7 @@ class QueryExecutionService:
         self._settings = settings
         self._project_id_to_identifier = project_id_to_identifier
         self._work_package_project_allowed_bulk = work_package_project_allowed_bulk
+        self._references_allowed = references_allowed
         self._api_prefix = api_prefix
 
     async def execute(self, query_id: int, *, offset: int = 1, limit: int | None = None) -> WorkPackageListResult:
@@ -78,17 +81,17 @@ class QueryExecutionService:
 
         async def _fetch_page(server_offset: int, page_size: int) -> dict:
             page = await self._api.execute(query_id, offset=server_offset, page_size=page_size)
-            return {"_embedded": {"elements": page.raw_elements}}
+            return {"total": page.server_total, "_embedded": {"elements": page.raw_elements}}
 
         async def _item_allowed(raw: dict) -> bool:
             return work_package_payload_allowed(
                 raw, settings=self._settings, project_id_to_identifier=self._project_id_to_identifier
             )
 
-        def _normalize(raw: dict) -> WorkPackageSummary:
-            return self._work_package_api.to_record(raw, text_limit=self._settings.text_limit).summary
+        def _normalize(raw: dict) -> WorkPackageRecord:
+            return self._work_package_api.to_record(raw, text_limit=self._settings.text_limit)
 
-        results, total, next_offset, truncated = await fetch_bounded_and_paginate(
+        records, total, next_offset, truncated = await fetch_bounded_and_paginate(
             fetch_page=_fetch_page,
             normalize=_normalize,
             item_allowed=_item_allowed,
@@ -96,23 +99,13 @@ class QueryExecutionService:
             offset=offset,
             limit=effective,
         )
-        # Hidden-field stamping comes last: dataclasses.replace drops the dynamic `_hidden_keys`.
-        results = [
-            # version/target_versions are coupled aliases of the same underlying data -- see
-            # WorkPackageService's own _apply_work_package_hidden_fields for the full rationale.
-            hidden_fields.apply_hidden_fields_with_aliases(
-                "work_package",
-                summary,
-                settings=self._settings,
-                aliases={"version": None, "target_versions": []},
-            )
-            for summary in await without_uncovered_parents(
-                results,
-                settings=self._settings,
-                api_prefix=self._api_prefix,
-                project_allowed_bulk=self._work_package_project_allowed_bulk,
-            )
-        ]
+        results = await present_summaries(
+            records,
+            settings=self._settings,
+            api_prefix=self._api_prefix,
+            project_allowed_bulk=self._work_package_project_allowed_bulk,
+            references_allowed=self._references_allowed,
+        )
         return WorkPackageListResult(
             offset=offset,
             limit=effective,
