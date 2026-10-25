@@ -218,7 +218,7 @@ async def test_a_failure_of_a_shared_request_reaches_every_waiter_and_is_not_rem
     assert second == {OWN_VERSION: error}
     assert resolver._version_api.calls == [1]  # type: ignore[attr-defined]
     assert len(resolver._projects) == 0
-    assert resolver._projects.loading == 0
+    assert resolver._projects._in_flight == {}
 
 
 @pytest.mark.asyncio

@@ -98,10 +98,6 @@ class LoadingCache(Generic[K, V]):
     def __len__(self) -> int:
         return len(self._cache)
 
-    @property
-    def loading(self) -> int:
-        return len(self._in_flight)
-
 
 class CachedValue(Generic[V]):
     """One remembered value, such as the list of statuses."""

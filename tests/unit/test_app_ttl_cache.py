@@ -94,7 +94,7 @@ async def test_callers_asking_while_a_load_is_in_flight_share_it() -> None:
 
     assert results == [7, 7, 7, 7]
     assert load.calls == 1
-    assert cache.loading == 0
+    assert cache._in_flight == {}
 
 
 @pytest.mark.asyncio
@@ -168,7 +168,7 @@ async def test_a_load_whose_waiters_were_all_cancelled_still_completes_and_is_re
     await asyncio.gather(*waiters, return_exceptions=True)
     await asyncio.sleep(0.01)
 
-    assert cache.loading == 0
+    assert cache._in_flight == {}
     assert await cache.get("a", load) == 9
     assert load.calls == 1
 
