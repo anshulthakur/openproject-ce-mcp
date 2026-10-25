@@ -16,6 +16,8 @@ from collections.abc import Awaitable, Callable
 from functools import partial
 from typing import Generic, TypeVar
 
+from .. import http_request_counter
+
 FRESHNESS_SECONDS = 300.0
 
 K = TypeVar("K")
@@ -77,17 +79,17 @@ class LoadingCache(Generic[K, V]):
         task = self._in_flight.get(key)
         if task is not None:
             return await asyncio.shield(task)
-        # The caller that starts a load owns its request counts and policy observations: the load
-        # runs in a copy of the caller's context that is merged back once the caller has its value.
+        # The caller that starts a load owns its requests: the load counts them in a copy of the
+        # caller's context and the caller takes the count over once it has its value.
         context = contextvars.copy_context()
+        counted_before = http_request_counter.current()
         task = asyncio.create_task(self._load(key, load), context=context)
         self._in_flight[key] = task
         task.add_done_callback(partial(self._settled, key))
         try:
             return await asyncio.shield(task)
         finally:
-            for variable, value in context.items():
-                variable.set(value)
+            http_request_counter.adopt(context, since=counted_before)
 
     async def _load(self, key: K, load: Callable[[], Awaitable[V]]) -> V:
         if self._slots is None:

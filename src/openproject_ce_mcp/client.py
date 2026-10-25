@@ -1398,9 +1398,8 @@ class OpenProjectClient:
 
 
 def _build_http_client(settings: Settings, transport: httpx.AsyncBaseTransport | None) -> httpx.AsyncClient:
-    # Three successive review rounds each found a real bug in a prior
-    # version of this block trying to patch specific caller-supplied
-    # transport orderings in place with `isinstance` checks -- there is
+    # Patching specific caller-supplied transport orderings in place with
+    # `isinstance` checks produced a real bug per ordering -- there is
     # no bounded set of "the orderings a caller might use", so patching
     # detected orderings one at a time cannot converge (a wrong-position
     # CountingTransport still counts, just at the wrong place, so

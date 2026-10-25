@@ -99,6 +99,7 @@ def groups_for_result(
 _WRITTEN_LINK_FIELDS = {
     "version": ("version", "target_versions"),
     "targetVersions": ("version", "target_versions"),
+    "observedInVersions": ("observed_in_versions",),
     "sprint": ("sprint",),
 }
 

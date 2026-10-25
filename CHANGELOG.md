@@ -48,7 +48,10 @@ to install and discover.
   kept (OpenProject 17.8 and later).
 - Work packages expose `observed_in_versions` (OpenProject 17.9+): read on
   every work package, written through the create, update and bulk tools, and
-  filterable with `list_work_packages(observed_in_version=...)`.
+  filterable with `list_work_packages(observed_in_version=...)`. It follows the
+  rules of the other version fields: a version defined outside
+  `OPENPROJECT_READ_PROJECTS` is not named and an update that would remove one
+  is refused, and a hidden field cannot be used to filter, sort or group.
 
 ### Changed
 

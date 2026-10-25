@@ -579,3 +579,41 @@ def test_a_write_to_a_resource_without_a_defining_project_link_needs_the_wildcar
         allowed = False
 
     assert allowed is expected
+
+
+# A version, sprint or bucket whose project the token cannot see has no project link; the check
+# records its decision and denies with the scope error like every other project scope check.
+_NO_LINK_SETTINGS = {
+    "read": dataclasses.replace(make_settings(), read_projects=("demo",), write_projects=("demo",)),
+    "wild": dataclasses.replace(make_settings(), read_projects=("*",), write_projects=("demo",)),
+}
+
+
+def test_a_missing_defining_link_is_denied_with_the_scope_error_and_recorded_as_denied() -> None:
+    policy_observation.reset()
+
+    with pytest.raises(ProjectScopeDeniedError):
+        scope.ensure_defining_project_link_allowed(
+            None, settings=_NO_LINK_SETTINGS["read"], project_id_to_identifier={}
+        )
+
+    assert policy_observation.current_policy_decision() == "project_scope_read_denied"
+
+
+def test_a_missing_defining_link_under_the_wildcard_read_scope_is_recorded_as_allowed() -> None:
+    policy_observation.reset()
+
+    scope.ensure_defining_project_link_allowed(None, settings=_NO_LINK_SETTINGS["wild"], project_id_to_identifier={})
+
+    assert policy_observation.current_policy_decision() == "project_scope_read_allowed"
+
+
+def test_a_missing_defining_link_is_denied_for_a_write_unless_the_write_scope_is_the_wildcard() -> None:
+    policy_observation.reset()
+
+    with pytest.raises(ProjectScopeDeniedError, match="OPENPROJECT_WRITE_PROJECTS"):
+        scope.ensure_defining_project_write_link_allowed(
+            None, settings=_NO_LINK_SETTINGS["wild"], project_id_to_identifier={}
+        )
+
+    assert policy_observation.current_policy_decision() == "project_scope_write_denied"

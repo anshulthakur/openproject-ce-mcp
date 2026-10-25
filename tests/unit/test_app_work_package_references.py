@@ -217,9 +217,11 @@ def _holding(**references: frozenset[ScopedReference]) -> WorkPackageRecord:
         (["targetVersions"], 1),
         (["version"], 1),
         (["sprint"], 1),
+        (["observedInVersions"], 1),
         (["customField5"], 1),
         (["targetVersions", "version"], 1),
         (["targetVersions", "sprint", "customField5"], 3),
+        (["observedInVersions", "sprint"], 2),
         (["subject", "status", "customField7"], 0),
         ([], 0),
     ],
@@ -229,6 +231,7 @@ async def test_a_write_replaces_the_hidden_assignments_of_the_fields_it_sets_and
         target_versions=frozenset({SECRET, OWN}),
         version=frozenset({SECRET}),
         sprint=frozenset({SPRINT}),
+        observed_in_versions=frozenset({ScopedReference("version", 11)}),
         customField5=frozenset({ScopedReference("version", 9)}),
         customField6=frozenset({ScopedReference("version", 10)}),
     )
@@ -237,6 +240,7 @@ async def test_a_write_replaces_the_hidden_assignments_of_the_fields_it_sets_and
             SECRET: False,
             OWN: True,
             SPRINT: False,
+            ScopedReference("version", 11): False,
             ScopedReference("version", 9): False,
             ScopedReference("version", 10): False,
         }

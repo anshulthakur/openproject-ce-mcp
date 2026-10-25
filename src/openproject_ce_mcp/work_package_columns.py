@@ -135,6 +135,7 @@ COLUMN_RESULT_FIELDS: dict[str, tuple[str, ...]] = {
     "category": ("category",),
     "version": ("version", "target_versions"),
     "target_versions": ("version", "target_versions"),
+    "observed_in_versions": ("observed_in_versions",),
     "start_date": ("start_date",),
     "due_date": ("due_date",),
     "estimated_hours": ("estimated_time",),
@@ -148,7 +149,7 @@ COLUMN_RESULT_FIELDS: dict[str, tuple[str, ...]] = {
     "project_phase": ("project_phase",),
     "sprint": ("sprint",),
 }
-COLUMNS_WITHOUT_RESULT_FIELD = frozenset({"id", "observed_in_versions", "story_points", "position", "backlog_bucket"})
+COLUMNS_WITHOUT_RESULT_FIELD = frozenset({"id", "story_points", "position", "backlog_bucket"})
 
 # The same for the filter parameters of the list and search tools.
 FILTER_RESULT_FIELDS: dict[str, tuple[str, ...]] = {

@@ -70,9 +70,8 @@ def ensure_backlog_bucket_workspace_allowed(
             )
         policy_observation.record_policy_decision("project_scope_read_allowed")
         return
-    # The check delegates to the already-instrumented scope.ensure_project_link_allowed (its own
-    # @_observe_project_scope_check decorator records project_scope/policy_decision); a missing link
-    # under `*` is allowed without a decision to record.
+    # The check is instrumented itself (@_observe_project_scope_check records
+    # project_scope/policy_decision), so no separate recording is needed here.
     scope.ensure_defining_project_link_allowed(
         defining_workspace_link, settings=settings, project_id_to_identifier=project_id_to_identifier
     )

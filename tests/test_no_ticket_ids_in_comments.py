@@ -55,7 +55,7 @@ def test_the_check_sees_comments_and_docstrings() -> None:
 _PRIVATE_SOURCES = {
     "a review round or an AI tool as the author of a finding": re.compile(
         r"\b(Codex|Claude|Copilot|ChatGPT|Gemini)\b[^\n]{0,40}\b(review|caught|found|wrote|round)\b"
-        r"|\b(review|round)\b[^\n]{0,30}\b(Codex|Claude)\b|\b\d(st|nd|rd|th)[- ]round\b|\bstep[- ]\d+(\.\d+)?\b[^\n]{0,10}\breview",
+        r"|\b(review|round)\b[^\n]{0,30}\b(Codex|Claude)\b|\b\d(st|nd|rd|th)[- ]round\b|\bround[- ]\d+\b|\breview rounds?\b|\bstep[- ]\d+(\.\d+)?\b[^\n]{0,10}\breview",
         re.IGNORECASE,
     ),
     "a dated or session-stamped verification": re.compile(

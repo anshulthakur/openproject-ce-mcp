@@ -29,7 +29,7 @@ an error) for that tool call. See `context_gather.py`'s own docstring.
 
 from __future__ import annotations
 
-from contextvars import ContextVar
+from contextvars import Context, ContextVar
 
 _count: ContextVar[int] = ContextVar("http_request_count", default=0)
 
@@ -44,3 +44,11 @@ def increment() -> None:
 
 def current() -> int:
     return _count.get()
+
+
+def adopt(context: Context, *, since: int) -> None:
+    """Add the requests a task counted in its own copy of the context to the caller's count.
+
+    The copy was taken when the caller's count was `since`; only what the task added is taken over,
+    so siblings sharing the caller's context keep what they counted."""
+    _count.set(_count.get() + context.get(_count, since) - since)

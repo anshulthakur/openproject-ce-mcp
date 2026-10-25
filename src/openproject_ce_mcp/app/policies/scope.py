@@ -337,59 +337,6 @@ def project_link_payload_allowed(
     )
 
 
-_DEFINING_PROJECT_LINK_KEYS = ("definingProject", "definingWorkspace")
-_PROJECT_BOUND_TYPES = frozenset({"Version", "Sprint", "BacklogBucket"})
-
-
-def defining_project_allowed(
-    item: Mapping[str, Any], *, settings: Settings, project_id_to_identifier: Mapping[int, str]
-) -> bool:
-    """False for an embedded resource (version, sprint, backlog bucket) whose defining project the
-    read scope does not cover; any other resource passes."""
-    links = item.get("_links", {})
-    key = next((candidate for candidate in _DEFINING_PROJECT_LINK_KEYS if candidate in links), None)
-    if key is None and item.get("_type") not in _PROJECT_BOUND_TYPES:
-        return True
-    return defining_project_link_allowed(
-        links.get(key) if key else None, settings=settings, project_id_to_identifier=project_id_to_identifier
-    )
-
-
-def ensure_defining_project_link_allowed(
-    link: Any, *, settings: Settings, project_id_to_identifier: Mapping[int, str]
-) -> None:
-    """Project link of a version, sprint or backlog bucket. OpenProject leaves the link out (16.x)
-    or renders the undisclosed placeholder (17.x) when the defining project is not visible to the
-    token, so both mean the same: covered under `*`, not covered under a restricted scope."""
-    if classify_project_link(link, settings=settings) is LinkState.MISSING:
-        if scope_allows_all(settings.read_projects):
-            return
-        raise PermissionDeniedError("OpenProject access to this project is disabled by OPENPROJECT_READ_PROJECTS.")
-    ensure_project_link_allowed(link, settings=settings, project_id_to_identifier=project_id_to_identifier)
-
-
-def ensure_defining_project_write_link_allowed(
-    link: Any, *, settings: Settings, project_id_to_identifier: Mapping[int, str]
-) -> None:
-    """Write counterpart of `ensure_defining_project_link_allowed`."""
-    if classify_project_link(link, settings=settings) is not LinkState.MISSING:
-        ensure_project_write_link_allowed(link, settings=settings, project_id_to_identifier=project_id_to_identifier)
-        return
-    ensure_defining_project_link_allowed(link, settings=settings, project_id_to_identifier=project_id_to_identifier)
-    if not scope_allows_all(settings.write_projects):
-        raise PermissionDeniedError("OpenProject writes to this project are disabled by OPENPROJECT_WRITE_PROJECTS.")
-
-
-def defining_project_link_allowed(
-    link: Any, *, settings: Settings, project_id_to_identifier: Mapping[int, str]
-) -> bool:
-    return payload_allowed(
-        lambda: ensure_defining_project_link_allowed(
-            link, settings=settings, project_id_to_identifier=project_id_to_identifier
-        )
-    )
-
-
 def project_link_allowed(link: Any, *, settings: Settings, project_id_to_identifier: Mapping[int, str]) -> bool:
     """Bool form of `ensure_project_link_allowed` (same REQUIRED-link contract)."""
     return payload_allowed(
@@ -512,3 +459,58 @@ def ensure_project_write_link_allowed_if_present(
     candidates = project_link_candidates(link, settings=settings, project_id_to_identifier=project_id_to_identifier)
     if not scope_matches_candidates(settings.write_projects, candidates):
         raise ProjectScopeDeniedError("OpenProject writes to this project are disabled by OPENPROJECT_WRITE_PROJECTS.")
+
+
+_DEFINING_PROJECT_LINK_KEYS = ("definingProject", "definingWorkspace")
+_PROJECT_BOUND_TYPES = frozenset({"Version", "Sprint", "BacklogBucket"})
+
+
+def defining_project_allowed(
+    item: Mapping[str, Any], *, settings: Settings, project_id_to_identifier: Mapping[int, str]
+) -> bool:
+    """False for an embedded resource (version, sprint, backlog bucket) whose defining project the
+    read scope does not cover; any other resource passes."""
+    links = item.get("_links", {})
+    key = next((candidate for candidate in _DEFINING_PROJECT_LINK_KEYS if candidate in links), None)
+    if key is None and item.get("_type") not in _PROJECT_BOUND_TYPES:
+        return True
+    return defining_project_link_allowed(
+        links.get(key) if key else None, settings=settings, project_id_to_identifier=project_id_to_identifier
+    )
+
+
+@_observe_project_scope_check
+def ensure_defining_project_link_allowed(
+    link: Any, *, settings: Settings, project_id_to_identifier: Mapping[int, str]
+) -> None:
+    """Project link of a version, sprint or backlog bucket. OpenProject leaves the link out (16.x)
+    or renders the undisclosed placeholder (17.x) when the defining project is not visible to the
+    token, so both mean the same: covered under `*`, not covered under a restricted scope."""
+    if classify_project_link(link, settings=settings) is LinkState.MISSING:
+        if scope_allows_all(settings.read_projects):
+            return
+        raise ProjectScopeDeniedError("OpenProject access to this project is disabled by OPENPROJECT_READ_PROJECTS.")
+    ensure_project_link_allowed(link, settings=settings, project_id_to_identifier=project_id_to_identifier)
+
+
+@_observe_project_scope_check
+def ensure_defining_project_write_link_allowed(
+    link: Any, *, settings: Settings, project_id_to_identifier: Mapping[int, str]
+) -> None:
+    """Write counterpart of `ensure_defining_project_link_allowed`."""
+    if classify_project_link(link, settings=settings) is not LinkState.MISSING:
+        ensure_project_write_link_allowed(link, settings=settings, project_id_to_identifier=project_id_to_identifier)
+        return
+    ensure_defining_project_link_allowed(link, settings=settings, project_id_to_identifier=project_id_to_identifier)
+    if not scope_allows_all(settings.write_projects):
+        raise ProjectScopeDeniedError("OpenProject writes to this project are disabled by OPENPROJECT_WRITE_PROJECTS.")
+
+
+def defining_project_link_allowed(
+    link: Any, *, settings: Settings, project_id_to_identifier: Mapping[int, str]
+) -> bool:
+    return payload_allowed(
+        lambda: ensure_defining_project_link_allowed(
+            link, settings=settings, project_id_to_identifier=project_id_to_identifier
+        )
+    )

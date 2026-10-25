@@ -4,7 +4,9 @@ import asyncio
 
 import pytest
 
+from openproject_ce_mcp import http_request_counter
 from openproject_ce_mcp.app.caches import CachedValue, LoadingCache, TtlCache
+from openproject_ce_mcp.context_gather import gather_in_current_context
 
 
 class _Clock:
@@ -208,3 +210,58 @@ async def test_a_waiter_cancelled_while_queued_for_a_slot_does_not_block_the_oth
 
     assert await first == 1
     assert await cache.get(3, _Loader(3)) == 3
+
+
+def _counting(requests: int):
+    async def load() -> int:
+        await asyncio.sleep(0)
+        for _ in range(requests):
+            http_request_counter.increment()
+        return requests
+
+    return load
+
+
+@pytest.mark.asyncio
+async def test_the_caller_that_starts_a_load_counts_its_requests() -> None:
+    cache: LoadingCache[str, int] = LoadingCache(max_entries=5)
+    http_request_counter.reset()
+
+    await cache.get("a", _counting(2))
+    await cache.get("a", _counting(2))
+
+    assert http_request_counter.current() == 2
+
+
+@pytest.mark.asyncio
+async def test_concurrent_loads_of_one_call_add_up_and_keep_the_count_of_their_siblings() -> None:
+    cache: LoadingCache[str, int] = LoadingCache(max_entries=5)
+
+    async def sibling() -> None:
+        http_request_counter.increment()
+        http_request_counter.increment()
+
+    http_request_counter.reset()
+    await gather_in_current_context(
+        cache.get("a", _counting(1)), cache.get("b", _counting(3)), cache.get("c", _counting(1)), sibling()
+    )
+
+    assert http_request_counter.current() == 7
+
+
+@pytest.mark.asyncio
+async def test_a_caller_that_waits_for_a_load_it_did_not_start_counts_nothing() -> None:
+    cache: LoadingCache[str, int] = LoadingCache(max_entries=5)
+    waiter_counts: list[int] = []
+
+    async def waiter() -> None:
+        http_request_counter.reset()
+        await cache.get("a", _counting(1))
+        waiter_counts.append(http_request_counter.current())
+
+    http_request_counter.reset()
+    starter = asyncio.create_task(cache.get("a", _counting(1)))
+    await asyncio.sleep(0)
+    await asyncio.gather(starter, waiter())
+
+    assert waiter_counts == [0]

@@ -170,15 +170,15 @@ async def test_client_does_not_double_wrap_a_caller_supplied_retry_transport() -
 async def test_client_recounts_correctly_when_caller_wraps_retry_transport_in_counting_transport() -> None:
     """Regression: a caller-supplied
     CountingTransport(RetryTransport(...)) -- the OPPOSITE nesting order
-    from the case above -- is a valid chain a caller could build. Round 9's
-    fix only recognized a bare RetryTransport at the top of the chain; here
-    the top-level object is CountingTransport, so round 9's isinstance
-    check took the "else" branch, correctly declined to add a second
-    CountingTransport, but then still added an EXTRA RetryTransport on top
-    of the caller's own retry-capable transport (since it never looked
-    inside to find the existing RetryTransport), reproducing the exact same
-    (max_retries+1)^2 network-attempt multiplication as the round 9 bug,
-    just via a different nesting order."""
+    from the case above -- is a valid chain a caller could build. A check
+    that only recognized a bare RetryTransport at the top of the chain
+    fails here: the top-level object is CountingTransport, so an isinstance
+    check takes the "else" branch: it correctly declines to add a second
+    CountingTransport, but still adds an EXTRA RetryTransport on top of
+    the caller's own retry-capable transport (it never looks inside to
+    find the existing RetryTransport), which multiplies network attempts
+    by (max_retries+1)^2 exactly as with a bare RetryTransport, just via a
+    different nesting order."""
     call_count = 0
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -204,10 +204,10 @@ async def test_client_recounts_correctly_when_caller_wraps_retry_transport_in_co
 async def test_client_does_not_double_count_when_caller_wraps_counting_transport_in_retry_transport() -> None:
     """Regression: the opposite ordering,
     RetryTransport(CountingTransport(...)) -- a caller-supplied
-    CountingTransport nested INSIDE their own RetryTransport. Round 9's fix
+    CountingTransport nested INSIDE their own RetryTransport. A fix that
     unconditionally injected a second CountingTransport around the caller's
     existing one (`transport.wrapped_transport = CountingTransport(...)`
-    with no check for an existing one), so every real attempt was counted
+    with no check for an existing one) would count every real attempt
     twice even though the actual network call count was correct."""
     call_count = 0
 
