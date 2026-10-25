@@ -8,7 +8,7 @@ import inspect
 import pytest
 from _client_test_helpers import make_settings
 
-from openproject_ce_mcp.app.errors import PermissionDeniedError
+from openproject_ce_mcp.app.errors import InvalidInputError
 from openproject_ce_mcp.app.policies.work_package_query_policy import ensure_query_allowed
 from openproject_ce_mcp.app.services.work_package_service import WorkPackageService
 from openproject_ce_mcp.config import Settings
@@ -51,7 +51,7 @@ def test_every_named_result_field_exists() -> None:
 @pytest.mark.parametrize(("column", "fields"), sorted(COLUMN_RESULT_FIELDS.items()))
 def test_a_column_of_a_hidden_field_is_refused_for_sorting(column: str, fields: tuple[str, ...]) -> None:
     for field in fields:
-        with pytest.raises(PermissionDeniedError, match=f"'{field}' is hidden.*cannot be used to sort"):
+        with pytest.raises(InvalidInputError, match=f"'{field}' is hidden.*cannot be used to sort"):
             ensure_query_allowed(settings=_hiding(field), filters=[], sort_fields=[column], group_by=None)
 
     ensure_query_allowed(settings=_hiding("description"), filters=[], sort_fields=[column], group_by=None)
@@ -61,14 +61,14 @@ def test_a_column_of_a_hidden_field_is_refused_for_sorting(column: str, fields: 
 def test_a_column_of_a_hidden_field_is_refused_for_grouping(column: str) -> None:
     field = COLUMN_RESULT_FIELDS[column][0]
 
-    with pytest.raises(PermissionDeniedError, match="cannot be used to group"):
+    with pytest.raises(InvalidInputError, match="cannot be used to group"):
         ensure_query_allowed(settings=_hiding(field), filters=[], sort_fields=[], group_by=column)
 
 
 @pytest.mark.parametrize(("parameter", "fields"), sorted(FILTER_RESULT_FIELDS.items()))
 def test_a_filter_on_a_hidden_field_is_refused(parameter: str, fields: tuple[str, ...]) -> None:
     for field in fields:
-        with pytest.raises(PermissionDeniedError, match="cannot be used to filter"):
+        with pytest.raises(InvalidInputError, match="cannot be used to filter"):
             ensure_query_allowed(settings=_hiding(field), filters=[parameter], sort_fields=[], group_by=None)
 
 
@@ -97,7 +97,7 @@ def test_the_hide_setting_is_read_through_the_real_configuration() -> None:
         }
     )
 
-    with pytest.raises(PermissionDeniedError, match="'assignee' is hidden"):
+    with pytest.raises(InvalidInputError, match="'assignee' is hidden"):
         ensure_query_allowed(settings=settings, filters=[], sort_fields=["assigned_to"], group_by=None)
 
 

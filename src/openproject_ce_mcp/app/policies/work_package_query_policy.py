@@ -12,7 +12,7 @@ from typing import Any
 
 from ...config import Settings
 from ...work_package_columns import COLUMN_RESULT_FIELDS, FILTER_RESULT_FIELDS
-from ..errors import PermissionDeniedError
+from ..errors import InvalidInputError
 from . import hidden_fields
 
 
@@ -34,7 +34,7 @@ def ensure_query_allowed(
     for use, name, fields in uses:
         hidden = _hidden(fields, settings=settings)
         if hidden is not None:
-            raise PermissionDeniedError(
+            raise InvalidInputError(
                 f"OpenProject work package field '{hidden}' is hidden by OPENPROJECT_HIDE_WORK_PACKAGE_FIELDS "
                 f"and cannot be used to {use} ('{name}')."
             )
