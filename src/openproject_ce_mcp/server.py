@@ -13,7 +13,7 @@ from typing import Literal, cast
 from mcp.server.mcpserver import MCPServer
 
 from . import __version__
-from .client import OpenProjectClient
+from .client import OpenProjectClient, with_instance_page_limit
 from .config import ConfigError, Settings, configure_logging, legacy_env_warnings
 from .strict_mcpserver import StrictMCPServer, verify_strict_dispatch
 from .tools import register_tools
@@ -123,14 +123,22 @@ class AppContext:
     client: OpenProjectClient
 
 
+async def open_context(settings: Settings) -> AppContext:
+    """The client for the configured settings, capped to the instance's API page size."""
+    effective = await with_instance_page_limit(settings)
+    client = OpenProjectClient(effective)
+    await client.initialize()
+    return AppContext(settings=effective, client=client)
+
+
 def create_app(settings: Settings) -> StrictMCPServer:
     @asynccontextmanager
     async def app_lifespan(_: MCPServer) -> AsyncIterator[AppContext]:
         configure_logging(settings.log_level)
-        client = OpenProjectClient(settings)
-        await client.initialize()
+        context = await open_context(settings)
+        client = context.client
         try:
-            yield AppContext(settings=settings, client=client)
+            yield context
         finally:
             await client.aclose()
 

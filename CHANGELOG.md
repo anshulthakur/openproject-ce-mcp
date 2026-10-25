@@ -205,10 +205,11 @@ development baseline.
   under a restricted project scope. These now count a collection as read to its
   end when the elements fetched reach the `total` the server reports, or when a
   page is empty; where only the page number is known, the page size the server
-  reports is used. The list tools that page the server directly (users, groups,
-  memberships, meetings, boards, actions, `list_work_packages`) still assume
-  that `OPENPROJECT_MAX_PAGE_SIZE` does not exceed the instance's API maximum
-  page size, which the configuration reference now states.
+  reports is used. At startup the server also reads the instance's maximum API
+  page size and lowers `OPENPROJECT_MAX_PAGE_SIZE` (and the default page size)
+  to it with a warning, so the tools that page the server directly (users,
+  groups, memberships, meetings, boards, actions, `list_work_packages`) count
+  their pages in the size the server really uses.
 - A form field with several violated constraints showed only "Multiple field
   constraints have been violated." in the validation errors of every form that
   reports them (work packages, projects, versions, time entries, grids, boards,

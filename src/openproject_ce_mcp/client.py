@@ -71,7 +71,7 @@ from .app.errors import (
     AuthenticationError,  # noqa: F401
     InvalidInputError,  # noqa: F401
     NotFoundError,  # noqa: F401
-    OpenProjectError,  # noqa: F401
+    OpenProjectError,
     OpenProjectServerError,
     PermissionDeniedError,  # noqa: F401
     ProjectLinkPrefixError,  # noqa: F401
@@ -261,26 +261,7 @@ class OpenProjectClient:
         self._priorities_cache: SingletonCache[list[PriorityRecord]] = SingletonCache()
         self._instance_configuration_cache: SingletonCache[InstanceConfigurationRecord] = SingletonCache()
 
-        self._http = httpx.AsyncClient(
-            base_url=f"{settings.api_base_url.rstrip('/')}/",
-            headers={
-                "Accept": "application/hal+json, application/json",
-                "Authorization": f"Basic {__import__('base64').b64encode(f'apikey:{settings.api_token}'.encode()).decode()}",
-                "User-Agent": f"openproject-ce-mcp/{__version__}",
-            },
-            timeout=httpx.Timeout(settings.timeout),
-            verify=settings.verify_ssl,
-            follow_redirects=True,
-            transport=None if transport is None else _with_retries(transport, settings),
-        )
-        if transport is None:
-            # httpx applies verify= and the proxy environment only to transports
-            # it builds itself, so retries wrap those after construction.
-            self._http._transport = _with_retries(self._http._transport, settings)
-            self._http._mounts = {
-                pattern: None if mount is None else _with_retries(mount, settings)
-                for pattern, mount in self._http._mounts.items()
-            }
+        self._http = _build_http_client(settings, transport)
 
         # Every HttpxTransport wraps the SAME httpx.AsyncClient constructed
         # above (one connection pool). The directory looks projects up on a
@@ -1392,6 +1373,66 @@ class OpenProjectClient:
         self, version_ref: str, *, project: str | None = None, context: ProjectResolutionContext | None = None
     ) -> str:
         return await self._version_resolver.resolve_id(version_ref, project=project, context=context)
+
+
+def _build_http_client(settings: Settings, transport: httpx.AsyncBaseTransport | None) -> httpx.AsyncClient:
+    http = httpx.AsyncClient(
+        base_url=f"{settings.api_base_url.rstrip('/')}/",
+        headers={
+            "Accept": "application/hal+json, application/json",
+            "Authorization": f"Basic {__import__('base64').b64encode(f'apikey:{settings.api_token}'.encode()).decode()}",
+            "User-Agent": f"openproject-ce-mcp/{__version__}",
+        },
+        timeout=httpx.Timeout(settings.timeout),
+        verify=settings.verify_ssl,
+        follow_redirects=True,
+        transport=None if transport is None else _with_retries(transport, settings),
+    )
+    if transport is None:
+        # httpx applies verify= and the proxy environment only to transports
+        # it builds itself, so retries wrap those after construction.
+        http._transport = _with_retries(http._transport, settings)
+        http._mounts = {
+            pattern: None if mount is None else _with_retries(mount, settings)
+            for pattern, mount in http._mounts.items()
+        }
+    return http
+
+
+async def with_instance_page_limit(
+    settings: Settings, *, transport: httpx.AsyncBaseTransport | None = None
+) -> Settings:
+    """The settings with page sizes that do not exceed the instance's maximum API page size.
+
+    OpenProject silently cuts every requested page size to that maximum (an administrator setting no
+    API exposes), which makes a page shorter than asked for and every offset count in the wrong size.
+    The only way to learn it is to ask for a page of the configured size and read the `pageSize` the
+    answer reports; an offset past the end keeps the answer empty. A failed probe leaves the settings
+    as they are: the failure shows again on the first real request."""
+    http = _build_http_client(settings, transport)
+    try:
+        payload = await HttpxTransport(http).get_json(
+            "projects", params={"offset": str(_PROBE_OFFSET), "pageSize": str(settings.max_page_size)}
+        )
+    except OpenProjectError as exc:
+        LOGGER.warning("The maximum API page size of the instance could not be read: %s", exc)
+        return settings
+    finally:
+        await http.aclose()
+    reported = payload.get("pageSize")
+    if not isinstance(reported, int) or not 0 < reported < settings.max_page_size:
+        return settings
+    LOGGER.warning(
+        "OPENPROJECT_MAX_PAGE_SIZE is %d but the instance limits API pages to %d; using %d.",
+        settings.max_page_size,
+        reported,
+        reported,
+    )
+    return replace(settings, max_page_size=reported, default_page_size=min(settings.default_page_size, reported))
+
+
+# Far past the last page of any instance, so the probe's answer carries no elements.
+_PROBE_OFFSET = 1_000_000
 
 
 def _with_retries(transport: httpx.AsyncBaseTransport, settings: Settings) -> httpx.AsyncBaseTransport:

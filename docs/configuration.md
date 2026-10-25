@@ -228,7 +228,7 @@ defense in depth.
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
 | `OPENPROJECT_DEFAULT_PAGE_SIZE` | no | `10` | Default results per page (kept small to bound list context; raise if you want more rows per call). Must not exceed `OPENPROJECT_MAX_PAGE_SIZE` |
-| `OPENPROJECT_MAX_PAGE_SIZE` | no | `50` | Hard cap on results per request. Must not exceed `OPENPROJECT_MAX_RESULTS`, nor the maximum page size of the OpenProject API (Administration, API and webhooks): the list tools that page the server directly report a short last page as complete when the server cuts the page size |
+| `OPENPROJECT_MAX_PAGE_SIZE` | no | `50` | Hard cap on results per request. Must not exceed `OPENPROJECT_MAX_RESULTS`. At startup it is lowered, with a warning, to the maximum page size of the OpenProject API (Administration, API and webhooks) when that is smaller |
 | `OPENPROJECT_MAX_RESULTS` | no | `100` | Hard cap on total results returned by a tool |
 | `OPENPROJECT_TEXT_LIMIT` | no | `500` | Char cap for the description preview in list/search results (context protection across many rows), max `50000`. Single-item reads (`get_work_package`, `get_work_package_activities`) return full text regardless; a per-call `text_limit` overrides this |
 
