@@ -155,3 +155,56 @@ async def test_a_cached_value_is_loaded_once_per_window_and_again_after_it() -> 
     clock.now = 301
     assert await value.get(load) == "new"
     assert load.calls == 2
+
+
+@pytest.mark.asyncio
+async def test_a_load_whose_waiters_were_all_cancelled_still_completes_and_is_remembered() -> None:
+    cache: LoadingCache[str, int] = LoadingCache(max_entries=5)
+    load = _Loader(9)
+    waiters = [asyncio.create_task(cache.get("a", load)) for _ in range(3)]
+    await asyncio.sleep(0)
+    for waiter in waiters:
+        waiter.cancel()
+    await asyncio.gather(*waiters, return_exceptions=True)
+    await asyncio.sleep(0.01)
+
+    assert cache.loading == 0
+    assert await cache.get("a", load) == 9
+    assert load.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_a_value_loaded_after_the_old_one_expired_starts_a_new_window() -> None:
+    clock = _Clock()
+    cache: LoadingCache[str, int] = LoadingCache(ttl_seconds=10, max_entries=5, clock=clock)
+
+    async def slow() -> int:
+        await asyncio.sleep(0)
+        clock.now = 20
+        return 2
+
+    assert await cache.get("a", slow) == 2
+    clock.now = 25
+    assert await cache.get("a", _Loader(3)) == 2
+    clock.now = 31
+    assert await cache.get("a", _Loader(3)) == 3
+
+
+@pytest.mark.asyncio
+async def test_a_waiter_cancelled_while_queued_for_a_slot_does_not_block_the_others() -> None:
+    cache: LoadingCache[int, int] = LoadingCache(max_entries=5, max_concurrent=1)
+    gate = asyncio.Event()
+
+    async def blocked() -> int:
+        await gate.wait()
+        return 1
+
+    first = asyncio.create_task(cache.get(1, blocked))
+    await asyncio.sleep(0)
+    queued = asyncio.create_task(cache.get(2, _Loader(2)))
+    await asyncio.sleep(0)
+    queued.cancel()
+    gate.set()
+
+    assert await first == 1
+    assert await cache.get(3, _Loader(3)) == 3
