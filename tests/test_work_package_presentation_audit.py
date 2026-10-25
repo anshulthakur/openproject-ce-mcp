@@ -30,10 +30,25 @@ def _files_importing(module: str, name: str) -> set[str]:
     return {p.name for p in sorted(SERVICES.glob("*.py")) if name in _imports(p.read_text(), module)}
 
 
+def _of_work_packages(stamp: str):
+    """A call of `stamp`; the generic one only when it names the work package entity."""
+    named = calls_named(stamp)
+
+    def predicate(node: ast.AST) -> bool:
+        if not named(node):
+            return False
+        if stamp != "apply_hidden_fields_with_aliases":
+            return True
+        first = node.args[0] if isinstance(node, ast.Call) and node.args else None
+        return isinstance(first, ast.Constant) and first.value == "work_package"
+
+    return predicate
+
+
 def _stamping_functions(source: str | None = None) -> dict[str, list[ast.AST]]:
     found: dict[str, list[ast.AST]] = {}
     for stamp in STAMPS:
-        for name, nodes in matching_nodes(calls_named(stamp), directories=(SERVICES,), source=source).items():
+        for name, nodes in matching_nodes(_of_work_packages(stamp), directories=(SERVICES,), source=source).items():
             found.setdefault(name, []).extend(nodes)
     return found
 

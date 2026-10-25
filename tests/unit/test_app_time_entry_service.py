@@ -722,6 +722,31 @@ async def test_list_all_hides_comment_and_its_metadata_when_time_entry_comment_h
     assert entry.comment_length is None
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("hidden", ["user", "user_id"])
+async def test_list_all_hides_the_name_and_the_id_of_the_user_together(hidden: str) -> None:
+    record = dataclasses.replace(_summary(7), user_id=5)
+    api = _FakeTimeEntryApi(records=[record])
+    settings = dataclasses.replace(make_settings(), read_projects=("*",), hidden_fields={"time_entry": (hidden,)})
+    service = _service(api=api, settings=settings)
+
+    entry = (await service.list_all()).results[0]
+
+    assert (entry.user, entry.user_id) == (None, None)
+
+
+@pytest.mark.asyncio
+async def test_list_all_shows_the_id_of_the_user_beside_the_name() -> None:
+    record = dataclasses.replace(_summary(7), user_id=5)
+    service = _service(
+        api=_FakeTimeEntryApi(records=[record]), settings=dataclasses.replace(make_settings(), read_projects=("*",))
+    )
+
+    entry = (await service.list_all()).results[0]
+
+    assert (entry.user, entry.user_id) == ("Admin", 5)
+
+
 # --- include_total_hours -----------------------------------------------------
 
 

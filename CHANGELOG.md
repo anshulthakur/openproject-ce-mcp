@@ -225,7 +225,10 @@ development baseline.
 - `list_time_entries` with `user` compared the display name of each entry's
   user, so two users with the same name were mixed up. The reference ("me", an
   id or an exact name) is resolved to an id, and entries match by the id in
-  their user link. A name two users share is reported as ambiguous.
+  their user link. A name two users share is reported as ambiguous. The name
+  is looked up among the users the token can see, so time entries now carry
+  `user_id` beside `user` (hidden together with it): the id works for a user
+  who is no longer visible by name.
 - The `user` of an activity in `get_work_package_activities` and of a comment
   posted with `add_work_package_comment` was always empty, because OpenProject
   links the user by href without a name. The name is now read from the user

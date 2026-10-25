@@ -115,6 +115,10 @@ def _seconds_to_duration(total_seconds: float) -> str:
     return f"PT{body}" if body else "PT0S"
 
 
+# The name and the id of the user show the same person: hiding one hides both.
+_USER_ALIASES: dict[str, Any] = {"user": None, "user_id": None}
+
+
 class TimeEntryService:
     def __init__(
         self,
@@ -142,7 +146,9 @@ class TimeEntryService:
     def _stamp(self, summary: TimeEntrySummary) -> TimeEntrySummary:
         if hidden_fields.field_hidden("time_entry", "comment", settings=self._settings):
             summary = dataclasses.replace(summary, comment=None, comment_truncated=False, comment_length=None)
-        return hidden_fields.apply_hidden_fields("time_entry", summary, settings=self._settings)
+        return hidden_fields.apply_hidden_fields_with_aliases(
+            "time_entry", summary, settings=self._settings, aliases=_USER_ALIASES
+        )
 
     def _stamp_activity(self, summary: TimeEntryActivitySummary) -> TimeEntryActivitySummary:
         return hidden_fields.apply_hidden_fields("time_entry_activity", summary, settings=self._settings)
