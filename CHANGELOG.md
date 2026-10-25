@@ -222,6 +222,11 @@ development baseline.
   identifier and a rename could have changed it. The projects of a response are
   now read in one request, and once per tool call; a rename is still noticed by
   the next tool call.
+- The current user, the statuses, the priorities and the instance configuration
+  were read once and kept until the server restarted, so a status or priority
+  an administrator renamed or added stayed unknown by name. They now expire
+  after five minutes like the other remembered lookups. Concurrent first reads,
+  and concurrent reads of the same user name, share one request.
 - `list_time_entries` with `user` compared the display name of each entry's
   user, so two users with the same name were mixed up. The reference ("me", an
   id or an exact name) is resolved to an id, and entries match by the id in

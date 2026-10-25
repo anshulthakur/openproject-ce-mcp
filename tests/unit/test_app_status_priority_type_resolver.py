@@ -4,7 +4,7 @@ import httpx
 import pytest
 
 from openproject_ce_mcp.app.adapters.httpx_status_priority_type_api import HttpxStatusPriorityTypeApi
-from openproject_ce_mcp.app.caches import SingletonCache
+from openproject_ce_mcp.app.caches import CachedValue
 from openproject_ce_mcp.app.errors import InvalidInputError
 from openproject_ce_mcp.app.ports.status_priority_type_api import PriorityRecord, StatusRecord
 from openproject_ce_mcp.app.resolvers.status_priority_type_resolver import StatusPriorityTypeResolver
@@ -57,7 +57,7 @@ class _FakeApi:
 
 
 def _resolver(api) -> StatusPriorityTypeResolver:
-    return StatusPriorityTypeResolver(api=api, statuses_cache=SingletonCache(), priorities_cache=SingletonCache())
+    return StatusPriorityTypeResolver(api=api, statuses_cache=CachedValue(), priorities_cache=CachedValue())
 
 
 @pytest.mark.asyncio
@@ -123,9 +123,9 @@ async def test_resolve_status_id_reuses_a_shared_cache_across_two_resolver_insta
     StatusPriorityTypeService -- a resolution via one consumer must be
     visible to the other without a second API call."""
     api = _FakeApi(statuses=[_status(1, "New")])
-    statuses_cache: SingletonCache = SingletonCache()
-    resolver_a = StatusPriorityTypeResolver(api=api, statuses_cache=statuses_cache, priorities_cache=SingletonCache())
-    resolver_b = StatusPriorityTypeResolver(api=api, statuses_cache=statuses_cache, priorities_cache=SingletonCache())
+    statuses_cache: CachedValue = CachedValue()
+    resolver_a = StatusPriorityTypeResolver(api=api, statuses_cache=statuses_cache, priorities_cache=CachedValue())
+    resolver_b = StatusPriorityTypeResolver(api=api, statuses_cache=statuses_cache, priorities_cache=CachedValue())
 
     assert await resolver_a.resolve_status_id("New") == "1"
     assert await resolver_b.resolve_status_id("New") == "1"

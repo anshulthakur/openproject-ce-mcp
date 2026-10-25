@@ -177,7 +177,7 @@ async def test_the_memory_is_bounded() -> None:
 
     await resolver.references_allowed([ScopedReference("version", i) for i in versions])
 
-    assert len(resolver._known) == module._MAX_ENTRIES
+    assert len(resolver._projects) == module._MAX_ENTRIES
 
 
 @pytest.mark.asyncio
@@ -217,8 +217,8 @@ async def test_a_failure_of_a_shared_request_reaches_every_waiter_and_is_not_rem
     assert first == {OWN_VERSION: error}
     assert second == {OWN_VERSION: error}
     assert resolver._version_api.calls == [1]  # type: ignore[attr-defined]
-    assert len(resolver._known) == 0
-    assert resolver._in_flight == {}
+    assert len(resolver._projects) == 0
+    assert resolver._projects.loading == 0
 
 
 @pytest.mark.asyncio

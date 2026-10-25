@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from openproject_ce_mcp.app.caches import SingletonCache
+from openproject_ce_mcp.app.caches import CachedValue
 from openproject_ce_mcp.app.ports.current_user_api import CurrentUserRecord
 from openproject_ce_mcp.app.resolvers.current_user_resolver import CurrentUserResolver
 from openproject_ce_mcp.models import CurrentUser
@@ -21,7 +21,7 @@ class _FakeCurrentUserApi:
 @pytest.mark.asyncio
 async def test_call_returns_the_current_user() -> None:
     api = _FakeCurrentUserApi()
-    resolver = CurrentUserResolver(api=api, cache=SingletonCache())
+    resolver = CurrentUserResolver(api=api, cache=CachedValue())
 
     current_user = await resolver()
 
@@ -35,7 +35,7 @@ async def test_call_returns_the_current_user() -> None:
 async def test_call_returns_the_current_user_whatever_the_user_read_gate_and_hide_settings_say() -> None:
     """An internal lookup for assignee="me": the gate and the masking belong to the tool."""
     api = _FakeCurrentUserApi()
-    resolver = CurrentUserResolver(api=api, cache=SingletonCache())
+    resolver = CurrentUserResolver(api=api, cache=CachedValue())
 
     current_user = await resolver()
 
@@ -46,7 +46,7 @@ async def test_call_returns_the_current_user_whatever_the_user_read_gate_and_hid
 @pytest.mark.asyncio
 async def test_call_uses_cache_on_second_invocation() -> None:
     api = _FakeCurrentUserApi()
-    cache: SingletonCache = SingletonCache()
+    cache: CachedValue = CachedValue()
     resolver = CurrentUserResolver(api=api, cache=cache)
 
     await resolver()
@@ -58,7 +58,13 @@ async def test_call_uses_cache_on_second_invocation() -> None:
 @pytest.mark.asyncio
 async def test_call_shares_a_pre_populated_cache_without_calling_the_api() -> None:
     api = _FakeCurrentUserApi()
-    cache: SingletonCache = SingletonCache(value=CurrentUserRecord(summary=CurrentUser(id=1, name="Bob", login="bob")))
+    cache: CachedValue = CachedValue()
+    record = CurrentUserRecord(summary=CurrentUser(id=1, name="Bob", login="bob"))
+
+    async def load() -> CurrentUserRecord:
+        return record
+
+    await cache.get(load)
     resolver = CurrentUserResolver(api=api, cache=cache)
 
     current_user = await resolver()

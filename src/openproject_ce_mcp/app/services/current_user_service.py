@@ -20,9 +20,9 @@ gate+mask logic, depending directly on `CurrentUserApi` rather than on this
 Service, so those four don't carry a hidden Service->Service dependency
 through a runtime-bound `client.py` method.
 
-`cache` is the same `SingletonCache` instance `client.py` also gives
-`CurrentUserResolver` -- one process-lifetime API token has one fixed
-current user, so caching is safe (see `app/caches.py`). The cache holds no
+`cache` is the same `CachedValue` instance `client.py` also gives
+`CurrentUserResolver` -- the API token of a client has one current user, so
+caching is safe for the window of `app/caches.py`. The cache holds no
 gate/mask logic itself; each class still applies its own gate/mask exactly
 as before the cache existed.
 """
@@ -31,19 +31,18 @@ from __future__ import annotations
 
 from ...config import Settings
 from ...models import CurrentUser
-from ..caches import SingletonCache
+from ..caches import CachedValue
 from ..policies import access, hidden_fields
 from ..ports.current_user_api import CurrentUserApi, CurrentUserRecord
 
 
 class CurrentUserService:
-    def __init__(self, *, api: CurrentUserApi, settings: Settings, cache: SingletonCache[CurrentUserRecord]) -> None:
+    def __init__(self, *, api: CurrentUserApi, settings: Settings, cache: CachedValue[CurrentUserRecord]) -> None:
         self._api = api
         self._settings = settings
         self._cache = cache
 
     async def get_current_user(self) -> CurrentUser:
         access.ensure_read_enabled("principal", settings=self._settings)
-        if self._cache.value is None:
-            self._cache.value = await self._api.get_current_user()
-        return hidden_fields.apply_hidden_fields("current_user", self._cache.value.summary, settings=self._settings)
+        record = await self._cache.get(self._api.get_current_user)
+        return hidden_fields.apply_hidden_fields("current_user", record.summary, settings=self._settings)

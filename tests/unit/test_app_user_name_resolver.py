@@ -91,3 +91,14 @@ async def test_at_most_ten_users_are_asked_for_at_a_time() -> None:
     await resolver.names(range(1, 31))
 
     assert 1 < api.max_in_flight <= 10
+
+
+@pytest.mark.asyncio
+async def test_concurrent_calls_naming_the_same_user_share_one_request() -> None:
+    api = _Api({1: "Ada"})
+    resolver = UserNameResolver(api=api)  # type: ignore[arg-type]
+
+    results = await asyncio.gather(resolver.names([1]), resolver.names([1]), resolver.names([1]))
+
+    assert results == [{1: "Ada"}] * 3
+    assert api.calls == [1]

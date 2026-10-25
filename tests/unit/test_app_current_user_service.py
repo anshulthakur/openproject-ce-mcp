@@ -5,7 +5,7 @@ import dataclasses
 import pytest
 from _client_test_helpers import make_settings
 
-from openproject_ce_mcp.app.caches import SingletonCache
+from openproject_ce_mcp.app.caches import CachedValue
 from openproject_ce_mcp.app.errors import PermissionDeniedError
 from openproject_ce_mcp.app.ports.current_user_api import CurrentUserRecord
 from openproject_ce_mcp.app.services.current_user_service import CurrentUserService
@@ -23,12 +23,12 @@ class _FakeCurrentUserApi:
 
 
 def _service(
-    api: _FakeCurrentUserApi | None = None, *, settings=None, cache: SingletonCache | None = None
+    api: _FakeCurrentUserApi | None = None, *, settings=None, cache: CachedValue | None = None
 ) -> CurrentUserService:
     return CurrentUserService(
         api=api or _FakeCurrentUserApi(),
         settings=settings or make_settings(),
-        cache=cache if cache is not None else SingletonCache(),
+        cache=cache if cache is not None else CachedValue(),
     )
 
 
@@ -79,7 +79,7 @@ async def test_get_current_user_does_not_call_the_api_twice() -> None:
 async def test_get_current_user_still_gates_a_read_after_the_cache_is_populated() -> None:
     """A cache hit must not bypass the read-enablement gate -- the gate check
     runs on every call, only the underlying API fetch is skipped."""
-    cache: SingletonCache = SingletonCache()
+    cache: CachedValue = CachedValue()
     api = _FakeCurrentUserApi()
     await _service(api, cache=cache).get_current_user()
 
@@ -98,7 +98,7 @@ async def test_get_current_user_shares_its_cache_with_the_resolver() -> None:
     from openproject_ce_mcp.app.resolvers.current_user_resolver import CurrentUserResolver
 
     api = _FakeCurrentUserApi()
-    cache: SingletonCache = SingletonCache()
+    cache: CachedValue = CachedValue()
     service = _service(api, cache=cache)
     resolver = CurrentUserResolver(api=api, cache=cache)
 

@@ -59,7 +59,7 @@ from .app.adapters.httpx_wiki_page_api import HttpxWikiPageApi
 from .app.adapters.httpx_wiki_page_link_api import HttpxWikiPageLinkApi
 from .app.adapters.httpx_work_package_api import HttpxWorkPackageApi
 from .app.adapters.httpx_work_package_lookup_api import HttpxWorkPackageLookupApi
-from .app.caches import SingletonCache
+from .app.caches import CachedValue
 
 # AuthenticationError/PermissionDeniedError: not referenced directly in this
 # module, but re-exported deliberately -- existing callers/tests import them
@@ -253,13 +253,13 @@ class OpenProjectClient:
         self.settings = settings
         self._origin = origin_from_url(settings.base_url)
         self._api_prefix = api_prefix_from_url(settings.base_url)
-        # Process-lifetime caches for read-only, process-global API responses
-        # (see app/caches.py) -- each is shared by every real consumer of
-        # that value (Service and, where one exists, Resolver alike).
-        self._current_user_cache: SingletonCache[CurrentUserRecord] = SingletonCache()
-        self._statuses_cache: SingletonCache[list[StatusRecord]] = SingletonCache()
-        self._priorities_cache: SingletonCache[list[PriorityRecord]] = SingletonCache()
-        self._instance_configuration_cache: SingletonCache[InstanceConfigurationRecord] = SingletonCache()
+        # Caches of the responses this client's one token keeps getting (see
+        # app/caches.py) -- each is shared by every real consumer of that value
+        # (Service and, where one exists, Resolver alike) and expires.
+        self._current_user_cache: CachedValue[CurrentUserRecord] = CachedValue()
+        self._statuses_cache: CachedValue[list[StatusRecord]] = CachedValue()
+        self._priorities_cache: CachedValue[list[PriorityRecord]] = CachedValue()
+        self._instance_configuration_cache: CachedValue[InstanceConfigurationRecord] = CachedValue()
 
         self._http = _build_http_client(settings, transport)
 
