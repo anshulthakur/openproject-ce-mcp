@@ -486,7 +486,7 @@ development baseline.
   Lists of numbers are checked element by element, and `NaN` and `Infinity`
   are no numbers anywhere in an argument.
 
-Thanks to our contributors: [@webadmin-stattreisen](https://github.com/webadmin-stattreisen) ([#45](https://github.com/jtauschl/openproject-ce-mcp/pull/45)).
+Thanks to our contributor: [@webadmin-stattreisen](https://github.com/webadmin-stattreisen) ([#45](https://github.com/jtauschl/openproject-ce-mcp/pull/45)).
 
 ## [0.4.2] - 2026-10-09
 
@@ -693,7 +693,7 @@ broader OpenProject version compatibility.
   times, working hours) tool groups — both were previously always on with no
   way to configure them through `configure`.
 
-Thanks to our contributors: [@ThomasPIET](https://github.com/ThomasPIET) ([#32](https://github.com/jtauschl/openproject-ce-mcp/pull/32)).
+Thanks to our contributors: [@ThomasPIET](https://github.com/ThomasPIET) ([#32](https://github.com/jtauschl/openproject-ce-mcp/pull/32)), [@mehow-vng](https://github.com/mehow-vng) ([#24](https://github.com/jtauschl/openproject-ce-mcp/pull/24)).
 
 ## [0.3.8] - 2026-08-25
 
