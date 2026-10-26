@@ -241,6 +241,33 @@ async def test_list_for_work_package_sums_file_sizes_when_requested() -> None:
     assert result.total_size_bytes == 3584
 
 
+def _small_limits_settings():
+    return dataclasses.replace(make_settings(), default_page_size=2, max_page_size=3, max_results=3)
+
+
+@pytest.mark.asyncio
+async def test_list_for_work_package_total_size_covers_every_attachment_beyond_the_page() -> None:
+    api = _FakeAttachmentApi(records=[_record(i, file_size_bytes=100 * i) for i in (1, 2, 3)])
+    service = _service(api=api, settings=_small_limits_settings())
+
+    result = await service.list_for_work_package(9, limit=2, include_total_size=True)
+
+    assert result.truncated is True
+    assert result.total_size_bytes == 600
+
+
+@pytest.mark.asyncio
+async def test_list_for_work_package_total_size_is_none_when_more_attachments_exist_than_one_scan_reads() -> None:
+    """A sum of the first max_results attachments would pass for the total."""
+    api = _FakeAttachmentApi(records=[_record(i, file_size_bytes=100 * i) for i in (1, 2, 3, 4, 5)])
+    service = _service(api=api, settings=_small_limits_settings())
+
+    result = await service.list_for_work_package(9, limit=2, include_total_size=True)
+
+    assert result.truncated is True
+    assert result.total_size_bytes is None
+
+
 @pytest.mark.asyncio
 async def test_list_for_work_package_total_size_is_none_when_a_size_is_unknown() -> None:
     api = _FakeAttachmentApi(records=[_record(1, file_size_bytes=1024), _record(2, file_size_bytes=None)])

@@ -223,7 +223,6 @@ class BoardService:
         project: str | None = None,
         public: bool | None = None,
         starred: bool | None = None,
-        hidden: bool | None = None,
         include_subprojects: bool | None = None,
         show_hierarchies: bool | None = None,
         timeline_visible: bool | None = None,
@@ -257,7 +256,6 @@ class BoardService:
             project=project,
             public=public,
             starred=starred,
-            hidden=hidden,
             include_subprojects=include_subprojects,
             show_hierarchies=show_hierarchies,
             timeline_visible=timeline_visible,
@@ -291,7 +289,6 @@ class BoardService:
         project: str | None = None,
         public: bool | None = None,
         starred: bool | None = None,
-        hidden: bool | None = None,
         include_subprojects: bool | None = None,
         show_hierarchies: bool | None = None,
         timeline_visible: bool | None = None,
@@ -323,7 +320,6 @@ class BoardService:
             project=project,
             public=public,
             starred=starred,
-            hidden=hidden,
             include_subprojects=include_subprojects,
             show_hierarchies=show_hierarchies,
             timeline_visible=timeline_visible,
@@ -385,7 +381,6 @@ class BoardService:
         project: str | None,
         public: bool | None,
         starred: bool | None,
-        hidden: bool | None,
         include_subprojects: bool | None,
         show_hierarchies: bool | None,
         timeline_visible: bool | None,
@@ -407,9 +402,6 @@ class BoardService:
         if starred is not None:
             hidden_fields.ensure_field_writable("board", "starred", settings=self._settings)
             payload["starred"] = starred
-        if hidden is not None:
-            hidden_fields.ensure_field_writable("board", "hidden", settings=self._settings)
-            payload["hidden"] = hidden
         if include_subprojects is not None:
             hidden_fields.ensure_field_writable("board", "include_subprojects", settings=self._settings)
             payload["includeSubprojects"] = include_subprojects

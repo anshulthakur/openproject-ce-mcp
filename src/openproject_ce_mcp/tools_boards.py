@@ -35,7 +35,8 @@ _NAME = "Board name, at most 255 characters."
 _PUBLIC = "Visible to other users; false keeps it to its creator."
 _STARRED = "Mark as a favorite query."
 # OpenProject's query representer ignores `hidden` on every supported version
-# (deprecated, setter is a no-op), so a value sent here never takes effect.
+# (deprecated, setter is a no-op), so the tools accept the parameter but neither send it nor count it
+# as a change.
 _HIDDEN = "Ignored by OpenProject; the value is not stored."
 _INCLUDE_SUBPROJECTS = "Also show work packages of subprojects."
 _SHOW_HIERARCHIES = "Show parent/child tree; cannot combine with group_by, so it defaults to false there."
@@ -154,7 +155,6 @@ async def create_board(
             project=common["project"],
             public=public,
             starred=starred,
-            hidden=hidden,
             include_subprojects=include_subprojects,
             show_hierarchies=show_hierarchies,
             timeline_visible=timeline_visible,
@@ -206,7 +206,6 @@ async def update_board(
         common["project"],
         public,
         starred,
-        hidden,
         include_subprojects,
         show_hierarchies,
         timeline_visible,
@@ -224,7 +223,6 @@ async def update_board(
             project=common["project"],
             public=public,
             starred=starred,
-            hidden=hidden,
             include_subprojects=include_subprojects,
             show_hierarchies=show_hierarchies,
             timeline_visible=timeline_visible,

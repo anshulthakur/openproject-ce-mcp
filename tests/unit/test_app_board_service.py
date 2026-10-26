@@ -567,18 +567,6 @@ async def test_create_rejects_when_starred_field_is_hidden() -> None:
 
 
 @pytest.mark.asyncio
-async def test_create_rejects_when_hidden_field_is_hidden() -> None:
-    settings = dataclasses.replace(make_settings(), hidden_fields={"board": ("hidden",)})
-    api = _FakeBoardApi()
-    service = _service(api, settings=settings)
-
-    with pytest.raises(InvalidInputError, match="hidden by"):
-        await service.create(name="My Board", project=None, hidden=True, confirm=True)
-
-    assert api.commit_create_calls == []
-
-
-@pytest.mark.asyncio
 async def test_create_rejects_when_include_subprojects_field_is_hidden() -> None:
     settings = dataclasses.replace(make_settings(), hidden_fields={"board": ("include_subprojects",)})
     api = _FakeBoardApi()
