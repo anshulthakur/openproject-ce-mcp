@@ -789,7 +789,7 @@ broader OpenProject version compatibility.
   times, working hours) tool groups — both were previously always on with no
   way to configure them through `configure`.
 
-Thanks to our contributors: [@ThomasPIET](https://github.com/ThomasPIET) ([#32](https://github.com/jtauschl/openproject-ce-mcp/pull/32)), [@mehow-vng](https://github.com/mehow-vng) ([#24](https://github.com/jtauschl/openproject-ce-mcp/pull/24)).
+Thanks to our contributor: [@ThomasPIET](https://github.com/ThomasPIET) ([#32](https://github.com/jtauschl/openproject-ce-mcp/pull/32)).
 
 ## [0.3.8] - 2026-08-25
 
@@ -833,6 +833,11 @@ Thanks to our contributors: [@ThomasPIET](https://github.com/ThomasPIET) ([#32](
 - `list_my_open_work_packages` now returns complete allowed results under a
   restricted project read scope, including matches beyond the first server
   page.
+- User-typed fields (`responsible`, and user/version reference custom fields)
+  can now be set on work-package writes: the candidates are read from the
+  linked `allowedValues` collection when the schema embeds none.
+
+Thanks to our contributor: [@mehow-vng](https://github.com/mehow-vng) ([#24](https://github.com/jtauschl/openproject-ce-mcp/pull/24)).
 
 ## [0.3.6] - 2026-08-10
 
