@@ -238,16 +238,17 @@ class AttachmentService:
         single fetch already returns every attachment, so `page_results` is
         already the complete set unless the SCAN stopped early at `limit`
         (truncated=True), in which case a second, unbounded fetch gets the
-        rest. Returns None (not a silently partial sum) if any attachment's
-        file_size_bytes is hidden or unknown, matching how a hidden field
-        must not leak indirectly through an aggregate.
+        rest. Returns None (not a silently partial sum) if that fetch is cut at
+        `max_results` too, or if any attachment's file_size_bytes is hidden or
+        unknown, matching how a hidden field must not leak indirectly through
+        an aggregate.
         """
         if hidden_fields.field_hidden("attachment", "file_size_bytes", settings=self._settings):
             return None
         if not truncated:
             summaries = page_results
         else:
-            raw_items, _ = await scan_records_and_paginate(
+            raw_items, scan_truncated = await scan_records_and_paginate(
                 lambda o, ps: self._api.list_for_work_package(work_package_id, offset=o, page_size=ps),
                 item_allowed=lambda record: (
                     record.summary.container_type == "WorkPackage" and record.summary.container_id == work_package_id
@@ -257,6 +258,8 @@ class AttachmentService:
                 limit=self._settings.max_results,
                 key=lambda r: r.summary.id,
             )
+            if scan_truncated:
+                return None
             summaries = [record.summary for record in raw_items]
         sizes = [s.file_size_bytes for s in summaries]
         known_sizes = [size for size in sizes if size is not None]

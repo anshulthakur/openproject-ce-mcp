@@ -635,7 +635,8 @@ class WorkPackageService:
             next_offset, truncated = paginate_server(offset=offset, limit=limit, total=server_total)
         else:
             server_total = len(results)
-            truncated = len(allowed_items) > limit
+            # From the raw page: after the drop it holds at most `limit` rows and could never signal more.
+            truncated = len(page.raw_elements) >= limit
             next_offset = (offset + 1) if truncated else None
         groups = (
             [

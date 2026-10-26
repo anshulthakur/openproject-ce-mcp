@@ -3622,6 +3622,42 @@ async def test_list_drops_groups_and_sums_when_a_returned_row_had_to_be_left_out
 
 
 @pytest.mark.asyncio
+async def test_list_still_points_to_the_next_page_when_a_full_server_page_lost_a_row_to_the_allowlist() -> None:
+    """The server filter did not hold for one row; the page was full, so there may be more pages. The
+    hint comes from the raw page: the rows left after the allowlist can never exceed the limit."""
+    foreign = _payload(2, project_href="/api/v3/projects/20", project_title="Other")
+    api = _FakeWorkPackageApi(raw_elements=[_payload(1), foreign], server_total=50)
+    service, _ = _service(
+        api,
+        settings=dataclasses.replace(make_settings(), read_projects=("demo",)),
+        project_id_to_identifier={1: "demo", 20: "other"},
+        readable_projects=_ReadableIds({1}),
+    )
+
+    result = await service.list(project="demo", limit=2)
+
+    assert [row.id for row in result.results] == [1]
+    assert result.total == 1
+    assert (result.truncated, result.next_offset) == (True, 2)
+
+
+@pytest.mark.asyncio
+async def test_list_reports_no_next_page_when_the_page_that_lost_a_row_was_not_full() -> None:
+    foreign = _payload(2, project_href="/api/v3/projects/20", project_title="Other")
+    api = _FakeWorkPackageApi(raw_elements=[_payload(1), foreign], server_total=2)
+    service, _ = _service(
+        api,
+        settings=dataclasses.replace(make_settings(), read_projects=("demo",)),
+        project_id_to_identifier={1: "demo", 20: "other"},
+        readable_projects=_ReadableIds({1}),
+    )
+
+    result = await service.list(project="demo", limit=10)
+
+    assert (result.truncated, result.next_offset) == (False, None)
+
+
+@pytest.mark.asyncio
 async def test_list_rows_do_not_look_up_a_parent_that_is_a_row_of_the_same_page() -> None:
     api = _rows_with_parents({1: 2, 2: 20})
     looked_up: list[str] = []

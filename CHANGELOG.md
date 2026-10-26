@@ -227,6 +227,17 @@ development baseline.
   an administrator renamed or added stayed unknown by name. They now expire
   after five minutes like the other remembered lookups. Concurrent first reads,
   and concurrent reads of the same user name, share one request.
+- `list_work_packages` and `search_work_packages` stopped paging, with no
+  `next_offset`, when the project allowlist still dropped a row of a full
+  server page (for example a project renamed between the check and the query)
+  although the server had more pages. The hint now comes from the server page.
+- `list_work_package_attachments(include_total_size=true)` returned the sum of
+  the first `OPENPROJECT_MAX_RESULTS` attachments as the total when a work
+  package has more; it now returns no total then, as it already did for a
+  hidden or unknown size.
+- `update_board` with only `hidden` is refused like an empty update, and
+  `create_board` and `update_board` no longer send or preview `hidden`:
+  OpenProject discards it on every supported version.
 - `list_time_entries` with `user` compared the display name of each entry's
   user, so two users with the same name were mixed up. The reference ("me", an
   id or an exact name) is resolved to an id, and entries match by the id in
