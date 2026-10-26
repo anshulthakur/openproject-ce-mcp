@@ -9,7 +9,7 @@ development baseline.
 
 ## [0.5.0] - Unreleased
 
-0.5.0 brings the first community contributions, API coverage checks that find
+0.5.0 brings further community contributions, API coverage checks that find
 missing endpoints and drift on their own, and hardened write and tool
 contracts. It also prepares the server for OpenProject 18 and makes it easier
 to install and discover.
