@@ -719,10 +719,12 @@ def test_timeout_kills_the_whole_process_tree(tmp_path):
     script.chmod(0o755)
     started = time.monotonic()
 
-    result = CodexCli(str(script)).run(["mcp", "list", "--json"], tmp_path, dict(os.environ), timeout=1.0)
+    # The timeout also covers the start of the shell that writes the pid file; one second is too short on a
+    # loaded machine, where the process tree was killed before the grandchild existed.
+    result = CodexCli(str(script)).run(["mcp", "list", "--json"], tmp_path, dict(os.environ), timeout=4.0)
 
     assert result == ProcessResult(None, "", "")
-    assert time.monotonic() - started < 10
+    assert time.monotonic() - started < 15
     grandchild = int(pid_file.read_text())
     for _ in range(50):
         try:
