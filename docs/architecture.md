@@ -667,8 +667,8 @@ it short:
 - A consequence of a write (what else it removes or changes, whether it runs in
   the background) is stated only with evidence in the OpenProject source of
   every supported version. A fact that differs between versions names its
-  range ("17.1+: ..."). The evidence lives in `openproject-ce-mcp-int`
-  `30-implementation/opm-571-tool-facts.md`, not in the code.
+  range ("17.1+: ..."). The evidence lives in the project's internal
+  engineering-docs companion repository, not in the code.
 - A `delete_` tool whose deletion cannot be restored through OpenProject says
   so ("this cannot be undone"); where OpenProject can restore it, the
   description names how.
