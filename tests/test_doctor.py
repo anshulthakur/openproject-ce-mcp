@@ -1246,7 +1246,7 @@ def test_entries_with_different_findings_keep_separate_blocks(box, capsys):
 def test_claude_project_is_found_under_either_slash_form(key, stored):
     entry = {"mcpServers": {}}
 
-    assert claude_project({stored: entry, "other": {}}, key) is entry
+    assert claude_project({stored: entry, "other": {}}, key) == (stored, entry)
 
 
 def test_claude_project_is_none_without_a_matching_key():
