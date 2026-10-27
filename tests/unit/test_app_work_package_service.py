@@ -3941,3 +3941,108 @@ async def test_a_version_custom_field_cannot_be_set_to_or_probed_for_a_version_o
     links: dict = {}
     await service._apply_custom_fields({}, links, schema, {"Target": "Own release"})
     assert links == {"customField3": {"href": "/api/v3/versions/8"}}
+
+
+class _MultipleVersionsWorkPackageApi(_FakeWorkPackageApi):
+    """An instance that allows several versions per work package: the form leaves the single
+    `version` field out of its schema and drops a `_links.version` it was sent, so only
+    `targetVersions` can assign a version."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.next_schema = {"targetVersions": {"writable": True}}
+
+    async def validate_create(self, project_id: str, payload: dict) -> dict:
+        return self._without_version(await super().validate_create(project_id, payload))
+
+    async def validate_update(self, work_package_ref: str, payload: dict) -> dict:
+        return self._without_version(await super().validate_update(work_package_ref, payload))
+
+    @staticmethod
+    def _without_version(form: dict) -> dict:
+        payload = form["_embedded"]["payload"]
+        links = {key: value for key, value in payload.get("_links", {}).items() if key != "version"}
+        form["_embedded"]["payload"] = {**payload, "_links": links}
+        return form
+
+
+_VERSION_LINK = {"href": "/api/v3/versions/4"}
+
+
+@pytest.mark.asyncio
+async def test_create_assigns_a_version_through_target_versions_when_the_form_has_no_version_field() -> None:
+    api = _MultipleVersionsWorkPackageApi()
+    service, _ = _service(api)
+
+    result = await service.create(project="demo", type="Task", subject="New WP", version="1.0", confirm=True)
+
+    assert result.state == "confirmed"
+    committed = api.commit_create_calls[0]["_links"]
+    assert committed["targetVersions"] == [_VERSION_LINK]
+    assert "version" not in committed
+    assert [call[1]["_links"].get("targetVersions") for call in api.validate_create_calls] == [None, [_VERSION_LINK]]
+
+
+@pytest.mark.asyncio
+async def test_create_previews_the_target_versions_the_version_becomes() -> None:
+    api = _MultipleVersionsWorkPackageApi()
+    service, _ = _service(api)
+
+    preview = await service.create(project="demo", type="Task", subject="New WP", version="1.0", confirm=False)
+
+    assert preview.payload["_links"]["targetVersions"] == [_VERSION_LINK]
+    assert api.commit_create_calls == []
+
+
+@pytest.mark.asyncio
+async def test_create_subtask_assigns_a_version_through_target_versions_when_the_form_has_no_version_field() -> None:
+    api = _MultipleVersionsWorkPackageApi()
+    api._records_by_id[6] = _record(6, payload=_payload(6, project_href="/api/v3/projects/1", project_title="Demo"))
+    service, _ = _service(api)
+
+    await service.create_subtask(
+        parent_work_package_id=6, type="Task", subject="Child task", version="1.0", confirm=True
+    )
+
+    committed = api.commit_create_calls[0]["_links"]
+    assert committed["targetVersions"] == [_VERSION_LINK]
+    assert "version" not in committed
+
+
+@pytest.mark.asyncio
+async def test_update_assigns_a_version_through_target_versions_when_the_form_has_no_version_field() -> None:
+    api = _MultipleVersionsWorkPackageApi()
+    service, _ = _service(api)
+
+    result = await service.update(work_package_id=6, version="1.0", confirm=True)
+
+    assert result.state == "confirmed"
+    committed = api.commit_update_calls[0][1]["_links"]
+    assert committed["targetVersions"] == [_VERSION_LINK]
+    assert "version" not in committed
+
+
+@pytest.mark.asyncio
+async def test_update_clears_the_version_through_target_versions_when_the_form_has_no_version_field() -> None:
+    api = _MultipleVersionsWorkPackageApi()
+    service, _ = _service(api)
+
+    await service.update(work_package_id=6, version=CLEAR_VERSION, confirm=True)
+
+    committed = api.commit_update_calls[0][1]["_links"]
+    assert committed["targetVersions"] == []
+    assert "version" not in committed
+
+
+@pytest.mark.asyncio
+async def test_a_form_with_a_version_field_keeps_the_version_link() -> None:
+    api = _TargetVersionsEchoingWorkPackageApi()
+    api.next_schema = {"version": {"writable": True}, "targetVersions": {"writable": True}}
+    service, _ = _service(api)
+
+    await service.create(project="demo", type="Task", subject="New WP", version="1.0", confirm=True)
+
+    committed = api.commit_create_calls[0]["_links"]
+    assert committed["version"] == _VERSION_LINK
+    assert "targetVersions" not in committed
+    assert len(api.validate_create_calls) == 1

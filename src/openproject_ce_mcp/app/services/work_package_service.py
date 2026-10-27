@@ -95,7 +95,7 @@ import datetime
 import functools
 import logging
 import re
-from collections.abc import Awaitable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
 from ...config import Settings
@@ -328,6 +328,44 @@ def _restore_requested_target_versions(
     elif not isinstance(links, dict):
         raise OpenProjectServerError("OpenProject work-package form payload has malformed _links.")
     return {**payload, "_links": {**links, "targetVersions": list(requested_links)}}
+
+
+def _form_has_no_version_field(form: dict[str, Any]) -> bool:
+    """An instance that allows several versions per work package leaves `version` out of the form schema
+    and ignores a `_links.version` it is sent; only `targetVersions` assigns a version there."""
+    schema = (form.get("_embedded") or {}).get("schema") or {}
+    return (
+        schema.get("version", {}).get("writable") is not True
+        and schema.get("targetVersions", {}).get("writable") is True
+    )
+
+
+def _version_as_target_versions(payload: dict[str, Any]) -> dict[str, Any]:
+    links = dict(payload["_links"])
+    version_link = links.pop("version")
+    links["targetVersions"] = [] if version_link["href"] is None else [version_link]
+    return {**payload, "_links": links}
+
+
+async def _validate_with_version_model(
+    validate: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]], payload: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """The payload to commit and its validated form. A `version` the form cannot take is validated again
+    as the one-element `targetVersions` it stands for, so the preview and its errors describe the real write."""
+    form = await validate(payload)
+    if "version" in payload.get("_links", {}) and _form_has_no_version_field(form):
+        payload = _version_as_target_versions(payload)
+        form = await validate(payload)
+    return payload, form
+
+
+def _with_requested_version_links(committed: dict[str, Any], requested: dict[str, Any]) -> dict[str, Any]:
+    links = requested.get("_links", {})
+    if "targetVersions" in links:
+        return _restore_requested_target_versions(committed, links["targetVersions"])
+    if "version" in links:
+        return _strip_unrequested_target_versions(committed)
+    return committed
 
 
 SUBJECT_LIMIT = 255
@@ -1766,7 +1804,7 @@ class WorkPackageService:
             duration=duration,
             resolution_context=wp_context,
         )
-        form = await self._api.validate_create(project_id, payload)
+        payload, form = await _validate_with_version_model(lambda p: self._api.validate_create(project_id, p), payload)
         parsed = await self._api.parse_form(form)
         outcome = await _finalize_write(
             confirm=confirm,
@@ -1775,10 +1813,7 @@ class WorkPackageService:
             identity={"work_package_id": None, "project": project_payload.get("name")},
             ensure_write_enabled=lambda: access.ensure_write_enabled("work_package", settings=self._settings),
             commit=lambda p: self._api.commit_create(
-                _restore_requested_target_versions(p, payload["_links"]["targetVersions"])
-                if target_versions is not None
-                else (_strip_unrequested_target_versions(p) if version is not None else p),
-                text_limit=FORMATTABLE_LIMIT,
+                _with_requested_version_links(p, payload), text_limit=FORMATTABLE_LIMIT
             ),
             committed_identity=lambda record: {
                 "work_package_id": record.id,
@@ -1851,7 +1886,9 @@ class WorkPackageService:
             due_date=due_date,
             resolution_context=wp_context,
         )
-        form = await self._api.validate_create(str(project_id), payload)
+        payload, form = await _validate_with_version_model(
+            lambda p: self._api.validate_create(str(project_id), p), payload
+        )
         parsed = await self._api.parse_form(form)
         parent_title = _trim_text(parent_project_link.get("title") if parent_project_link else None)
         outcome = await _finalize_write(
@@ -1861,10 +1898,7 @@ class WorkPackageService:
             identity={"work_package_id": None, "project": parent_title},
             ensure_write_enabled=lambda: access.ensure_write_enabled("work_package", settings=self._settings),
             commit=lambda p: self._api.commit_create(
-                _restore_requested_target_versions(p, payload["_links"]["targetVersions"])
-                if target_versions is not None
-                else (_strip_unrequested_target_versions(p) if version is not None else p),
-                text_limit=FORMATTABLE_LIMIT,
+                _with_requested_version_links(p, payload), text_limit=FORMATTABLE_LIMIT
             ),
             committed_identity=lambda record: {
                 "work_package_id": record.id,
@@ -2115,7 +2149,7 @@ class WorkPackageService:
         )
 
         payload["lockVersion"] = lock_version
-        form = await self._api.validate_update(ref, payload)
+        payload, form = await _validate_with_version_model(lambda p: self._api.validate_update(ref, p), payload)
 
         if auto_percentage is not None or auto_remaining is not None:
             parsed_probe = await self._api.parse_form(form)
@@ -2139,7 +2173,6 @@ class WorkPackageService:
                 payload["lockVersion"] = lock_version
                 form = await self._api.validate_update(ref, payload)
 
-        version_was_requested = "version" in payload.get("_links", {}) and target_versions is None
         parsed = await self._api.parse_form(form)
         project_name = _trim_text(current.get("_links", {}).get("project", {}).get("title"))
         outcome = await _finalize_write(
@@ -2149,11 +2182,7 @@ class WorkPackageService:
             identity={"work_package_id": ref, "project": project_name},
             ensure_write_enabled=lambda: access.ensure_write_enabled("work_package", settings=self._settings),
             commit=lambda p: self._api.commit_update(
-                ref,
-                _restore_requested_target_versions(p, payload["_links"]["targetVersions"])
-                if target_versions is not None
-                else (_strip_unrequested_target_versions(p) if version_was_requested else p),
-                text_limit=FORMATTABLE_LIMIT,
+                ref, _with_requested_version_links(p, payload), text_limit=FORMATTABLE_LIMIT
             ),
             committed_identity=lambda record: {
                 "work_package_id": record.id,
