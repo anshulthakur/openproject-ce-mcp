@@ -14,6 +14,8 @@ import pytest
 
 from openproject_ce_mcp.client import OpenProjectClient, PermissionDeniedError
 
+from .conftest import find_file_link
+
 pytestmark = pytest.mark.integration
 
 
@@ -35,16 +37,10 @@ async def test_delete_file_link_denied_outside_allowlist(
     # "any" file link here would race with that test depending on execution
     # order (this test only denies, never deletes, but a plain "first link
     # found" could still resolve to an id the other test already removed).
-    work_packages = await client.work_package.list(project=test_project, limit=50)
-    file_link_id = None
-    for wp in work_packages.results:
-        links = await client.file_link.list_for_work_package(wp.id)
-        match = next((link for link in links.results if link.title == "seed-file-link-persistent.txt"), None)
-        if match is not None:
-            file_link_id = match.id
-            break
-    if file_link_id is None:
+    found = await find_file_link(client, test_project, "seed-file-link-persistent.txt")
+    if found is None:
         pytest.skip("no 'seed-file-link-persistent.txt' file link in test_project to verify denial against")
+    file_link_id, _ = found
 
     with pytest.raises(PermissionDeniedError):
         await denied_client.file_link.delete(file_link_id, confirm=True)

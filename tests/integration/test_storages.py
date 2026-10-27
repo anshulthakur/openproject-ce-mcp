@@ -59,6 +59,8 @@ import pytest
 
 from openproject_ce_mcp.client import InvalidInputError, OpenProjectClient
 
+from .conftest import find_file_link
+
 pytestmark = pytest.mark.integration
 
 
@@ -154,20 +156,12 @@ async def test_delete_file_link_deletes_seeded_link(client: OpenProjectClient, t
     so deleting it here doesn't leave the fixture permanently gone. The
     "seed-file-link-persistent.txt" row is a separate, untouched fixture for
     test_write_denials.py -- this test must not delete that one."""
-    work_packages = await client.work_package.list(project=test_project, limit=50)
-    file_link_id = None
-    owning_wp_id = None
-    for wp in work_packages.results:
-        links = await client.file_link.list_for_work_package(wp.id)
-        match = next((link for link in links.results if link.title == "seed-file-link-deletable.txt"), None)
-        if match is not None:
-            file_link_id = match.id
-            owning_wp_id = wp.id
-            break
-    if file_link_id is None:
+    found = await find_file_link(client, test_project, "seed-file-link-deletable.txt")
+    if found is None:
         pytest.skip(
             "no 'seed-file-link-deletable.txt' file link in test_project -- run docker/test/up.sh 177nc to seed one"
         )
+    file_link_id, owning_wp_id = found
 
     preview = await client.file_link.delete(file_link_id, confirm=False)
     assert preview.state == "preview"
