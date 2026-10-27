@@ -83,6 +83,9 @@ RECORDED_0_161_0 = """[
 ]
 """
 
+# Drive-qualified on Windows: from Python 3.13 a path with a root but no drive is not absolute there.
+ABSOLUTE_PEM = os.path.abspath("/abs/node.pem")
+
 
 @pytest.fixture
 def box(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Sandbox:
@@ -141,7 +144,7 @@ def test_codex_environment_base_set_env_vars_ca_keys_env_and_non_inheritable(box
             "OTHER": "not forwarded",
             "OPENPROJECT_TIMEOUT": "9",
             "SSL_CERT_FILE": "certs/ca.pem",
-            "NODE_EXTRA_CA_CERTS": "/abs/node.pem",
+            "NODE_EXTRA_CA_CERTS": ABSOLUTE_PEM,
             "NODE_REPL_AUTH_TOKEN": "secret",
             "OPENPROJECT_MAX_RESULTS": "70",
         }
@@ -167,7 +170,7 @@ def test_codex_environment_base_set_env_vars_ca_keys_env_and_non_inheritable(box
     assert env.get("OPENPROJECT_TIMEOUT") == "9"
     assert env.get("OPENPROJECT_MAX_RESULTS") == "80"
     assert "NODE_REPL_AUTH_TOKEN" not in env
-    assert env.get("NODE_EXTRA_CA_CERTS") == "/abs/node.pem"
+    assert env.get("NODE_EXTRA_CA_CERTS") == ABSOLUTE_PEM
     assert "SSL_CERT_FILE" not in env and env.get("ssl_cert_file") == "/entry.pem"
     assert effective.assumed_local is True
 
