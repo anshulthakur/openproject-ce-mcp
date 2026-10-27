@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import tempfile
 from pathlib import Path
 
@@ -319,6 +320,7 @@ def test_ancestor_of_the_temporary_directory_with_codex_config_makes_the_user_vi
     assert run.exit_code == EXIT_SUCCESS and "could not be fully verified" in run.out
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="chmod(0) does not make a directory unreadable on Windows")
 def test_unreadable_ancestor_makes_the_user_view_unverifiable(box, capsys, monkeypatch):
     parent = box.root / "tmpbase"
     (parent / ".codex").mkdir(parents=True)
@@ -518,7 +520,7 @@ def test_codex_home_is_where_the_user_layer_is_read(box, capsys, monkeypatch):
 
     run = box.run(capsys, codex=CodexCli(None))
 
-    assert "codex-home/config.toml, user layer" in run.out
+    assert f"{Path('codex-home') / 'config.toml'}, user layer" in run.out
 
 
 def test_malformed_env_vars_in_a_readable_file_fails(box, capsys):

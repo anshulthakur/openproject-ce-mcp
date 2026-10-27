@@ -6,13 +6,14 @@ import os
 import shutil
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import pytest
-from _doctor_test_helpers import BASE_URL, TOKEN, VALID_ENV, FakeProbe, Sandbox, server
+from _doctor_test_helpers import BASE_URL, TOKEN, VALID_ENV, FakeProbe, Sandbox, own_server_binary, server
 
 from openproject_ce_mcp.doctor import checks
 from openproject_ce_mcp.doctor.checks import Evaluation, evaluate, probe_key
+from openproject_ce_mcp.doctor.discovery import claude_project
 from openproject_ce_mcp.doctor.environment import EffectiveEnv, EnvMap, Syntax, resolve
 from openproject_ce_mcp.doctor.files import parse_env_file, strip_jsonc
 from openproject_ce_mcp.doctor.hosts import (
@@ -884,8 +885,8 @@ def test_servers_section_that_is_not_a_mapping_fails_without_crashing(box, capsy
     [
         ("${env:A}/x", Syntax.VSCODE, "1/x"),
         ("${env:MISSING}", Syntax.VSCODE, None),
-        ("${workspaceFolder}/.env", Syntax.VSCODE, "/ws/.env"),
-        ("${userHome}/f", Syntax.VSCODE, "/home/u/f"),
+        ("${workspaceFolder}/.env", Syntax.VSCODE, f"{Path('/ws')}/.env"),
+        ("${userHome}/f", Syntax.VSCODE, f"{Path('/home/u')}/f"),
         ("${input:token}", Syntax.VSCODE, None),
         ("${A}", Syntax.VSCODE, None),
         ("${A}-${B:-dflt}", Syntax.CLAUDE_CODE, "1-dflt"),
@@ -962,6 +963,7 @@ def test_missing_absolute_command_fails(box, capsys):
     assert any("does not exist" in line for line in run.lines(CLAUDE_USER) if line.startswith("[FAIL]"))
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows has no executable bit; the doctor skips the check there")
 def test_non_executable_absolute_command_fails(box, capsys):
     path = box.write(box.root / "tool" / "openproject-ce-mcp", "")
     box.write(box.claude_state, {"mcpServers": {"openproject": server(command=str(path))}})
@@ -1026,13 +1028,13 @@ def test_executable_from_another_install_warns_naming_both(box, capsys):
 
     run = box.run(capsys)
 
-    own = Path(sys.executable).parent / "openproject-ce-mcp"
+    own = own_server_binary()
     assert own.exists(), "the test environment installs the console script next to the interpreter"
     assert any(str(other) in line and str(own) in line for line in run.lines(CLAUDE_USER) if line.startswith("[WARN]"))
 
 
 def test_own_install_does_not_warn(box, capsys):
-    own = Path(sys.executable).parent / "openproject-ce-mcp"
+    own = own_server_binary()
     box.write(box.claude_state, {"mcpServers": {"openproject": server(command=str(own))}})
 
     run = box.run(capsys)
@@ -1143,7 +1145,7 @@ def test_unreadable_config_prevents_the_fallback(box, capsys, monkeypatch):
 def test_all_checks_passed_only_when_everything_was_verified(box, capsys):
     box.write(
         box.claude_state,
-        {"mcpServers": {"openproject": server(command=str(Path(sys.executable).parent / "openproject-ce-mcp"))}},
+        {"mcpServers": {"openproject": server(command=str(own_server_binary()))}},
     )
 
     run = box.run(capsys)
@@ -1211,7 +1213,7 @@ def test_scope_summary_is_printed_once_per_distinct_settings(box, capsys):
 
 
 def test_entries_that_differ_only_in_the_host_share_one_block(box, capsys):
-    own = str(Path(sys.executable).parent / "openproject-ce-mcp")
+    own = str(own_server_binary())
     box.write(box.vscode_workspace_mcp, {"servers": {"openproject": server(command=own)}})
 
     run = box.run(capsys)
@@ -1231,3 +1233,21 @@ def test_entries_with_different_findings_keep_separate_blocks(box, capsys):
     assert "VS Code, VS Code Agent Host" not in run.out
     assert "FAIL" in run.levels("VS Code openproject (.vscode/mcp.json, workspace)")
     assert "FAIL" not in run.levels("VS Code Agent Host openproject (.vscode/mcp.json, workspace)")
+
+
+@pytest.mark.parametrize(
+    ("key", "stored"),
+    [
+        (PureWindowsPath("C:/Users/me/repo"), "C:/Users/me/repo"),
+        (PureWindowsPath("C:/Users/me/repo"), "C:\\Users\\me\\repo"),
+        (PurePosixPath("/home/me/repo"), "/home/me/repo"),
+    ],
+)
+def test_claude_project_is_found_under_either_slash_form(key, stored):
+    entry = {"mcpServers": {}}
+
+    assert claude_project({stored: entry, "other": {}}, key) is entry
+
+
+def test_claude_project_is_none_without_a_matching_key():
+    assert claude_project({"C:/elsewhere": {}}, PureWindowsPath("C:/Users/me/repo")) is None
