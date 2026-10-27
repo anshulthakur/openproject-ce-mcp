@@ -903,3 +903,19 @@ def multi_target_versions_disabled():
         pytest.skip(_MULTI_VERSIONS_UNSUPPORTED_SKIP)
     yield
     _set_multi_target_versions(enabled=previous)
+
+
+async def find_file_link(client: OpenProjectClient, project: str, title: str) -> tuple[int, int] | None:
+    """(file link id, id of its work package) of the first link with `title` in the project, or None.
+    Pages through every work package: the seeded container is the project's oldest one, which a first page
+    of a list sorted newest first stops reaching once the project holds more than one page of them."""
+    offset: int | None = 1
+    while offset is not None:
+        page = await client.work_package.list(project=project, limit=50, offset=offset)
+        for wp in page.results:
+            links = await client.file_link.list_for_work_package(wp.id)
+            match = next((link for link in links.results if link.title == title), None)
+            if match is not None:
+                return match.id, wp.id
+        offset = page.next_offset
+    return None

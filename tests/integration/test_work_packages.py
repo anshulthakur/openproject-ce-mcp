@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 from openproject_ce_mcp import tools
+from openproject_ce_mcp.app.services.work_package_service import CLEAR_VERSION
 from openproject_ce_mcp.client import InvalidInputError, OpenProjectClient, PermissionDeniedError
 from openproject_ce_mcp.models import SortCriterion
 from openproject_ce_mcp.work_package_columns import COLUMN_FLOORS, GROUPABLE_FIELDS, SORTABLE_FIELDS
@@ -1400,6 +1401,63 @@ async def test_version_status_filters_with_multiple_versions_enabled(
     assert created.work_package_id in await _ids_with_version_status(client, test_project, "open")
     assert created.work_package_id in await _ids_with_version_status(client, test_project, "closed")
     assert created.work_package_id not in await _ids_with_version_status(client, test_project, "locked")
+
+
+async def _assert_version_param_round_trips(
+    client: OpenProjectClient, test_project: str, version_ids: list[int], wp_ids: list[int]
+) -> None:
+    name = f"[integration-test] round trip {uuid.uuid4().hex[:8]}"
+    version = await client.version.create(project=test_project, name=name, confirm=True)
+    assert version.ready, version.validation_errors
+    version_ids.append(version.version_id)
+
+    created = await client.work_package.create(
+        project=test_project, type="Task", subject=f"{_SUBJECT} version create", version=name, confirm=True
+    )
+    assert created.ready, created.validation_errors
+    wp_ids.append(created.work_package_id)
+    assert (await client.work_package.get(created.work_package_id)).version == name
+
+    cleared = await client.work_package.update(
+        work_package_id=created.work_package_id, version=CLEAR_VERSION, confirm=True
+    )
+    assert cleared.ready, cleared.validation_errors
+    assert (await client.work_package.get(created.work_package_id)).version is None
+
+    assigned = await client.work_package.update(work_package_id=created.work_package_id, version=name, confirm=True)
+    assert assigned.ready, assigned.validation_errors
+    assert (await client.work_package.get(created.work_package_id)).version == name
+
+    subtask = await client.work_package.create_subtask(
+        parent_work_package_id=created.work_package_id,
+        type="Task",
+        subject=f"{_SUBJECT} version subtask",
+        version=name,
+        confirm=True,
+    )
+    assert subtask.ready, subtask.validation_errors
+    wp_ids.append(subtask.work_package_id)
+    assert (await client.work_package.get(subtask.work_package_id)).version == name
+
+
+async def test_version_param_assigns_and_clears_with_multiple_versions_disabled(
+    multi_target_versions_disabled,
+    client: OpenProjectClient,
+    test_project: str,
+    version_ids: list[int],
+    wp_ids: list[int],
+) -> None:
+    await _assert_version_param_round_trips(client, test_project, version_ids, wp_ids)
+
+
+async def test_version_param_assigns_and_clears_with_multiple_versions_enabled(
+    multi_target_versions_enabled,
+    client: OpenProjectClient,
+    test_project: str,
+    version_ids: list[int],
+    wp_ids: list[int],
+) -> None:
+    await _assert_version_param_round_trips(client, test_project, version_ids, wp_ids)
 
 
 def _release_reached(instance: tuple[int, int], floor: str | None) -> bool:

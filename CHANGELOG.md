@@ -93,7 +93,7 @@ to install and discover.
 
 Thanks to our contributor: [@feci](https://github.com/feci) ([#35](https://github.com/jtauschl/openproject-ce-mcp/pull/35), [#43](https://github.com/jtauschl/openproject-ce-mcp/pull/43), [#44](https://github.com/jtauschl/openproject-ce-mcp/pull/44)).
 
-## [0.4.3] - Unreleased
+## [0.4.3] - 2026-10-27
 
 ### Security
 
@@ -275,6 +275,13 @@ Thanks to our contributor: [@feci](https://github.com/feci) ([#35](https://githu
 
 ### Fixed
 
+- With OpenProject 17.8 or later, where one work package can have several
+  versions (the default of the 17.8 and 17.9 images), `create_work_package`,
+  `create_subtask`, `update_work_package` and the bulk tools reported success
+  for `version` but assigned nothing, and `version: none` cleared nothing,
+  because the server ignores the single `version` field there. The tools now
+  write the version through `target_versions` when the work package form has
+  no `version` field, so the result shows the assignment that was made.
 - A resource that does not exist in a feature gated by an OpenProject version
   (meetings and their parts, wiki page links, user working hours and non-working
   times, reminders, project favorites) was reported as "requires OpenProject X
