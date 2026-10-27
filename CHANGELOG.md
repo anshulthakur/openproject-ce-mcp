@@ -275,6 +275,10 @@ Thanks to our contributor: [@feci](https://github.com/feci) ([#35](https://githu
 
 ### Fixed
 
+- `doctor` finds the Claude Code local-scope entry of a project on Windows
+  whether `~/.claude.json` keys the directory with backslashes or with the
+  forward slashes `git` prints; before, only the backslash form matched and the
+  entry went unreported.
 - With OpenProject 17.8 or later, where one work package can have several
   versions (the default of the 17.8 and 17.9 images), `create_work_package`,
   `create_subtask`, `update_work_package` and the bulk tools reported success

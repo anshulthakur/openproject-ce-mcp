@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import tempfile
 from pathlib import Path
 
@@ -82,6 +83,9 @@ RECORDED_0_161_0 = """[
 ]
 """
 
+# Drive-qualified on Windows: from Python 3.13 a path with a root but no drive is not absolute there.
+ABSOLUTE_PEM = os.path.abspath("/abs/node.pem")
+
 
 @pytest.fixture
 def box(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Sandbox:
@@ -140,7 +144,7 @@ def test_codex_environment_base_set_env_vars_ca_keys_env_and_non_inheritable(box
             "OTHER": "not forwarded",
             "OPENPROJECT_TIMEOUT": "9",
             "SSL_CERT_FILE": "certs/ca.pem",
-            "NODE_EXTRA_CA_CERTS": "/abs/node.pem",
+            "NODE_EXTRA_CA_CERTS": ABSOLUTE_PEM,
             "NODE_REPL_AUTH_TOKEN": "secret",
             "OPENPROJECT_MAX_RESULTS": "70",
         }
@@ -166,7 +170,7 @@ def test_codex_environment_base_set_env_vars_ca_keys_env_and_non_inheritable(box
     assert env.get("OPENPROJECT_TIMEOUT") == "9"
     assert env.get("OPENPROJECT_MAX_RESULTS") == "80"
     assert "NODE_REPL_AUTH_TOKEN" not in env
-    assert env.get("NODE_EXTRA_CA_CERTS") == "/abs/node.pem"
+    assert env.get("NODE_EXTRA_CA_CERTS") == ABSOLUTE_PEM
     assert "SSL_CERT_FILE" not in env and env.get("ssl_cert_file") == "/entry.pem"
     assert effective.assumed_local is True
 
@@ -319,6 +323,7 @@ def test_ancestor_of_the_temporary_directory_with_codex_config_makes_the_user_vi
     assert run.exit_code == EXIT_SUCCESS and "could not be fully verified" in run.out
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="chmod(0) does not make a directory unreadable on Windows")
 def test_unreadable_ancestor_makes_the_user_view_unverifiable(box, capsys, monkeypatch):
     parent = box.root / "tmpbase"
     (parent / ".codex").mkdir(parents=True)
@@ -518,7 +523,7 @@ def test_codex_home_is_where_the_user_layer_is_read(box, capsys, monkeypatch):
 
     run = box.run(capsys, codex=CodexCli(None))
 
-    assert "codex-home/config.toml, user layer" in run.out
+    assert f"{Path('codex-home') / 'config.toml'}, user layer" in run.out
 
 
 def test_malformed_env_vars_in_a_readable_file_fails(box, capsys):

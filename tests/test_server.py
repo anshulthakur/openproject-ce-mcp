@@ -3,6 +3,7 @@
 import json
 
 import pytest
+from _doctor_test_helpers import own_server_binary
 
 import openproject_ce_mcp.server as server
 from openproject_ce_mcp import __version__, models
@@ -565,11 +566,9 @@ def test_main_no_args_reports_a_config_error_without_a_traceback(monkeypatch, ca
 def test_main_no_args_config_error_through_the_installed_console_script() -> None:
     import os
     import subprocess
-    import sys
-    from pathlib import Path
 
-    script = Path(sys.executable).with_name("openproject-ce-mcp")
-    assert script.exists(), f"console script not installed next to {sys.executable}"
+    script = own_server_binary()
+    assert script.exists(), f"console script not installed at {script}"
     env = {name: value for name, value in os.environ.items() if not name.startswith("OPENPROJECT_")}
     result = subprocess.run(
         [str(script)],

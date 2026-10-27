@@ -18,6 +18,12 @@ from openproject_ce_mcp.doctor.hosts import Subject
 from openproject_ce_mcp.doctor.probe import ProbeResult
 from openproject_ce_mcp.doctor.run import _run_doctor
 
+
+def own_server_binary() -> Path:
+    """The console script the test environment installs next to the interpreter."""
+    return Path(sys.executable).parent / ("openproject-ce-mcp.exe" if sys.platform == "win32" else "openproject-ce-mcp")
+
+
 BASE_URL = "https://op.example.invalid"
 TOKEN = "fake-token-1"
 VALID_ENV = {"OPENPROJECT_BASE_URL": BASE_URL, "OPENPROJECT_API_TOKEN": TOKEN}
@@ -185,7 +191,7 @@ class Sandbox:
         self.vscode_user_mcp.parent.mkdir(parents=True, exist_ok=True)
 
     def executable(self, name: str, directory: Path | None = None) -> Path:
-        path = (directory or self.bin) / name
+        path = (directory or self.bin) / (f"{name}.exe" if sys.platform == "win32" else name)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("#!/bin/sh\n", encoding="utf-8")
         path.chmod(0o755)

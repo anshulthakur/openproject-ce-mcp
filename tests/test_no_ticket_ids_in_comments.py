@@ -39,7 +39,7 @@ def test_no_tracker_ids_in_comments_or_docstrings() -> None:
     offenders = [
         f"{path.relative_to(ROOT)}:{line}"
         for path in _python_files()
-        for line, text in _comments_and_docstrings(path.read_text())
+        for line, text in _comments_and_docstrings(path.read_text(encoding="utf-8"))
         if _TICKET_ID.search(text)
     ]
     assert offenders == []
@@ -88,7 +88,9 @@ def _private_source_offenders(path: Path, source: str) -> list[str]:
 
 
 def test_no_comment_or_docstring_names_a_private_source() -> None:
-    offenders = [entry for path in _python_files() for entry in _private_source_offenders(path, path.read_text())]
+    offenders = [
+        entry for path in _python_files() for entry in _private_source_offenders(path, path.read_text(encoding="utf-8"))
+    ]
 
     assert offenders == []
 

@@ -6,7 +6,8 @@ import json
 import stat
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePath
+from typing import Any
 
 from .codex import CodexCli, codex_subjects
 from .environment import HostContext, Syntax, resolve
@@ -351,12 +352,13 @@ def _claude_code_subjects(ctx: HostContext, files: _Files, state_path: Path, pro
         files.overview.append(f"  - Claude Code local scope checked under: {checked}")
         projects = state.data.get("projects")
         for key in keys:
-            project = projects.get(str(key)) if isinstance(projects, dict) else None
-            if not isinstance(project, dict):
+            found = claude_project(projects, key) if isinstance(projects, dict) else None
+            if found is None:
                 continue
+            stored_key, project = found
             settings.disabled_mcpjson |= _names(project, "disabledMcpjsonServers")
             settings.disabled |= _names(project, "disabledMcpServers")
-            local = Source(state_path, "mcpServers", Syntax.CLAUDE_CODE, f"local scope, projects[{key}]")
+            local = Source(state_path, "mcpServers", Syntax.CLAUDE_CODE, f"local scope, projects[{stored_key}]")
             scoped_project = ConfigFile(state_path, data=project)
             scoped += [("local", s, n) for s, n in _scope_subjects(host, local, scoped_project, files, subjects)]
 
@@ -386,6 +388,16 @@ def _claude_code_subjects(ctx: HostContext, files: _Files, state_path: Path, pro
             subject.state = State.SHADOWED
             subject.state_reason = f"shadowed here by {max(stronger)[1]}"
     return subjects + [subject for _, subject, _ in scoped]
+
+
+def claude_project(projects: dict[str, Any], key: PurePath) -> tuple[str, dict[str, Any]] | None:
+    """The key and ``projects`` entry of ``~/.claude.json`` for a directory. On Windows Claude Code may key it
+    with forward slashes, as ``git`` prints the path, or with the native backslashes."""
+    for name in dict.fromkeys((str(key), key.as_posix())):
+        project = projects.get(name)
+        if isinstance(project, dict):
+            return name, project
+    return None
 
 
 def _scope_subjects(
