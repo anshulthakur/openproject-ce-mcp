@@ -7,7 +7,7 @@ development baseline.
 
 ---
 
-## [0.4.3] - Unreleased
+## [0.4.3] - 2026-10-27
 
 ### Security
 

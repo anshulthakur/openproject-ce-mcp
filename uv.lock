@@ -757,7 +757,7 @@ wheels = [
 
 [[package]]
 name = "openproject-ce-mcp"
-version = "0.4.2"
+version = "0.4.3"
 source = { editable = "." }
 dependencies = [
     { name = "httpx", extra = ["socks"] },
