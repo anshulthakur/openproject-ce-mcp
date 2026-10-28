@@ -44,6 +44,9 @@ dependencies = [
   # Imported directly: pydantic accepts a TypedDict only from typing_extensions before Python 3.12;
   # 4.16.0 is the lowest the newest anyio allows, so a lowest-direct install cannot reach a lower one.
   "typing-extensions>=4.16.0",
+  # Not imported: httpx verifies TLS against certifi's bundle. 2026.10.18 is the first one without the
+  # emSign roots whose intermediate keys are compromised, so an install never trusts them.
+  "certifi>=2026.10.18",
 ]
 
 [project.optional-dependencies]

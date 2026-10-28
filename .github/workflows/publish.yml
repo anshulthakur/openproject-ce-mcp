@@ -141,12 +141,12 @@ jobs:
 
           releases="$(list_releases)"
           if [ "$(jq -s length <<< "$releases")" -eq 0 ]; then
-            gh release create "$tag" \
-              --draft \
-              --verify-tag \
-              --title "$tag" \
-              --notes-file release-notes.md
-            releases="$(list_releases)"
+            # A release created just now may not show up in the list yet, so the
+            # new draft is taken from the response of the create call instead.
+            gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --silent
+            releases="$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" \
+              -f tag_name="$tag" -f name="$tag" -F draft=true -F body=@release-notes.md \
+              --jq '{id, draft, assets: [.assets[] | {name, digest}]}')"
           fi
           count="$(jq -s length <<< "$releases")"
           if [ "$count" -ne 1 ]; then
