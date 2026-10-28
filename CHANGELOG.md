@@ -7,7 +7,7 @@ development baseline.
 
 ---
 
-## [0.4.3] - 2026-10-27
+## [0.4.3] - 2026-10-28
 
 ### Security
 
