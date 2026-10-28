@@ -583,7 +583,7 @@ Tool names are `<verb>_<object>`, in snake_case.
 | `bulk_create_`, `bulk_update_` | The same writes, for several objects in one call |
 | `set_` | Sets a flag or state to a given value; idempotent (`set_project_favorite`, `set_work_package_watcher`) |
 | `toggle_` | Only where OpenProject itself toggles and the result depends on the current state (`toggle_activity_emoji_reaction`) |
-| A domain verb | Only when OpenProject names the action itself and it isn't a plain create, update or delete (`copy_project`, `execute_query`, `cancel_recurring_meeting_occurrence`, `init_recurring_meeting_occurrence`, `end_recurring_meeting`, `render_text`, `mark_notifications_read`) |
+| A domain verb | Only when OpenProject names the action itself and it isn't a plain create, update or delete (`copy_project`, `execute_query`, `cancel_recurring_meeting_occurrence`, `init_recurring_meeting_occurrence`, `end_recurring_meeting`, `render_text`, `mark_notifications_read`, `mark_notifications_unread`) |
 
 Exceptions to this scheme: `add_work_package_comment`, and
 `get_work_package_relations` and `get_work_package_activities`, which return
@@ -808,12 +808,12 @@ Important properties of the current model:
   and there is no write endpoint for it at all
 - most metadata tools (statuses, types, priorities, notifications, …) are always
   available and not gated by any read flag; a rarely-used subset (query schema
-  tools, `render_text`, `get_custom_option`, help texts, working days) is off by
+  tools, `render_text`, `get_custom_option`, help texts, working days, project budgets, version projects, available watchers and projects, revisions) is off by
   default behind `OPENPROJECT_ENABLE_EXTENDED_READ` to save context
 - notifications honor `OPENPROJECT_READ_PROJECTS` on every path. Under a
   restricted (non-`*`) scope, `list_notifications` re-scans server pages from
   the start and keeps only notifications about allowed projects, so a page
-  is filled across server pages. `mark_notifications_read` with a
+  is filled across server pages. `mark_notifications_read` and `mark_notifications_unread` with a
   `notification_id` reads that notification first and refuses one about a
   project outside the allowlist, or one that names no project at all, in the
   preview too. Without a `notification_id` it sends one bulk update narrowed
@@ -822,7 +822,21 @@ Important properties of the current model:
   readable. Known limitation: the readable project ids travel in the query
   string, as for `list_work_packages`, so a very large allowlist can exceed
   the server's URL length limit; the request then fails without marking
-  anything
+  anything. `get_notification` applies the same decision, serves only the
+  detail values it knows (a date of the notification's work package, the note
+  of its reminder) and masks each by the hide setting of the entity it comes
+  from
+- the project-bound lists of the opt-in groups judge their anchor first and
+  then each row: `list_version_projects` refuses a version defined outside the
+  read scope and keeps only covered projects; `list_work_package_available_projects`
+  keeps only covered projects and does not pass on the server `total`, which
+  would count the others; `list_work_package_revisions` judges each revision
+  by its own project link, since a repository need not belong to the work
+  package's project, and an empty list also means the repository module is off.
+  `set_query_starred` treats the star as a write to the query, which is shared:
+  a query of a project needs that project in the write allowlist, a public
+  query without a project needs the write scope `*`, and a private query may
+  be starred only by its owner, compared with the current user
 - `get_work_package_activities` serves the change details of an entry only
   when `OPENPROJECT_READ_PROJECTS` is `*` and no work package or custom field
   is hidden. OpenProject renders them as text in the API user's language with

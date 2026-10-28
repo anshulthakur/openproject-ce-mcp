@@ -63,11 +63,17 @@ confirmed branch would silently loosen that preview-time behavior.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import replace
 from typing import NoReturn
 
 from ... import policy_observation
 from ...config import Settings
-from ...models import NotificationListResult, NotificationMarkResult, NotificationSummary
+from ...models import (
+    NotificationDetail,
+    NotificationListResult,
+    NotificationMarkResult,
+    NotificationSummary,
+)
 from ..errors import ProjectScopeDeniedError
 from ..pagination import effective_limit
 from ..policies import access, hidden_fields
@@ -81,6 +87,16 @@ _NOTIFICATION_READ_DENIED = "OpenProject access to this notification is disabled
 _NO_READABLE_PROJECT = (
     "OpenProject access to notifications is disabled by OPENPROJECT_READ_PROJECTS: it covers no readable project."
 )
+
+
+# What a detail value shows, and the hide setting that governs it: a date of the work package, or the note of the
+# reminder. A value this table does not know is never passed on.
+_DETAIL_HIDE_FIELDS: dict[str, tuple[tuple[str, str], ...]] = {
+    "startDate": (("work_package", "start_date"),),
+    "dueDate": (("work_package", "due_date"),),
+    "date": (("work_package", "start_date"), ("work_package", "due_date")),
+    "note": (("reminder", "note"),),
+}
 
 
 class NotificationService:
@@ -262,7 +278,9 @@ class NotificationService:
         return hidden_fields.apply_hidden_fields("notification", summary, settings=self._settings)
 
     async def _ensure_readable(self, notification_id: int) -> None:
-        record = await self._api.get(notification_id)
+        await self._ensure_record_readable(await self._api.get(notification_id))
+
+    async def _ensure_record_readable(self, record: NotificationRecord) -> None:
         if record.project_link is None and _work_package_href(record) is None:
             _deny_read(_NOTIFICATION_READ_DENIED)
         (outcome,) = await self._resolve_page_allowed([record], cache=WorkPackageAllowedContext())
@@ -273,45 +291,88 @@ class NotificationService:
             policy_observation.record_policy_decision("project_scope_read_denied")
             raise ProjectScopeDeniedError(_NOTIFICATION_READ_DENIED)
 
+    async def get(self, notification_id: int) -> NotificationDetail:
+        access.ensure_read_enabled("personal", settings=self._settings)
+        record = await self._api.get(notification_id)
+        if scope_policy.scope_allows_all(self._settings.read_projects):
+            # As on the list path: a missing link is fine under a wide-open scope, a malformed one never is.
+            if (
+                scope_policy.classify_project_link(record.project_link, settings=self._settings)
+                is scope_policy.LinkState.MALFORMED
+            ):
+                _deny_read(_NOTIFICATION_READ_DENIED)
+        else:
+            await self._ensure_record_readable(record)
+        return self._stamp_detail(record.detail())
+
+    def _stamp_detail(self, detail: NotificationDetail) -> NotificationDetail:
+        shown = [
+            value
+            for value in detail.details
+            if (hide_fields := _DETAIL_HIDE_FIELDS.get(value.property)) is not None
+            and not any(
+                hidden_fields.field_hidden(entity, field_name, settings=self._settings)
+                for entity, field_name in hide_fields
+            )
+        ]
+        return hidden_fields.apply_hidden_fields(
+            "notification", replace(detail, details=shown), settings=self._settings
+        )
+
     async def mark_read(self, notification_id: int, *, confirm: bool = False) -> NotificationMarkResult:
+        return await self._mark(notification_id, read=True, confirm=confirm)
+
+    async def mark_unread(self, notification_id: int, *, confirm: bool = False) -> NotificationMarkResult:
+        return await self._mark(notification_id, read=False, confirm=confirm)
+
+    async def mark_all_read(self, *, confirm: bool = False) -> NotificationMarkResult:
+        return await self._mark_all(read=True, confirm=confirm)
+
+    async def mark_all_unread(self, *, confirm: bool = False) -> NotificationMarkResult:
+        return await self._mark_all(read=False, confirm=confirm)
+
+    async def _mark(self, notification_id: int, *, read: bool, confirm: bool) -> NotificationMarkResult:
         access.ensure_write_enabled("personal", settings=self._settings)
         if not scope_policy.scope_allows_all(self._settings.read_projects):
             await self._ensure_readable(notification_id)
+        state = "read" if read else "unread"
         if not confirm:
             # No OpenProject dry-run endpoint exists for this action -- this
             # is a client-side preview only: ready=True means the request is
             # valid and will be sent once confirmed, not that OpenProject has
             # already validated it.
             return NotificationMarkResult(
-                action="mark_read",
+                action=f"mark_{state}",
                 state="preview",
                 ready=True,
                 message=(
                     f"Ask for confirmation, then call again with confirm=true to mark "
-                    f"notification {notification_id} read."
+                    f"notification {notification_id} {state}."
                 ),
                 notification_id=notification_id,
             )
-        await self._api.mark_read(notification_id)
+        await (self._api.mark_read if read else self._api.mark_unread)(notification_id)
         return NotificationMarkResult(
-            action="mark_read",
+            action=f"mark_{state}",
             state="confirmed",
             ready=True,
-            message=f"Notification {notification_id} marked read.",
+            message=f"Notification {notification_id} marked {state}.",
             notification_id=notification_id,
         )
 
-    async def mark_all_read(self, *, confirm: bool = False) -> NotificationMarkResult:
+    async def _mark_all(self, *, read: bool, confirm: bool) -> NotificationMarkResult:
         access.ensure_write_enabled("personal", settings=self._settings)
         allows_all = scope_policy.scope_allows_all(self._settings.read_projects)
         covered = "" if allows_all else " about projects OPENPROJECT_READ_PROJECTS covers"
+        state = "read" if read else "unread"
+        current = "unread" if read else "read"
         if not confirm:
             return NotificationMarkResult(
-                action="mark_all_read",
+                action=f"mark_all_{state}",
                 state="preview",
                 ready=True,
                 message=(
-                    f"Marks all currently unread notifications{covered} read. Ask for confirmation, "
+                    f"Marks all currently {current} notifications{covered} {state}. Ask for confirmation, "
                     "then call again with confirm=true to apply it."
                 ),
                 notification_id=None,
@@ -321,12 +382,12 @@ class NotificationService:
             project_ids = await self._readable_projects.current_readable_project_ids()
             if not project_ids:
                 _deny_read(_NO_READABLE_PROJECT)
-        await self._api.mark_all_read(project_ids=project_ids)
+        await (self._api.mark_all_read if read else self._api.mark_all_unread)(project_ids=project_ids)
         return NotificationMarkResult(
-            action="mark_all_read",
+            action=f"mark_all_{state}",
             state="confirmed",
             ready=True,
-            message=f"All unread notifications{covered} marked read.",
+            message=f"All {current} notifications{covered} marked {state}.",
             notification_id=None,
         )
 

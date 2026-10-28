@@ -326,23 +326,33 @@ def test_user_schedule_write_toggle_is_independent() -> None:
 def test_metadata_tools_need_their_additional_read_scopes_too() -> None:
     extended_tools = tools.READ_TOOLS_BY_SCOPE["extended"]
 
-    # All reads on: all 12 extended-group tools appear.
-    full = set(tools.enabled_tool_names(make_settings(**ALL_READ_ON)))
+    # All reads on and a read allowlist: every extended-group tool appears.
+    full = set(tools.enabled_tool_names(make_settings(**ALL_READ_ON, read_projects=("*",))))
     assert set(extended_tools) <= full
 
-    # Board+work_package read off: the 7 dependent tools disappear, the other
-    # 5 (no additional scope) remain.
+    # Board+work_package read off: the tools needing either scope disappear, the
+    # others (no additional scope, or only the project scope) remain.
     partial = set(
         tools.enabled_tool_names(
             make_settings(
                 **{**ALL_READ_ON, "enable_board_read": False, "enable_work_package_read": False},
+                read_projects=("*",),
             )
         )
     )
-    dependent = {name for name in extended_tools if name in tools.ADDITIONAL_READ_SCOPES_BY_TOOL}
+    switched_off = {"board", "work_package"}
+    dependent = {
+        name for name in extended_tools if tools.ADDITIONAL_READ_SCOPES_BY_TOOL.get(name, frozenset()) & switched_off
+    }
     independent = set(extended_tools) - dependent
     assert dependent.isdisjoint(partial)
     assert independent <= partial
+
+    # The project scope alone gates the budget list.
+    no_project = set(
+        tools.enabled_tool_names(make_settings(**{**ALL_READ_ON, "enable_project_read": False}, read_projects=("*",)))
+    )
+    assert "list_project_budgets" not in no_project
 
 
 # ── "personal" AND-gate — NOT the independent read/write pattern ────────────
@@ -466,6 +476,20 @@ _EXPECTED_GLOBAL_READ_TOOLS = frozenset(
 )
 
 
+# Tools of the opt-in groups (extended, personal) that are bound to a project: gated on a non-empty read
+# allowlist like the core project-scoped reads, though the group itself is opt-in.
+_EXPECTED_PROJECT_BOUND_OPT_IN_TOOLS = frozenset(
+    {
+        "list_project_budgets",
+        "list_version_projects",
+        "list_work_package_available_watchers",
+        "list_work_package_available_projects",
+        "list_work_package_revisions",
+        "get_notification",
+    }
+)
+
+
 def _all_core_scope_tools() -> set[str]:
     return {name for scope in _CORE_SCOPE_NAMES for name in tools.READ_TOOLS_BY_SCOPE[scope]}
 
@@ -474,9 +498,12 @@ def test_project_scoped_and_global_read_tools_partition_the_core_scopes() -> Non
     all_core_scope_tools = _all_core_scope_tools()
     assert len(all_core_scope_tools) == 88  # list_project_storages/get_project_storage, get_attachment_content added
     assert _EXPECTED_GLOBAL_READ_TOOLS <= all_core_scope_tools
-    assert tools._PROJECT_SCOPED_READ_TOOLS == all_core_scope_tools - _EXPECTED_GLOBAL_READ_TOOLS
+    core_project_scoped = all_core_scope_tools - _EXPECTED_GLOBAL_READ_TOOLS
+    assert tools._PROJECT_SCOPED_READ_TOOLS == core_project_scoped | _EXPECTED_PROJECT_BOUND_OPT_IN_TOOLS
     assert tools._PROJECT_SCOPED_READ_TOOLS.isdisjoint(_EXPECTED_GLOBAL_READ_TOOLS)
-    assert len(tools._PROJECT_SCOPED_READ_TOOLS) == 74
+    assert len(core_project_scoped) == 74
+    opt_in_tools = set(tools.READ_TOOLS_BY_SCOPE["extended"]) | set(tools.READ_TOOLS_BY_SCOPE["personal"])
+    assert _EXPECTED_PROJECT_BOUND_OPT_IN_TOOLS <= opt_in_tools
 
 
 def test_project_scoped_read_tools_absent_when_read_projects_empty() -> None:
@@ -522,8 +549,12 @@ def test_full_allowlist_registers_all_core_reads_and_other_scopes_unaffected() -
         for name in tools.READ_TOOLS_BY_SCOPE[scope]
     }
     # personal/admin/user_schedule/extended registration depends only on their own enable
-    # flags, not on read_projects — this new gate must not affect them.
-    assert (other_scope_tools & empty) == (other_scope_tools & full)
+    # flags, not on read_projects — except the project-bound opt-in tools, which follow
+    # the same allowlist gate as the core project-scoped reads.
+    independent = other_scope_tools - _EXPECTED_PROJECT_BOUND_OPT_IN_TOOLS
+    assert (independent & empty) == (independent & full)
+    assert _EXPECTED_PROJECT_BOUND_OPT_IN_TOOLS.isdisjoint(empty)
+    assert _EXPECTED_PROJECT_BOUND_OPT_IN_TOOLS <= full
 
 
 def test_read_enabled_unknown_scope_raises_not_silently_allows() -> None:

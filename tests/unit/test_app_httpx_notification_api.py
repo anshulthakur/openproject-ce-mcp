@@ -5,7 +5,11 @@ import json
 import httpx
 import pytest
 
-from openproject_ce_mcp.app.adapters.httpx_notification_api import HttpxNotificationApi, normalize_notification
+from openproject_ce_mcp.app.adapters.httpx_notification_api import (
+    HttpxNotificationApi,
+    normalize_notification,
+    normalize_notification_detail,
+)
 from openproject_ce_mcp.app.transport.httpx_transport import HttpxTransport
 
 BASE_URL = "https://op.example.com"
@@ -209,6 +213,64 @@ async def test_mark_all_read_refuses_an_empty_project_set_without_a_request() ->
 
 
 @pytest.mark.asyncio
+async def test_mark_unread_posts_an_empty_json_body_to_the_unread_route() -> None:
+    requests: list[tuple[str, str, bytes]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        requests.append((request.method, request.url.path, request.content))
+        return httpx.Response(204, request=request)
+
+    async with _client(handler) as http_client:
+        await HttpxNotificationApi(HttpxTransport(http_client)).mark_unread(10)
+
+    assert requests == [("POST", "/api/v3/notifications/10/unread_ian", b"{}")]
+
+
+@pytest.mark.asyncio
+async def test_mark_all_unread_is_limited_to_read_notifications() -> None:
+    """Unfiltered, the bulk route also rewrites every notification that is already unread and moves its updatedAt."""
+    requests: list[tuple[str, str, dict[str, str], bytes]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        requests.append((request.method, request.url.path, dict(request.url.params), request.content))
+        return httpx.Response(204, request=request)
+
+    async with _client(handler) as http_client:
+        await HttpxNotificationApi(HttpxTransport(http_client)).mark_all_unread(project_ids=None)
+
+    assert requests == [
+        (
+            "POST",
+            "/api/v3/notifications/unread_ian",
+            {"filters": '[{"readIAN":{"operator":"=","values":["t"]}}]'},
+            b"{}",
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_mark_all_unread_narrows_to_the_given_projects_and_refuses_an_empty_set() -> None:
+    requests: list[list] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(json.loads(request.url.params["filters"]))
+        return httpx.Response(204, request=request)
+
+    async with _client(handler) as http_client:
+        api = HttpxNotificationApi(HttpxTransport(http_client))
+        await api.mark_all_unread(project_ids=frozenset({10, 3}))
+        with pytest.raises(ValueError, match="at least one project"):
+            await api.mark_all_unread(project_ids=frozenset())
+
+    assert requests == [
+        [
+            {"readIAN": {"operator": "=", "values": ["t"]}},
+            {"project": {"operator": "=", "values": ["3", "10"]}},
+        ]
+    ]
+
+
+@pytest.mark.asyncio
 async def test_get_reads_one_notification() -> None:
     requests: list[tuple[str, str]] = []
 
@@ -263,3 +325,56 @@ async def test_list_all_is_not_exhausted_while_a_server_that_cut_the_page_size_h
         page = await api.list_all(unread_only=False, offset=2, limit=100)
 
     assert page.exhausted is False  # 2 * 20 = 40 < 100, although 2 * 100 >= 100
+
+
+def _detailed_payload(**overrides: object) -> dict:
+    payload = _notification_payload(7, project_href="/api/v3/projects/1", resource_href="/api/v3/work_packages/5")
+    payload["reason"] = "reminder"
+    payload["_links"]["activity"] = {"href": "/api/v3/activities/77", "title": "Activity"}
+    payload["_embedded"] = {
+        "details": [
+            {"_type": "Values::Property", "property": "note", "value": "Call  back\nsoon"},
+            {"_type": "Values::Property", "property": "dueDate", "value": "2026-10-05"},
+            {"_type": "Values::Property"},
+            "not an object",
+        ]
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_normalize_notification_detail_reads_details_and_the_activity() -> None:
+    detail = normalize_notification_detail(_detailed_payload())
+
+    assert detail.id == 7
+    assert detail.activity_id == 77
+    assert [(d.property, d.value) for d in detail.details] == [
+        ("note", "<user-content>Call back soon</user-content>"),
+        ("dueDate", "2026-10-05"),
+    ]
+
+
+def test_normalize_notification_detail_without_details_or_activity() -> None:
+    payload = _detailed_payload()
+    del payload["_embedded"]
+    del payload["_links"]["activity"]
+
+    detail = normalize_notification_detail(payload)
+
+    assert detail.details == []
+    assert detail.activity_id is None
+
+
+@pytest.mark.asyncio
+async def test_get_record_serves_the_detail_from_the_same_response() -> None:
+    requests: list[str] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request.url.path)
+        return httpx.Response(200, json=_detailed_payload(), request=request)
+
+    async with _client(handler) as http_client:
+        record = await HttpxNotificationApi(HttpxTransport(http_client)).get(7)
+
+    assert record.detail().activity_id == 77
+    assert requests == ["/api/v3/notifications/7"]

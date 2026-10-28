@@ -232,3 +232,35 @@ def test_update_my_preferences_schema() -> None:
         "auto_hide_popups",
         "confirm",
     ]
+
+
+def test_mark_notifications_unread_schema() -> None:
+    tool = _tools(create_app(_make_settings()))["mark_notifications_unread"]
+    assert tool.description == (
+        "Mark a single notification, or all read notifications, as unread.\n"
+        "\n"
+        "notification_id: mark just this notification unread. Omit it (default) to\n"
+        "mark every currently read notification unread instead.\n"
+        "Under a restricted OPENPROJECT_READ_PROJECTS, a notification about a\n"
+        "project outside it is refused (in the preview too), and omitting\n"
+        "notification_id marks only notifications about the projects it covers.\n"
+    )
+    assert tool.output_schema["title"] == "NotificationMarkResult"
+    assert list(tool.parameters["properties"]) == ["notification_id", "confirm"]
+    assert tool.parameters["properties"]["confirm"]["default"] is False
+    assert tool.parameters["additionalProperties"] is False
+
+
+def test_get_notification_schema() -> None:
+    tool = _tools(create_app(_make_settings()))["get_notification"]
+    assert tool.description == (
+        "Get one in-app notification with its details: the dates of a date alert, the note of a reminder, and the\n"
+        "activity it points at.\n"
+        "\n"
+        "Under a restricted OPENPROJECT_READ_PROJECTS, a notification about a project outside it, or one that names no\n"
+        "project at all, is refused. A reminder note is user text and is delimited as untrusted content."
+    )
+    assert tool.output_schema["title"] == "NotificationDetail"
+    assert list(tool.parameters["properties"]) == ["notification_id"]
+    assert tool.parameters["required"] == ["notification_id"]
+    assert tool.parameters["additionalProperties"] is False

@@ -21,6 +21,15 @@ to install and discover.
   irreversible text replacement.
 - List and upload attachments on wiki pages, forum posts, meetings and comments.
 - List available assignees and relation candidates for work packages.
+- Opt-in `extended` tools list a project's budgets, the projects a version is
+  shared with, the users that can watch a work package, the projects it can
+  move to and its repository revisions, limited to
+  `OPENPROJECT_READ_PROJECTS`; `OPENPROJECT_HIDE_BUDGET_FIELDS` and
+  `OPENPROJECT_HIDE_REVISION_FIELDS` hide their fields.
+- `get_notification` reads one notification with its details and activity, and
+  `mark_notifications_unread` marks one or all read notifications unread.
+- `set_query_starred` stars or unstars a saved query; a public query needs its
+  project in `OPENPROJECT_WRITE_PROJECTS`, or the write scope `*` without one.
 - `select` on `bulk_create_work_packages` and `bulk_update_work_packages`
   picks fields of each written work package as `result.<field>`, e.g.
   `["work_package_id", "result.status"]`; a bare work package field name is
@@ -91,7 +100,7 @@ to install and discover.
   These names have had no effect on the running server since 0.3.0; use
   `OPENPROJECT_READ_PROJECTS`/`OPENPROJECT_WRITE_PROJECTS`.
 
-Thanks to our contributor: [@feci](https://github.com/feci) ([#35](https://github.com/jtauschl/openproject-ce-mcp/pull/35), [#43](https://github.com/jtauschl/openproject-ce-mcp/pull/43), [#44](https://github.com/jtauschl/openproject-ce-mcp/pull/44)).
+Thanks to our contributor: [@feci](https://github.com/feci) ([#35](https://github.com/jtauschl/openproject-ce-mcp/pull/35), [#36](https://github.com/jtauschl/openproject-ce-mcp/pull/36), [#43](https://github.com/jtauschl/openproject-ce-mcp/pull/43), [#44](https://github.com/jtauschl/openproject-ce-mcp/pull/44)).
 
 ## [0.4.4] - Unreleased
 

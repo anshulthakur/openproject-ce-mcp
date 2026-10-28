@@ -16,6 +16,7 @@ RENDERED_KEYS = ("details", "html")
 # file:function -> why the read cannot name a record outside the read scope
 SAFE: dict[str, str] = {
     "httpx_activity_api.py:normalize_activity": "reads the change details only when the caller passes details=True, which the services derive from the read scope and the hide settings, or False",
+    "httpx_notification_api.py:normalize_notification_detail": "a notification's embedded details hold only a date of its own work package or the note of its own reminder, never text built from other records; the service judges the notification by its project first and passes on only the values it knows",
     "_text.py:_extract_formattable_text": "raw is always a string and html is its rendering, so html is read only when raw is empty and then holds no text",
     "_text.py:extract_formattable_text_with_meta": "raw is always a string and html is its rendering, so html is read only when raw is empty and then holds no text",
     "httpx_attachment_api.py:_extract_formattable_text": "raw is always a string and html is its rendering, so html is read only when raw is empty and then holds no text",

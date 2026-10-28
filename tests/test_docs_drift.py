@@ -181,7 +181,10 @@ def test_configuration_lists_exactly_the_read_tools_registered_without_read_proj
 
     assert _duplicates(documented) == []
     assert set(documented) == core_read_tools - _PROJECT_SCOPED_READ_TOOLS
-    assert sorted(other_read_tools & _PROJECT_SCOPED_READ_TOOLS) == []
+    # Only the opt-in extended and personal groups may carry project-bound tools; every other
+    # non-core group registers independently of the allowlist.
+    opt_in_tools = set(READ_TOOLS_BY_SCOPE["extended"]) | set(READ_TOOLS_BY_SCOPE["personal"])
+    assert (other_read_tools & _PROJECT_SCOPED_READ_TOOLS) <= opt_in_tools
 
 
 def test_configuration_lists_exactly_the_tools_needing_another_setting() -> None:

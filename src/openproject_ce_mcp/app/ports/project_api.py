@@ -117,6 +117,22 @@ class ProjectApi(Protocol):
         search: str | None,
         text_limit: int | None = FORMATTABLE_LIMIT,
     ) -> ProjectPage: ...
+    async def list_for_version(
+        self,
+        version_id: int,
+        *,
+        server_offset: int,
+        server_page_size: int,
+        text_limit: int | None = FORMATTABLE_LIMIT,
+    ) -> ProjectPage: ...
+    async def list_available_for_work_package(
+        self,
+        work_package_id: int,
+        *,
+        server_offset: int,
+        server_page_size: int,
+        text_limit: int | None = FORMATTABLE_LIMIT,
+    ) -> ProjectPage: ...
     async def get(self, project_ref: str, *, text_limit: int | None = FORMATTABLE_LIMIT) -> ProjectRecord: ...
     async def create_form(self, payload: dict[str, Any]) -> ProjectFormResult: ...
     async def update_form(self, project_id: int, payload: dict[str, Any]) -> ProjectFormResult: ...

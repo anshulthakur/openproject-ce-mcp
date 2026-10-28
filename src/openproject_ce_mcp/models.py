@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal, NamedTuple
 
 
@@ -862,6 +862,38 @@ class CategoryListResult(CollectionResult):
 
 
 @dataclass
+class BudgetSummary:
+    id: int
+    subject: str
+    project_id: int
+    project: str | None
+
+
+@dataclass
+class BudgetListResult(CollectionResult):
+    results: list[BudgetSummary]
+
+
+@dataclass
+class RevisionSummary:
+    id: int
+    identifier: str
+    formatted_identifier: str | None
+    author_name: str | None
+    message: str | None
+    project_id: int | None
+    project: str | None
+    created_at: str | None
+    message_truncated: bool = False
+    message_length: int | None = None
+
+
+@dataclass
+class RevisionListResult(CollectionResult):
+    results: list[RevisionSummary]
+
+
+@dataclass
 class DocumentSummary:
     id: int
     title: str
@@ -1362,6 +1394,11 @@ class WatcherListResult(CollectionResult):
 
 
 @dataclass
+class AvailableWatcherListResult(PageResult):
+    results: list[WatcherSummary]
+
+
+@dataclass
 class WatcherWriteResult(ConfirmationHeader):
     work_package_id: int | str
     watcher_user_id: int | None
@@ -1380,6 +1417,18 @@ class NotificationSummary:
     work_package_id: int | None
     work_package_subject: str | None
     created_at: str
+
+
+@dataclass
+class NotificationDetailValue:
+    property: str
+    value: str | None
+
+
+@dataclass
+class NotificationDetail(NotificationSummary):
+    details: list[NotificationDetailValue] = field(default_factory=list)
+    activity_id: int | None = None
 
 
 @dataclass
@@ -1668,6 +1717,14 @@ class NotificationMarkResult(ConfirmationHeader):
     that OpenProject has validated it server-side."""
 
     notification_id: int | None  # None means "all unread notifications"
+
+
+@dataclass
+class QueryStarResult(ConfirmationHeader):
+    """Confirm-gated star/unstar of a saved query; ``starred`` is the wanted state."""
+
+    query_id: int
+    starred: bool
 
 
 @dataclass

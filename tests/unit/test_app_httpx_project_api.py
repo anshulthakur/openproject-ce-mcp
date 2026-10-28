@@ -426,3 +426,81 @@ async def test_list_is_not_exhausted_while_a_server_that_cut_the_page_size_has_m
         page = await api.list(server_offset=2, server_page_size=100, search=None)
 
     assert page.exhausted is False  # 2 * 20 = 40 < 100, although 2 * 100 >= 100
+
+
+def _version_projects_payload(*project_ids: int, total: int | None = None, page_size: int | None = None) -> dict:
+    payload: dict = {
+        "_type": "Collection",
+        "total": len(project_ids) if total is None else total,
+        "_embedded": {
+            "elements": [_project_payload(project_id, identifier=f"p{project_id}") for project_id in project_ids]
+        },
+    }
+    if page_size is not None:
+        payload["pageSize"] = page_size
+    return payload
+
+
+@pytest.mark.asyncio
+async def test_list_for_version_requests_the_version_projects_route_with_paging() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/api/v3/versions/5/projects"
+        assert dict(request.url.params) == {"offset": "2", "pageSize": "50"}
+        return httpx.Response(200, json=_version_projects_payload(6, 7, total=120, page_size=50), request=request)
+
+    async with _client(handler) as http_client:
+        page = await HttpxProjectApi(HttpxTransport(http_client), base_url=BASE_URL).list_for_version(
+            5, server_offset=2, server_page_size=50
+        )
+
+    assert [record.summary.id for record in page.records] == [6, 7]
+    assert page.server_total == 120
+    assert page.exhausted is False
+
+
+@pytest.mark.asyncio
+async def test_list_for_version_marks_the_last_server_page_as_exhausted() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=_version_projects_payload(6, 7, total=52, page_size=50), request=request)
+
+    async with _client(handler) as http_client:
+        page = await HttpxProjectApi(HttpxTransport(http_client), base_url=BASE_URL).list_for_version(
+            5, server_offset=2, server_page_size=50
+        )
+
+    assert page.exhausted is True
+
+
+@pytest.mark.asyncio
+async def test_list_for_version_treats_a_server_that_ignores_paging_as_exhausted_after_one_read() -> None:
+    # OpenProject 16.x answers every row whatever offset and pageSize say: more rows than the requested size,
+    # and `total` equal to the number of rows. Asking for the next page would return the same rows again.
+    everything = list(range(10, 70))
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=_version_projects_payload(*everything), request=request)
+
+    async with _client(handler) as http_client:
+        page = await HttpxProjectApi(HttpxTransport(http_client), base_url=BASE_URL).list_for_version(
+            5, server_offset=1, server_page_size=50
+        )
+
+    assert len(page.records) == 60
+    assert page.exhausted is True
+
+
+@pytest.mark.asyncio
+async def test_list_for_version_skips_rows_that_are_not_projects() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        payload = _version_projects_payload(6)
+        payload["_embedded"]["elements"].append({"_type": "Error", "id": 9})
+        payload["total"] = 2
+        return httpx.Response(200, json=payload, request=request)
+
+    async with _client(handler) as http_client:
+        page = await HttpxProjectApi(HttpxTransport(http_client), base_url=BASE_URL).list_for_version(
+            5, server_offset=1, server_page_size=50
+        )
+
+    assert [record.summary.id for record in page.records] == [6]

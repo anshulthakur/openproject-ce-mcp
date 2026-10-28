@@ -1,5 +1,6 @@
 """Work package picker MCP tool handlers: list_available_assignees,
-list_work_package_available_relation_candidates.
+list_work_package_available_relation_candidates, list_work_package_available_watchers,
+list_work_package_available_projects.
 
 Read-only lookups for filling a work package field with a value OpenProject
 will accept, delegating to `app/services/work_package_picker_service.py`'s
@@ -20,15 +21,20 @@ from mcp.server.mcpserver import Context
 from pydantic import Field
 
 from .models import (
+    AvailableWatcherListResult,
     PrincipalCollectionResult,
     PrincipalSummary,
+    ProjectListResult,
+    ProjectSummary,
     RelationCandidateListResult,
     RelationCandidateSummary,
+    WatcherSummary,
 )
-from .tool_params import OptionalProjectRef, OptionalWorkPackageRef, WorkPackageRef, select_field
+from .tool_params import Limit, Offset, OptionalProjectRef, OptionalWorkPackageRef, WorkPackageRef, select_field
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
     _validate_limit,
+    _validate_list_query_params,
     _validate_optional_choice,
     _validate_optional_project_ref,
     _validate_optional_query,
@@ -114,3 +120,41 @@ async def list_work_package_available_relation_candidates(
             safe_id, query=safe_query, relation_type=safe_type, limit=safe_limit
         )
     )
+
+
+@register_tool
+async def list_work_package_available_watchers(
+    ctx: Context,
+    work_package_id: WorkPackageRef,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(WatcherSummary)] = None,
+) -> AvailableWatcherListResult:
+    """List the users that can be added as watchers of a work package.
+
+    OpenProject answers only a caller who may add watchers in the work package's project. Page until next_offset
+    is null."""
+    client = _client_from_context(ctx)
+    safe_wp = _validate_work_package_ref(work_package_id)
+    _, safe_offset, safe_limit = _validate_list_query_params(None, offset, limit)
+    _validate_select(select, row_type=WatcherSummary)
+    return await _run_tool(client.work_package_picker.available_watchers(safe_wp, offset=safe_offset, limit=safe_limit))
+
+
+@register_tool
+async def list_work_package_available_projects(
+    ctx: Context,
+    work_package_id: WorkPackageRef,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(ProjectSummary)] = None,
+) -> ProjectListResult:
+    """List the projects a work package can be moved to, limited to projects the read scope covers.
+
+    OpenProject answers only a caller who may edit the work package. total is the count of allowed projects returned
+    on THIS page, not a full count; page until next_offset is null."""
+    client = _client_from_context(ctx)
+    safe_wp = _validate_work_package_ref(work_package_id)
+    _, safe_offset, safe_limit = _validate_list_query_params(None, offset, limit)
+    _validate_select(select, row_type=ProjectSummary)
+    return await _run_tool(client.work_package_picker.available_projects(safe_wp, offset=safe_offset, limit=safe_limit))

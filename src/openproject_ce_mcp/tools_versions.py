@@ -15,7 +15,14 @@ from typing import Annotated, Any
 from mcp.server.mcpserver import Context
 from pydantic import Field
 
-from .models import VersionDetail, VersionListResult, VersionSummary, VersionWriteResult
+from .models import (
+    ProjectListResult,
+    ProjectSummary,
+    VersionDetail,
+    VersionListResult,
+    VersionSummary,
+    VersionWriteResult,
+)
 from .tool_params import Confirm, Limit, Offset, OptionalProjectRef, ProjectRef, select_field
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import (
@@ -82,6 +89,25 @@ async def get_version(
     safe_id = _validate_positive_int(version_id, field_name="version_id")
     safe_text_limit = _validate_optional_text_limit(text_limit)
     return await _run_tool(client.version.get(safe_id, text_limit=safe_text_limit))
+
+
+@register_tool
+async def list_version_projects(
+    ctx: Context,
+    version_id: int,
+    offset: Offset = 1,
+    limit: Limit = None,
+    select: Annotated[list[str] | None, select_field(ProjectSummary)] = None,
+) -> ProjectListResult:
+    """List the projects a version is shared with, limited to projects the read scope covers.
+
+    A version defined outside OPENPROJECT_READ_PROJECTS is refused. total is the count of allowed projects returned
+    on THIS page, not a full count; page until next_offset is null."""
+    client = _client_from_context(ctx)
+    safe_id = _validate_positive_int(version_id, field_name="version_id")
+    _, safe_offset, safe_limit = _validate_list_query_params(None, offset, limit)
+    _validate_select(select, row_type=ProjectSummary)
+    return await _run_tool(client.version.list_projects(safe_id, offset=safe_offset, limit=safe_limit))
 
 
 def _validate_version_schedule_fields(

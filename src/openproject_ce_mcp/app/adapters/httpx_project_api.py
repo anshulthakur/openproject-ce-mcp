@@ -340,6 +340,56 @@ class HttpxProjectApi:
         exhausted = page_is_last(payload, offset=server_offset, requested_page_size=server_page_size, total=total)
         return ProjectPage(records=records, server_total=total, exhausted=exhausted)
 
+    async def list_for_version(
+        self,
+        version_id: int,
+        *,
+        server_offset: int,
+        server_page_size: int,
+        text_limit: int | None = FORMATTABLE_LIMIT,
+    ) -> ProjectPage:
+        return await self._anchored_page(
+            f"versions/{version_id}/projects",
+            server_offset=server_offset,
+            server_page_size=server_page_size,
+            text_limit=text_limit,
+        )
+
+    async def list_available_for_work_package(
+        self,
+        work_package_id: int,
+        *,
+        server_offset: int,
+        server_page_size: int,
+        text_limit: int | None = FORMATTABLE_LIMIT,
+    ) -> ProjectPage:
+        return await self._anchored_page(
+            f"work_packages/{work_package_id}/available_projects",
+            server_offset=server_offset,
+            server_page_size=server_page_size,
+            text_limit=text_limit,
+        )
+
+    async def _anchored_page(
+        self, path: str, *, server_offset: int, server_page_size: int, text_limit: int | None
+    ) -> ProjectPage:
+        payload = await self._transport.get_json(
+            path, params={"offset": str(server_offset), "pageSize": str(server_page_size)}
+        )
+        elements = payload.get("_embedded", {}).get("elements", [])
+        records = [
+            self._record(item, text_limit=text_limit)
+            for item in elements
+            if isinstance(item, dict) and item.get("_type") == "Project"
+        ]
+        total = int(payload.get("total", 0))
+        # OpenProject 16.x ignores offset and pageSize on the version route and returns every row, so a
+        # page that already holds `total` rows is the last one whatever the offset says.
+        exhausted = len(elements) >= total or page_is_last(
+            payload, offset=server_offset, requested_page_size=server_page_size, total=total
+        )
+        return ProjectPage(records=records, server_total=total, exhausted=exhausted)
+
     async def get(self, project_ref: str, *, text_limit: int | None = FORMATTABLE_LIMIT) -> ProjectRecord:
         safe_ref = _reject_path_traversal_segments(project_ref, field_name="project_ref")
         payload = await self._transport.get_json(f"projects/{quote(safe_ref, safe='')}")

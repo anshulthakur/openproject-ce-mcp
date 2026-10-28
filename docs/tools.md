@@ -98,7 +98,7 @@ matching `OPENPROJECT_HIDE_<ENTITY>_FIELDS` environment variable — see
 
 A subset of rarely-used metadata tools — the `get_query_*` schema tools,
 `render_text`, `get_custom_option`, `list_help_texts`/`get_help_text`,
-`list_working_days`/`list_non_working_days` — is **opt-in**: they are registered
+`list_working_days`/`list_non_working_days`, `list_project_budgets`, `list_version_projects`, `list_work_package_available_watchers`, `list_work_package_available_projects`, `list_work_package_revisions` — is **opt-in**: they are registered
 only when `OPENPROJECT_ENABLE_EXTENDED_READ=true`, to keep them out of the
 default tool set and save context.
 
@@ -240,7 +240,9 @@ user exists.
 | Tool | Description |
 | --- | --- |
 | `list_notifications` | List the current user's in-app notifications; pass `unread_only=true` to list only unread ones |
+| `get_notification` | Get one in-app notification with its details (the dates of a date alert, the note of a reminder) and the activity it points at; under a restricted `OPENPROJECT_READ_PROJECTS`, only one about a project it covers |
 | `mark_notifications_read` | Mark a single notification as read (pass `notification_id`), or every unread notification as read (omit it); under a restricted `OPENPROJECT_READ_PROJECTS`, only notifications about projects it covers |
+| `mark_notifications_unread` | Mark a single notification as unread (pass `notification_id`), or every read notification as unread (omit it); same scope rules as `mark_notifications_read` |
 
 ## Actions & capabilities
 
@@ -275,6 +277,7 @@ user exists.
 | `list_views` | List saved OpenProject views, optionally filtered by project, view subtype, or name search |
 | `get_view` | Fetch a single OpenProject view by id |
 | `execute_query` | Execute a saved OpenProject query by id and return its resolved work packages, filtered against `OPENPROJECT_READ_PROJECTS` |
+| `set_query_starred` | Star or unstar a saved query; the star belongs to the query, so a public query changes for everyone: a query of a project needs that project in `OPENPROJECT_WRITE_PROJECTS`, a public query without a project needs the write scope `*`; a private query only for its owner; only when OpenProject allows the caller to use that route; only writes when called again with `confirm=true` |
 
 ## Documents
 
@@ -402,9 +405,12 @@ has
 | `list_my_open_work_packages` | List the current user's open assigned work packages |
 | `list_available_assignees` | List the users and groups OpenProject accepts as assignee, for a work package or (before it exists) for a project |
 | `list_work_package_available_relation_candidates` | List work packages that can be the other end of a new relation, optionally by text and relation type |
+| `list_work_package_available_watchers` | List the users that can be added as watchers of a work package, paged; needs `OPENPROJECT_ENABLE_EXTENDED_READ` and the right to add watchers |
+| `list_work_package_available_projects` | List the projects a work package can be moved to, limited to the read scope, paged; needs `OPENPROJECT_ENABLE_EXTENDED_READ` and the right to edit the work package |
 | `list_work_package_watchers` | List watchers on a work package |
 | `set_work_package_watcher` | Add or remove a user as a watcher on a work package, based on `watching` |
 | `list_work_package_file_links` | List Nextcloud file links attached to a work package (Community Edition) |
+| `list_work_package_revisions` | List the repository revisions linked to a work package, limited to projects the read scope covers; empty also when the repository module is off; needs `OPENPROJECT_ENABLE_EXTENDED_READ` |
 | `delete_file_link` | Validate and then delete a Nextcloud file link; only deletes when called again with `confirm=true` |
 
 ### Bulk writes vs. parallel single calls
@@ -528,6 +534,7 @@ needs credentials the MCP client does not carry.
 | --- | --- |
 | `list_versions` | List versions globally or scoped to a specific project, with an optional name filter |
 | `get_version` | Fetch a compact version summary by id |
+| `list_version_projects` | List the projects a version is shared with, limited to the read scope; needs `OPENPROJECT_ENABLE_EXTENDED_READ` |
 | `create_version` | Validate and then create a version; only writes when called again with `confirm=true` |
 | `update_version` | Validate and then update a version; only writes when called again with `confirm=true` |
 | `delete_version` | Validate and then delete a version; only deletes when called again with `confirm=true` |
@@ -695,6 +702,12 @@ later still). Meeting Outcomes require 17.6+ throughout.
 | --- | --- |
 | `list_working_days` | List the working-day configuration (Mon–Sun) for a given year or the current year |
 | `list_non_working_days` | List non-working days (public holidays / closures) for a given year or the current year |
+
+## Budgets
+
+| Tool | Description |
+| --- | --- |
+| `list_project_budgets` | List the cost budgets of a project; needs the Budgets module and `view_budgets` on the instance (otherwise permission denied) |
 
 ## Custom options
 

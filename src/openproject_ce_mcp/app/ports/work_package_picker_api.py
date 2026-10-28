@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from ...models import PrincipalSummary, RelationCandidateSummary
+from ...models import PrincipalSummary, RelationCandidateSummary, WatcherSummary
 
 
 class WorkPackagePickerApi(Protocol):
@@ -30,3 +30,9 @@ class WorkPackagePickerApi(Protocol):
     async def relation_candidates(
         self, work_package_id: int, *, query: str | None, relation_type: str | None, page_size: int
     ) -> list[tuple[RelationCandidateSummary, dict[str, Any]]]: ...
+
+    async def available_watchers(
+        self, work_package_id: int, *, offset: int, page_size: int
+    ) -> tuple[list[WatcherSummary], int]:
+        """GET work_packages/{id}/available_watchers: the requested server page and the server's total."""
+        ...

@@ -201,6 +201,35 @@ async def test_mark_notification_read_confirmed_roundtrip(
     assert notification_id not in {n.id for n in after.results}
 
 
+async def test_get_notification_and_the_unread_roundtrip(
+    client: OpenProjectClient,
+    test_project: str,
+    wp_ids: list[int],
+    second_user_client: tuple[int, OpenProjectClient],
+) -> None:
+    """A comment of a second user gives the admin a genuine notification: it is read with its activity, marked
+    read, and marked unread again, each state checked through the list and not only the write's own report."""
+    second_client = await _admit_second_user(client, test_project, second_user_client)
+    notification_id = await _notification_from_second_user(client, second_client, test_project, wp_ids)
+
+    detail = await client.notification.get(notification_id)
+    assert detail.id == notification_id
+    assert detail.work_package_id in wp_ids
+    assert detail.activity_id is not None
+
+    preview = await client.notification.mark_unread(notification_id)
+    assert (preview.action, preview.state) == ("mark_unread", "preview")
+
+    await client.notification.mark_read(notification_id, confirm=True)
+    read_now = await client.notification.list_all(unread_only=True)
+    assert notification_id not in {n.id for n in read_now.results}
+
+    marked = await client.notification.mark_unread(notification_id, confirm=True)
+    assert (marked.action, marked.state, marked.notification_id) == ("mark_unread", "confirmed", notification_id)
+    unread_again = await client.notification.list_all(unread_only=True)
+    assert notification_id in {n.id for n in unread_again.results}
+
+
 async def _raw_notification(http: httpx.AsyncClient, notification_id: int) -> dict:
     response = await http.get(f"notifications/{notification_id}")
     response.raise_for_status()

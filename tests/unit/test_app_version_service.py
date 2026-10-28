@@ -6,6 +6,7 @@ import pytest
 from _client_test_helpers import make_settings
 
 from openproject_ce_mcp.app.errors import InvalidInputError, PermissionDeniedError
+from openproject_ce_mcp.app.ports.project_api import ProjectPage
 from openproject_ce_mcp.app.ports.version_api import VersionFormResult, VersionPage, VersionRecord
 from openproject_ce_mcp.app.services.version_service import VersionService
 from openproject_ce_mcp.models import VersionDetail, VersionSummary
@@ -76,6 +77,11 @@ class _FakeVersionApi:
         self.delete_calls.append(version_id)
 
 
+class _FakeProjectApi:
+    async def list_for_version(self, version_id: int, **kwargs: object) -> ProjectPage:
+        return ProjectPage(records=[], server_total=0, exhausted=True)
+
+
 async def _resolve_project_ref(project_ref: str, *, write: bool = False, context=None) -> dict:
     return {"id": 6, "identifier": "demo", "name": "Demo"}
 
@@ -89,6 +95,7 @@ def _service(
         project_id_to_identifier={6: "demo"},
         resolve_project_ref=resolve_project_ref,
         api_prefix="api/v3/",
+        project_api=_FakeProjectApi(),
     )
 
 
@@ -226,6 +233,7 @@ async def test_create_builds_defining_project_href_from_this_service_s_own_api_p
         project_id_to_identifier={6: "demo"},
         resolve_project_ref=_resolve_project_ref,
         api_prefix="custom/v9/",
+        project_api=_FakeProjectApi(),
     )
 
     result = await service.create(project="demo", name="Release 1", confirm=False)

@@ -50,6 +50,7 @@ from .tools_boards import (  # noqa: F401 -- @register_tool side effect; re-expo
     list_boards,
     update_board,
 )
+from .tools_budgets import list_project_budgets  # noqa: F401 -- @register_tool side effect
 from .tools_categories import (  # noqa: F401 -- @register_tool side effect; re-exported, test_project_and_domain_tools.py imports get_category/list_categories from here
     get_category,
     list_categories,
@@ -106,8 +107,10 @@ from .tools_memberships import (  # noqa: F401 -- @register_tool side effect; re
 )
 from .tools_personal import (  # noqa: F401 -- @register_tool side effect; re-exported, test_project_and_domain_tools.py imports list_notifications/mark_notifications_read from here
     get_my_preferences,
+    get_notification,
     list_notifications,
     mark_notifications_read,
+    mark_notifications_unread,
     update_my_preferences,
 )
 from .tools_projects import (  # noqa: F401 -- @register_tool side effect; re-exported, test_project_and_domain_tools.py/test_work_package_tools.py import several of these from here
@@ -151,6 +154,7 @@ from .tools_reminders import (  # noqa: F401 -- @register_tool side effect; re-e
     list_reminders,
     update_reminder,
 )
+from .tools_revisions import list_work_package_revisions  # noqa: F401 -- @register_tool side effect
 from .tools_runtime import (
     register_selected_tools,
 )
@@ -178,6 +182,7 @@ from .tools_versions import (  # noqa: F401 -- @register_tool side effect; re-ex
     create_version,
     delete_version,
     get_version,
+    list_version_projects,
     list_versions,
     update_version,
 )
@@ -191,7 +196,9 @@ from .tools_watchers import (  # noqa: F401 -- @register_tool side effect; re-ex
 )
 from .tools_work_package_pickers import (  # noqa: F401 -- @register_tool side effect; re-exported for consistency
     list_available_assignees,
+    list_work_package_available_projects,
     list_work_package_available_relation_candidates,
+    list_work_package_available_watchers,
 )
 from .tools_work_packages import (  # noqa: F401 -- @register_tool side effect; re-exported, test_trimming.py/test_tool_validation.py/test_work_package_tools.py import several of these from here
     add_work_package_comment,
@@ -245,6 +252,7 @@ from .tools_work_packages import (  # noqa: F401 -- @register_tool side effect; 
 PERSONAL_MUTATION_TOOLS: tuple[str, ...] = (
     "update_my_preferences",
     "mark_notifications_read",
+    "mark_notifications_unread",
 )
 
 READ_TOOLS_BY_SCOPE: dict[str, tuple[str, ...]] = {
@@ -342,7 +350,7 @@ READ_TOOLS_BY_SCOPE: dict[str, tuple[str, ...]] = {
         "get_recurring_meeting",
         "list_recurring_meeting_occurrences",
     ),
-    "personal": ("get_my_preferences", "list_notifications"),
+    "personal": ("get_my_preferences", "list_notifications", "get_notification"),
     "admin": (
         "list_principals",
         "list_users",
@@ -370,6 +378,11 @@ READ_TOOLS_BY_SCOPE: dict[str, tuple[str, ...]] = {
         "list_working_days",
         "list_non_working_days",
         "get_custom_option",
+        "list_project_budgets",
+        "list_version_projects",
+        "list_work_package_available_watchers",
+        "list_work_package_available_projects",
+        "list_work_package_revisions",
     ),
 }
 
@@ -425,6 +438,7 @@ WRITE_TOOLS_BY_SCOPE: dict[str, tuple[str, ...]] = {
         "delete_time_entry",
         "update_relation",
         "delete_file_link",
+        "set_query_starred",
         "create_work_package_wiki_link",
         "delete_work_package_wiki_link",
     ),
@@ -516,6 +530,12 @@ _PROJECT_SCOPED_READ_TOOLS: frozenset[str] = frozenset(
         "get_grid",
         "list_categories",
         "get_category",
+        "list_project_budgets",
+        "list_version_projects",
+        "list_work_package_available_watchers",
+        "list_work_package_available_projects",
+        "list_work_package_revisions",
+        "get_notification",
         "get_project_phase",
         "get_my_project_access",
         "get_project_work_package_context",
@@ -590,6 +610,7 @@ ADDITIONAL_READ_SCOPES_BY_TOOL: dict[str, frozenset[str]] = {
     "get_my_project_access": frozenset({"membership"}),
     "get_project_work_package_context": frozenset({"work_package", "version"}),
     "delete_file_link": frozenset({"work_package"}),  # home: work_package WRITE; also work_package READ
+    "set_query_starred": frozenset({"work_package"}),  # home: work_package WRITE; also work_package READ
     "create_membership": frozenset({"membership"}),  # home: membership WRITE; also membership READ (role lookup)
     "update_membership": frozenset({"membership"}),
     "get_query_filter": frozenset({"board"}),
@@ -599,6 +620,11 @@ ADDITIONAL_READ_SCOPES_BY_TOOL: dict[str, frozenset[str]] = {
     "list_query_filter_instance_schemas": frozenset({"board"}),
     "get_query_filter_instance_schema": frozenset({"board"}),
     "render_text": frozenset({"work_package"}),
+    "list_project_budgets": frozenset({"project"}),
+    "list_version_projects": frozenset({"version", "project"}),
+    "list_work_package_available_watchers": frozenset({"work_package"}),
+    "list_work_package_available_projects": frozenset({"work_package", "project"}),
+    "list_work_package_revisions": frozenset({"work_package"}),
 }
 
 

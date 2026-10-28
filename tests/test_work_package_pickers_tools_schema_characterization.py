@@ -119,3 +119,29 @@ def test_list_work_package_available_relation_candidates_schema() -> None:
     }
     # Dict equality above doesn't check key order -- assert it separately.
     assert list(tool.parameters["properties"]) == ["work_package_id", "query", "relation_type", "limit", "select"]
+
+
+def test_list_work_package_available_watchers_schema() -> None:
+    tool = _tools(create_app(_make_settings()))["list_work_package_available_watchers"]
+    assert tool.description == (
+        "List the users that can be added as watchers of a work package.\n\n"
+        "OpenProject answers only a caller who may add watchers in the work package's project. Page until next_offset\n"
+        "is null."
+    )
+    assert tool.output_schema is None
+    assert list(tool.parameters["properties"]) == ["work_package_id", "offset", "limit", "select"]
+    assert tool.parameters["required"] == ["work_package_id"]
+    assert tool.parameters["additionalProperties"] is False
+
+
+def test_list_work_package_available_projects_schema() -> None:
+    tool = _tools(create_app(_make_settings()))["list_work_package_available_projects"]
+    assert tool.description == (
+        "List the projects a work package can be moved to, limited to projects the read scope covers.\n\n"
+        "OpenProject answers only a caller who may edit the work package. total is the count of allowed projects "
+        "returned\non THIS page, not a full count; page until next_offset is null."
+    )
+    assert tool.output_schema is None
+    assert list(tool.parameters["properties"]) == ["work_package_id", "offset", "limit", "select"]
+    assert tool.parameters["required"] == ["work_package_id"]
+    assert tool.parameters["additionalProperties"] is False

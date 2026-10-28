@@ -143,7 +143,8 @@ CLASSIFICATION: dict[str, str] = {
 #     would incorrectly imply a parent path exists) or "internal" (which
 #     would incorrectly imply the endpoint isn't real, user-facing CE data).
 #   budgets — a bundled CE module with no EnterpriseToken guard: a top-level
-#     show route in budgets_api.rb plus a projects/:id/budgets collection.
+#     show route in budgets_api.rb plus a projects/:id/budgets collection. Only
+#     the collection is used (list_project_budgets); the show route is not.
 CONFIRMED_GAPS: frozenset[str] = frozenset(
     {
         "meetings",

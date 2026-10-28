@@ -21,11 +21,13 @@ happens mid-page -- every call re-scans from server page 1, skipping the first
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+
 from ...config import Settings
 from ...models import ProjectSummary
 from ..policies import project_policy
 from ..policies.scope import payload_allowed
-from ..ports.project_api import FORMATTABLE_LIMIT, ProjectApi, ProjectRecord
+from ..ports.project_api import FORMATTABLE_LIMIT, ProjectApi, ProjectPage, ProjectRecord
 
 
 async def fetch_project_page(
@@ -42,6 +44,24 @@ async def fetch_project_page(
     The project read gate belongs to the tool's service, not to this lookup, which a write of
     another domain also uses to resolve a project name.
     """
+    return await fetch_allowed_project_page(
+        fetch_page=lambda server_offset, server_page_size: api.list(
+            server_offset=server_offset, server_page_size=server_page_size, search=search, text_limit=text_limit
+        ),
+        settings=settings,
+        offset=offset,
+        limit=limit,
+    )
+
+
+async def fetch_allowed_project_page(
+    *,
+    fetch_page: Callable[[int, int], Awaitable[ProjectPage]],
+    settings: Settings,
+    offset: int,
+    limit: int,
+) -> tuple[list[ProjectSummary], int, int | None, bool]:
+    """The allowlist-filtered, paginated walk over any server-paged project collection."""
     effective_limit = min(limit, settings.max_page_size, settings.max_results)
 
     skip_count = (offset - 1) * effective_limit
@@ -58,9 +78,7 @@ async def fetch_project_page(
     # result was the very last match in the whole allowed collection, making
     # a follow-up call on the reported next_offset silently return nothing.
     while len(results) <= effective_limit:
-        page = await api.list(
-            server_offset=server_offset, server_page_size=server_page_size, search=search, text_limit=text_limit
-        )
+        page = await fetch_page(server_offset, server_page_size)
         if not page.records:
             break
 

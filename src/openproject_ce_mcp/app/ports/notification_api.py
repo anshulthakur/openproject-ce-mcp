@@ -35,7 +35,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from ...models import NotificationSummary
+from ...models import NotificationDetail, NotificationSummary
 
 
 @dataclass(frozen=True)
@@ -43,6 +43,7 @@ class NotificationRecord:
     summary: Callable[[], NotificationSummary]
     project_link: dict[str, Any] | None
     resource_link: dict[str, Any] | None
+    detail: Callable[[], NotificationDetail]
 
 
 @dataclass(frozen=True)
@@ -76,4 +77,6 @@ class NotificationApi(Protocol):
     async def list_all(self, *, unread_only: bool, offset: int, limit: int) -> NotificationPage: ...
     async def get(self, notification_id: int) -> NotificationRecord: ...
     async def mark_read(self, notification_id: int) -> None: ...
+    async def mark_unread(self, notification_id: int) -> None: ...
     async def mark_all_read(self, *, project_ids: frozenset[int] | None) -> None: ...
+    async def mark_all_unread(self, *, project_ids: frozenset[int] | None) -> None: ...

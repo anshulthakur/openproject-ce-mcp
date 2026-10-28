@@ -13,7 +13,7 @@ import pytest
 from _client_test_helpers import _base_settings, _make_project_response, started_client
 from _tools_test_helpers import FakeContext
 
-from openproject_ce_mcp.app.errors import InvalidInputError, ProjectScopeDeniedError
+from openproject_ce_mcp.app.errors import InvalidInputError, PermissionDeniedError, ProjectScopeDeniedError
 from openproject_ce_mcp.client import OpenProjectClient
 from openproject_ce_mcp.tools_work_package_pickers import list_work_package_available_relation_candidates
 
@@ -182,4 +182,126 @@ async def test_tool_forwards_hierarchy_relation_types(relation_type: str) -> Non
     )
     assert seen[-1].url.path == "/api/v3/work_packages/42/available_relation_candidates"
     assert seen[-1].url.params["type"] == relation_type
+    await client.aclose()
+
+
+def _watchers(*ids: int, total: int | None = None) -> dict:
+    return {
+        "total": len(ids) if total is None else total,
+        "_embedded": {"elements": [{"_type": "User", "id": i, "name": f"User {i}", "login": f"user{i}"} for i in ids]},
+    }
+
+
+def _project_row(project_id: int, identifier: str) -> dict:
+    return {"_type": "Project", "id": project_id, "identifier": identifier, "name": identifier.title(), "_links": {}}
+
+
+@pytest.mark.asyncio
+async def test_available_watchers_send_the_page_and_report_the_next_one() -> None:
+    seen: list[httpx.Request] = []
+    client = await _client(
+        {"/api/v3/work_packages/42": _wp(), "/api/v3/work_packages/42/available_watchers": _watchers(5, 6, total=5)},
+        seen,
+    )
+    result = await client.work_package_picker.available_watchers(42, offset=2, limit=2)
+    request = seen[-1]
+    assert (request.url.params["offset"], request.url.params["pageSize"]) == ("2", "2")
+    assert [(w.id, w.name, w.login) for w in result.results] == [(5, "User 5", "user5"), (6, "User 6", "user6")]
+    assert (result.total, result.count, result.next_offset, result.truncated) == (5, 2, 3, True)
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_the_last_page_of_available_watchers_has_no_next_offset() -> None:
+    seen: list[httpx.Request] = []
+    client = await _client(
+        {"/api/v3/work_packages/42": _wp(), "/api/v3/work_packages/42/available_watchers": _watchers(8, total=5)},
+        seen,
+    )
+    result = await client.work_package_picker.available_watchers(42, offset=3, limit=2)
+    assert (result.next_offset, result.truncated) == (None, False)
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_available_watchers_honour_the_watcher_hide_setting() -> None:
+    seen: list[httpx.Request] = []
+    client = await _client(
+        {"/api/v3/work_packages/42": _wp(), "/api/v3/work_packages/42/available_watchers": _watchers(5)},
+        seen,
+        hidden_fields={"watcher": ("login",)},
+    )
+    result = await client.work_package_picker.available_watchers(42)
+    assert result.results[0]._hidden_keys == frozenset({"login"})
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_available_watchers_for_a_work_package_outside_the_read_allowlist_are_refused_before_listing() -> None:
+    seen: list[httpx.Request] = []
+    client = await _client(
+        {
+            "/api/v3/work_packages/42": _wp("/api/v3/projects/7", "Other"),
+            "/api/v3/work_packages/42/available_watchers": _watchers(5),
+        },
+        seen,
+        read_projects=("demo",),
+    )
+    with pytest.raises(ProjectScopeDeniedError):
+        await client.work_package_picker.available_watchers(42)
+    assert all("available_watchers" not in r.url.path for r in seen)
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_available_projects_drop_rows_outside_the_read_scope_and_hide_the_server_total() -> None:
+    seen: list[httpx.Request] = []
+    payload = {
+        "total": 2,
+        "_embedded": {"elements": [_project_row(1, "demo"), _project_row(7, "other")]},
+    }
+    client = await _client(
+        {"/api/v3/work_packages/42": _wp(), "/api/v3/work_packages/42/available_projects": payload},
+        seen,
+        read_projects=("demo",),
+    )
+    result = await client.work_package_picker.available_projects(42)
+    assert seen[-1].url.path == "/api/v3/work_packages/42/available_projects"
+    assert [p.identifier for p in result.results] == ["demo"]
+    assert (result.count, result.total) == (1, 1)
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_available_projects_for_a_work_package_outside_the_read_allowlist_are_refused_before_listing() -> None:
+    seen: list[httpx.Request] = []
+    client = await _client(
+        {
+            "/api/v3/work_packages/42": _wp("/api/v3/projects/7", "Other"),
+            "/api/v3/work_packages/42/available_projects": {"total": 0, "_embedded": {"elements": []}},
+        },
+        seen,
+        read_projects=("demo",),
+    )
+    with pytest.raises(ProjectScopeDeniedError):
+        await client.work_package_picker.available_projects(42)
+    assert all("available_projects" not in r.url.path for r in seen)
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("switch", "method"),
+    [
+        ("enable_project_read", "available_projects"),
+        ("enable_work_package_read", "available_projects"),
+        ("enable_work_package_read", "available_watchers"),
+    ],
+)
+async def test_the_read_switches_of_the_listed_domains_are_required(switch: str, method: str) -> None:
+    seen: list[httpx.Request] = []
+    client = await _client({}, seen, **{switch: False})
+    with pytest.raises(PermissionDeniedError):
+        await getattr(client.work_package_picker, method)(42)
+    assert seen == []
     await client.aclose()

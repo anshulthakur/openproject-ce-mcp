@@ -1,4 +1,4 @@
-"""Query Execution domain MCP tool handler: execute_query.
+"""Query Execution domain MCP tool handlers: execute_query, set_query_starred.
 
 Deliberately a separate file from `tools_query_schema.py`, despite the
 similar module name -- the two hold unrelated concerns. `tools_query_schema.py`
@@ -35,8 +35,8 @@ from __future__ import annotations
 
 from mcp.server.mcpserver import Context
 
-from .models import WorkPackageListResult
-from .tool_params import Limit, Offset
+from .models import QueryStarResult, WorkPackageListResult
+from .tool_params import Confirm, Limit, Offset
 from .tools_runtime import _client_from_context, _run_tool, register_tool
 from .tools_validation import _validate_limit, _validate_offset, _validate_positive_int
 
@@ -66,3 +66,22 @@ async def execute_query(
     safe_offset = _validate_offset(offset)
     safe_limit = _validate_limit(limit)
     return await _run_tool(client.query_execution.execute(safe_query_id, offset=safe_offset, limit=safe_limit))
+
+
+@register_tool
+async def set_query_starred(
+    ctx: Context,
+    query_id: int,
+    starred: bool,
+    confirm: Confirm = False,
+) -> QueryStarResult:
+    """Star or unstar a saved query.
+
+    The star belongs to the query, not to you: starring a public query changes it for everyone, and a query of a
+    project needs that project in OPENPROJECT_WRITE_PROJECTS. A public query without a project needs the write scope
+    `*`. A private query can be starred only by its owner. Only a caller OpenProject allows to star or unstar the query
+    can do it; a query already in the wanted state is left unchanged.
+    """
+    client = _client_from_context(ctx)
+    safe_id = _validate_positive_int(query_id, field_name="query_id")
+    return await _run_tool(client.query_star.set_starred(safe_id, starred=starred, confirm=confirm))

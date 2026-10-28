@@ -13,6 +13,7 @@ from .app.adapters.httpx_activity_api import HttpxActivityApi
 from .app.adapters.httpx_attachment_api import HttpxAttachmentApi
 from .app.adapters.httpx_backlog_bucket_api import HttpxBacklogBucketApi
 from .app.adapters.httpx_board_api import HttpxBoardApi
+from .app.adapters.httpx_budget_api import HttpxBudgetApi
 from .app.adapters.httpx_category_api import HttpxCategoryApi
 from .app.adapters.httpx_cost_api import HttpxCostApi
 from .app.adapters.httpx_current_user_api import HttpxCurrentUserApi
@@ -40,9 +41,11 @@ from .app.adapters.httpx_project_api import normalize_project as _normalize_proj
 from .app.adapters.httpx_project_storage_api import HttpxProjectStorageApi
 from .app.adapters.httpx_query_execution_api import HttpxQueryExecutionApi
 from .app.adapters.httpx_query_metadata_api import HttpxQueryMetadataApi
+from .app.adapters.httpx_query_star_api import HttpxQueryStarApi
 from .app.adapters.httpx_recurring_meeting_api import HttpxRecurringMeetingApi
 from .app.adapters.httpx_relation_api import HttpxRelationApi
 from .app.adapters.httpx_reminder_api import HttpxReminderApi
+from .app.adapters.httpx_revision_api import HttpxRevisionApi
 from .app.adapters.httpx_role_api import HttpxRoleApi
 from .app.adapters.httpx_sprint_api import HttpxSprintApi
 from .app.adapters.httpx_status_priority_type_api import HttpxStatusPriorityTypeApi
@@ -99,6 +102,7 @@ from .app.ports.activity_api import ActivityApi
 from .app.ports.attachment_api import AttachmentApi
 from .app.ports.backlog_bucket_api import BacklogBucketApi
 from .app.ports.board_api import BoardApi
+from .app.ports.budget_api import BudgetApi
 from .app.ports.category_api import CategoryApi
 from .app.ports.cost_api import CostApi
 from .app.ports.current_user_api import CurrentUserApi, CurrentUserRecord
@@ -125,9 +129,11 @@ from .app.ports.project_resolution import ProjectResolutionContext
 from .app.ports.project_storage_api import ProjectStorageApi
 from .app.ports.query_execution_api import QueryExecutionApi
 from .app.ports.query_metadata_api import QueryMetadataApi
+from .app.ports.query_star_api import QueryStarApi
 from .app.ports.recurring_meeting_api import RecurringMeetingApi
 from .app.ports.relation_api import RelationApi
 from .app.ports.reminder_api import ReminderApi
+from .app.ports.revision_api import RevisionApi
 from .app.ports.role_api import RoleApi
 from .app.ports.sprint_api import SprintApi
 from .app.ports.status_priority_type_api import PriorityRecord, StatusPriorityTypeApi, StatusRecord
@@ -161,6 +167,7 @@ from .app.services.activity_service import ActivityService
 from .app.services.attachment_service import AttachmentService
 from .app.services.backlog_bucket_service import BacklogBucketService
 from .app.services.board_service import BoardService
+from .app.services.budget_service import BudgetService
 from .app.services.category_service import CategoryService
 from .app.services.cost_service import CostService
 from .app.services.current_user_service import CurrentUserService
@@ -188,9 +195,11 @@ from .app.services.project_service import ProjectAdminService, ProjectService
 from .app.services.project_storage_service import ProjectStorageService
 from .app.services.query_execution_service import QueryExecutionService
 from .app.services.query_metadata_service import QueryMetadataService
+from .app.services.query_star_service import QueryStarService
 from .app.services.recurring_meeting_service import RecurringMeetingService
 from .app.services.relation_service import RelationService
 from .app.services.reminder_service import ReminderService
+from .app.services.revision_service import RevisionService
 from .app.services.role_service import RoleService
 from .app.services.sprint_service import SprintService
 from .app.services.status_priority_type_service import StatusPriorityTypeService
@@ -307,6 +316,7 @@ class OpenProjectClient:
             project_id_to_identifier=self._project_id_to_identifier,
             resolve_project_ref=self._get_project_payload,
             api_prefix=self._api_prefix,
+            project_api=self._project_api,
         )
         # self._project_id_to_identifier is the directory's live dict, updated in
         # place as projects are learned; a copy here would freeze it at startup.
@@ -407,6 +417,13 @@ class OpenProjectClient:
             api=self._category_api,
             settings=settings,
             project_id_to_identifier=self._project_id_to_identifier,
+            resolve_project_ref=self._get_project_payload,
+        )
+
+        self._budget_api: BudgetApi = HttpxBudgetApi(self._transport)
+        self._budget_service = BudgetService(
+            api=self._budget_api,
+            settings=settings,
             resolve_project_ref=self._get_project_payload,
         )
 
@@ -594,6 +611,23 @@ class OpenProjectClient:
             project_id_to_identifier=self._project_id_to_identifier,
             resolve_work_package_id=self._work_package_resolver.resolve_id,
             resolve_project_ref=self._get_project_payload,
+            project_api=self._project_api,
+        )
+
+        self._query_star_api: QueryStarApi = HttpxQueryStarApi(self._transport)
+        self._query_star_service = QueryStarService(
+            api=self._query_star_api,
+            settings=settings,
+            project_id_to_identifier=self._project_id_to_identifier,
+            current_user=self._current_user_resolver,
+        )
+
+        self._revision_api: RevisionApi = HttpxRevisionApi(self._transport)
+        self._revision_service = RevisionService(
+            api=self._revision_api,
+            settings=settings,
+            project_id_to_identifier=self._project_id_to_identifier,
+            resolve_work_package_id=self._work_package_resolver.resolve_id,
         )
 
         self._wiki_page_link_api: WikiPageLinkApi = HttpxWikiPageLinkApi(self._transport)
@@ -813,6 +847,18 @@ class OpenProjectClient:
     def board(self) -> BoardService:
         """Same object as `self._board_service` -- a named view, not a second implementation."""
         return self._board_service
+
+    @property
+    def query_star(self) -> QueryStarService:
+        return self._query_star_service
+
+    @property
+    def revision(self) -> RevisionService:
+        return self._revision_service
+
+    @property
+    def budget(self) -> BudgetService:
+        return self._budget_service
 
     @property
     def category(self) -> CategoryService:

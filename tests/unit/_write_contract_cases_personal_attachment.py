@@ -87,6 +87,13 @@ def _mark_notification_read_handler(request: httpx.Request) -> httpx.Response:
     raise AssertionError
 
 
+def _mark_notification_unread_handler(request: httpx.Request) -> httpx.Response:
+    if request.url.path == "/api/v3/notifications/10/unread_ian" and request.method == "POST":
+        return httpx.Response(204, request=request)
+    _unexpected(request)
+    raise AssertionError
+
+
 def _create_container_attachment_handler(request: httpx.Request) -> httpx.Response:
     if request.url.path == "/api/v3/wiki_pages/12" and request.method == "GET":
         return httpx.Response(
@@ -236,6 +243,14 @@ PERSONAL_ATTACHMENT_CASES: dict[str, WriteToolCase] = {
         write_scope="personal",
         handler=_mark_notification_read_handler,
         write_request=("POST", "/api/v3/notifications/10/read_ian"),
+    ),
+    "mark_notifications_unread": WriteToolCase(
+        tool="mark_notifications_unread",
+        kwargs={"notification_id": 10},
+        settings=_base_personal_settings(),
+        write_scope="personal",
+        handler=_mark_notification_unread_handler,
+        write_request=("POST", "/api/v3/notifications/10/unread_ian"),
     ),
     "create_work_package_attachment": WriteToolCase(
         tool="create_work_package_attachment",

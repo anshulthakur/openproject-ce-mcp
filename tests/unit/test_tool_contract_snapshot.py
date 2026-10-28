@@ -8767,6 +8767,353 @@ TOOL_CONTRACT_SNAPSHOT: dict[str, dict[str, Any]] = {
         "scope": "project|meeting|work_package",
         "capability_env_vars": ("OPENPROJECT_ATTACHMENT_ROOT",),
     },
+    "list_project_budgets": {
+        "description_hash": "7619cd8f401ea8501564ba3ccb5dc9e1376e5b4256428dbcb903f22369e0a5b7",
+        "input_schema": {
+            "properties": {
+                "project": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": "Project identifier, id, or name; a "
+                    "unique part of a name or identifier "
+                    "also matches.",
+                    "title": "Project",
+                },
+                "select": {
+                    "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Fields to return; a requested unset "
+                    "field comes back as null. Allowed: id, "
+                    "project, project_id, subject.",
+                    "title": "Select",
+                },
+            },
+            "required": ["project"],
+            "title": "list_project_budgetsArguments",
+            "type": "object",
+            "additionalProperties": False,
+        },
+        "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+        "classification": "read",
+        "scope": "extended",
+        "capability_env_vars": ("OPENPROJECT_ENABLE_EXTENDED_READ", "OPENPROJECT_ENABLE_PROJECT_READ"),
+    },
+    "list_version_projects": {
+        "description_hash": "5f0ba56910edc4c707b08c9495460abb117fd4b8b8eafa31adf0754ae284f1a1",
+        "input_schema": {
+            "properties": {
+                "version_id": {"title": "Version Id", "type": "integer"},
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
+                "select": {
+                    "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Fields to return; a requested unset "
+                    "field comes back as null. Allowed: "
+                    "active, can_delete, can_update, "
+                    "created_at, description, "
+                    "description_length, "
+                    "description_truncated, favorited, id, "
+                    "identifier, name, parent_id, "
+                    "parent_name, public, status, "
+                    "status_explanation, "
+                    "status_explanation_length, "
+                    "status_explanation_truncated, "
+                    "updated_at.",
+                    "title": "Select",
+                },
+            },
+            "required": ["version_id"],
+            "title": "list_version_projectsArguments",
+            "type": "object",
+            "additionalProperties": False,
+        },
+        "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+        "classification": "read",
+        "scope": "extended",
+        "capability_env_vars": (
+            "OPENPROJECT_ENABLE_EXTENDED_READ",
+            "OPENPROJECT_ENABLE_PROJECT_READ",
+            "OPENPROJECT_ENABLE_VERSION_READ",
+        ),
+    },
+    "list_work_package_available_watchers": {
+        "description_hash": "7b4dff3f08b75fc44d0ba4b36553514e9b97f3b01b9ed619e53b9765caa0ad10",
+        "input_schema": {
+            "properties": {
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                },
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
+                "select": {
+                    "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Fields to return; a requested unset "
+                    "field comes back as null. Allowed: id, "
+                    "login, name.",
+                    "title": "Select",
+                },
+            },
+            "required": ["work_package_id"],
+            "title": "list_work_package_available_watchersArguments",
+            "type": "object",
+            "additionalProperties": False,
+        },
+        "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+        "classification": "read",
+        "scope": "extended",
+        "capability_env_vars": ("OPENPROJECT_ENABLE_EXTENDED_READ", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
+    },
+    "list_work_package_available_projects": {
+        "description_hash": "cd1f42b7f6f0568239819f7ab85ce8c012c4653b2da95c408323fd08a4d8cfb5",
+        "input_schema": {
+            "properties": {
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                },
+                "offset": {
+                    "default": 1,
+                    "description": "1-based page number; pass the previous result's next_offset.",
+                    "title": "Offset",
+                    "type": "integer",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Page size, capped at OPENPROJECT_MAX_PAGE_SIZE.",
+                    "title": "Limit",
+                },
+                "select": {
+                    "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Fields to return; a requested unset "
+                    "field comes back as null. Allowed: "
+                    "active, can_delete, can_update, "
+                    "created_at, description, "
+                    "description_length, "
+                    "description_truncated, favorited, id, "
+                    "identifier, name, parent_id, "
+                    "parent_name, public, status, "
+                    "status_explanation, "
+                    "status_explanation_length, "
+                    "status_explanation_truncated, "
+                    "updated_at.",
+                    "title": "Select",
+                },
+            },
+            "required": ["work_package_id"],
+            "title": "list_work_package_available_projectsArguments",
+            "type": "object",
+            "additionalProperties": False,
+        },
+        "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+        "classification": "read",
+        "scope": "extended",
+        "capability_env_vars": (
+            "OPENPROJECT_ENABLE_EXTENDED_READ",
+            "OPENPROJECT_ENABLE_PROJECT_READ",
+            "OPENPROJECT_ENABLE_WORK_PACKAGE_READ",
+        ),
+    },
+    "list_work_package_revisions": {
+        "description_hash": "0ec6564315b07c808d97130c7a420b1eeb205e43cecfc91421352f3a7b1a2105",
+        "input_schema": {
+            "properties": {
+                "work_package_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                    "description": 'Work package id (e.g. 952) or display id (e.g. "PROJ-51"), not the bare number 51.',
+                    "title": "Work Package Id",
+                },
+                "select": {
+                    "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Fields to return; a requested unset "
+                    "field comes back as null. Allowed: "
+                    "author_name, created_at, "
+                    "formatted_identifier, id, identifier, "
+                    "message, message_length, "
+                    "message_truncated, project, "
+                    "project_id.",
+                    "title": "Select",
+                },
+            },
+            "required": ["work_package_id"],
+            "title": "list_work_package_revisionsArguments",
+            "type": "object",
+            "additionalProperties": False,
+        },
+        "output_schema": None,
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+        "classification": "read",
+        "scope": "extended",
+        "capability_env_vars": ("OPENPROJECT_ENABLE_EXTENDED_READ", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
+    },
+    "get_notification": {
+        "description_hash": "9b2b6b7560292ac64bc06643208e71764a0f66843ea42426fc5c110c57d76a3e",
+        "input_schema": {
+            "properties": {"notification_id": {"title": "Notification Id", "type": "integer"}},
+            "required": ["notification_id"],
+            "title": "get_notificationArguments",
+            "type": "object",
+            "additionalProperties": False,
+        },
+        "output_schema": {
+            "$defs": {
+                "NotificationDetailValue": {
+                    "properties": {
+                        "property": {"title": "Property", "type": "string"},
+                        "value": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Value"},
+                    },
+                    "required": ["property", "value"],
+                    "title": "NotificationDetailValue",
+                    "type": "object",
+                }
+            },
+            "properties": {
+                "id": {"title": "Id", "type": "integer"},
+                "subject": {"title": "Subject", "type": "string"},
+                "reason": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Reason"},
+                "read": {"title": "Read", "type": "boolean"},
+                "project_id": {"anyOf": [{"type": "integer"}, {"type": "null"}], "title": "Project Id"},
+                "project_name": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Project Name"},
+                "work_package_id": {"anyOf": [{"type": "integer"}, {"type": "null"}], "title": "Work Package Id"},
+                "work_package_subject": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "title": "Work Package Subject",
+                },
+                "created_at": {"title": "Created At", "type": "string"},
+                "details": {"items": {"$ref": "#/$defs/NotificationDetailValue"}, "title": "Details", "type": "array"},
+                "activity_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Activity Id",
+                },
+            },
+            "required": [
+                "id",
+                "subject",
+                "reason",
+                "read",
+                "project_id",
+                "project_name",
+                "work_package_id",
+                "work_package_subject",
+                "created_at",
+                "details",
+            ],
+            "title": "NotificationDetail",
+            "type": "object",
+        },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+        "classification": "read",
+        "scope": "personal",
+        "capability_env_vars": ("OPENPROJECT_ENABLE_PERSONAL_READ",),
+    },
+    "mark_notifications_unread": {
+        "description_hash": "2db5064467f9b345a24b97aacd70a2bf22fe55d4c547d9d557425c8711fa4176",
+        "input_schema": {
+            "properties": {
+                "notification_id": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Notification Id",
+                },
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. "
+                    "true: applies it; get the user's "
+                    "approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
+            },
+            "title": "mark_notifications_unreadArguments",
+            "type": "object",
+            "additionalProperties": False,
+        },
+        "output_schema": {
+            "properties": {
+                "action": {"title": "Action", "type": "string"},
+                "state": {"enum": ["rejected", "invalid", "preview", "confirmed"], "title": "State", "type": "string"},
+                "ready": {"title": "Ready", "type": "boolean"},
+                "message": {"title": "Message", "type": "string"},
+                "notification_id": {"anyOf": [{"type": "integer"}, {"type": "null"}], "title": "Notification Id"},
+            },
+            "required": ["action", "state", "ready", "message", "notification_id"],
+            "title": "NotificationMarkResult",
+            "type": "object",
+        },
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
+        "classification": "write",
+        "scope": "personal",
+        "capability_env_vars": ("OPENPROJECT_ENABLE_PERSONAL_READ", "OPENPROJECT_ENABLE_PERSONAL_WRITE"),
+    },
+    "set_query_starred": {
+        "description_hash": "c13dd3d36c8735eb92c82889d1cad5ffba55f54c849b8c2641f88a3e46e531be",
+        "input_schema": {
+            "properties": {
+                "query_id": {"title": "Query Id", "type": "integer"},
+                "starred": {"title": "Starred", "type": "boolean"},
+                "confirm": {
+                    "default": False,
+                    "description": "false: preview only, nothing changes. "
+                    "true: applies it; get the user's "
+                    "approval of the preview first.",
+                    "title": "Confirm",
+                    "type": "boolean",
+                },
+            },
+            "required": ["query_id", "starred"],
+            "title": "set_query_starredArguments",
+            "type": "object",
+            "additionalProperties": False,
+        },
+        "output_schema": {
+            "properties": {
+                "action": {"title": "Action", "type": "string"},
+                "state": {"enum": ["rejected", "invalid", "preview", "confirmed"], "title": "State", "type": "string"},
+                "ready": {"title": "Ready", "type": "boolean"},
+                "message": {"title": "Message", "type": "string"},
+                "query_id": {"title": "Query Id", "type": "integer"},
+                "starred": {"title": "Starred", "type": "boolean"},
+            },
+            "required": ["action", "state", "ready", "message", "query_id", "starred"],
+            "title": "QueryStarResult",
+            "type": "object",
+        },
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
+        "classification": "write",
+        "scope": "work_package",
+        "capability_env_vars": ("OPENPROJECT_ENABLE_WORK_PACKAGE_WRITE", "OPENPROJECT_ENABLE_WORK_PACKAGE_READ"),
+    },
 }
 
 

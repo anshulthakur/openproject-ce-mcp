@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+from typing import NoReturn
 
 import pytest
 from _client_test_helpers import make_settings
@@ -9,7 +10,8 @@ from openproject_ce_mcp import policy_observation
 from openproject_ce_mcp.app.errors import PermissionDeniedError, ProjectLinkPrefixError, ProjectScopeDeniedError
 from openproject_ce_mcp.app.ports.notification_api import NotificationPage, NotificationRecord
 from openproject_ce_mcp.app.services.notification_service import NotificationService
-from openproject_ce_mcp.models import NotificationSummary
+from openproject_ce_mcp.models import NotificationDetail, NotificationDetailValue, NotificationSummary
+from openproject_ce_mcp.presentation import _to_payload
 
 PROJECT_ID_TO_IDENTIFIER = {1: "demo", 2: "other"}
 
@@ -35,19 +37,24 @@ def _record(
     resource_link: dict | None = None,
 ) -> NotificationRecord:
     summary = _summary(notification_id)
-    return NotificationRecord(summary=lambda: summary, project_link=project_link, resource_link=resource_link)
+    return NotificationRecord(
+        summary=lambda: summary,
+        project_link=project_link,
+        resource_link=resource_link,
+        detail=lambda: NotificationDetail(**vars(summary)),
+    )
 
 
 def _record_that_crashes_if_normalized(
     notification_id: int, *, project_link: dict | None = None, resource_link: dict | None = None
 ) -> NotificationRecord:
-    def _boom() -> NotificationSummary:
+    def _boom() -> NoReturn:
         raise AssertionError(
             f"summary() must never be called for notification {notification_id} once "
             "it has been filtered out by the allowlist check"
         )
 
-    return NotificationRecord(summary=_boom, project_link=project_link, resource_link=resource_link)
+    return NotificationRecord(summary=_boom, project_link=project_link, resource_link=resource_link, detail=_boom)
 
 
 class _FakeNotificationApi:
@@ -65,6 +72,8 @@ class _FakeNotificationApi:
         self.get_calls: list[int] = []
         self.mark_read_calls: list[int] = []
         self.mark_all_read_calls: list[frozenset[int] | None] = []
+        self.mark_unread_calls: list[int] = []
+        self.mark_all_unread_calls: list[frozenset[int] | None] = []
 
     async def list_all(self, *, unread_only: bool, offset: int, limit: int) -> NotificationPage:
         self.list_all_calls.append((unread_only, offset, limit))
@@ -79,6 +88,12 @@ class _FakeNotificationApi:
 
     async def mark_all_read(self, **kwargs) -> None:
         self.mark_all_read_calls.append(kwargs["project_ids"])
+
+    async def mark_unread(self, notification_id: int) -> None:
+        self.mark_unread_calls.append(notification_id)
+
+    async def mark_all_unread(self, **kwargs) -> None:
+        self.mark_all_unread_calls.append(kwargs["project_ids"])
 
 
 class _FakeReadableProjects:
@@ -730,6 +745,275 @@ async def test_mark_all_read_preview_under_restricted_scope_names_the_rule_witho
     assert "OPENPROJECT_READ_PROJECTS" in result.message
     assert readable.calls == 0
     assert api.mark_all_read_calls == []
+
+
+# --- mark unread ---------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_mark_unread_previews_without_confirm_and_names_the_target_state() -> None:
+    api = _FakeNotificationApi()
+    service = _service(api=api, settings=dataclasses.replace(make_settings(), enable_personal_write=True))
+
+    result = await service.mark_unread(10)
+
+    assert (result.action, result.state, result.notification_id) == ("mark_unread", "preview", 10)
+    assert "unread" in result.message
+    assert api.mark_unread_calls == []
+
+
+@pytest.mark.asyncio
+async def test_mark_unread_calls_only_the_unread_route_after_confirmation() -> None:
+    api = _FakeNotificationApi()
+    service = _service(api=api, settings=dataclasses.replace(make_settings(), enable_personal_write=True))
+
+    result = await service.mark_unread(10, confirm=True)
+
+    assert (result.action, result.state, result.message) == (
+        "mark_unread",
+        "confirmed",
+        "Notification 10 marked unread.",
+    )
+    assert api.mark_unread_calls == [10]
+    assert api.mark_read_calls == []
+
+
+@pytest.mark.asyncio
+async def test_mark_unread_denied_without_personal_write_enabled() -> None:
+    service = _service(settings=dataclasses.replace(make_settings(), enable_personal_write=False))
+
+    with pytest.raises(PermissionDeniedError, match="personal"):
+        await service.mark_unread(10)
+
+
+@pytest.mark.parametrize("confirm", [False, True])
+@pytest.mark.asyncio
+async def test_mark_unread_refuses_a_notification_about_a_project_outside_the_read_allowlist(confirm: bool) -> None:
+    api = _FakeNotificationApi(by_id={10: _record(10, project_link=_OTHER_LINK)})
+    service = _service(api=api, settings=_restricted_write_settings())
+
+    with pytest.raises(ProjectScopeDeniedError):
+        await service.mark_unread(10, confirm=confirm)
+
+    assert api.mark_unread_calls == []
+
+
+@pytest.mark.parametrize("confirm", [False, True])
+@pytest.mark.asyncio
+async def test_mark_unread_refuses_a_notification_without_project_or_work_package_link(confirm: bool) -> None:
+    api = _FakeNotificationApi(by_id={10: _record(10)})
+    service = _service(api=api, settings=_restricted_write_settings())
+
+    with pytest.raises(ProjectScopeDeniedError):
+        await service.mark_unread(10, confirm=confirm)
+
+    assert api.mark_unread_calls == []
+
+
+@pytest.mark.asyncio
+async def test_mark_all_unread_under_wildcard_scope_never_reads_the_readable_projects() -> None:
+    api = _FakeNotificationApi()
+    readable = _FakeReadableProjects()
+    service = _service(
+        api=api,
+        settings=dataclasses.replace(make_settings(), enable_personal_write=True),
+        readable_projects=readable,
+    )
+
+    result = await service.mark_all_unread(confirm=True)
+
+    assert (result.action, result.message) == ("mark_all_unread", "All read notifications marked unread.")
+    assert readable.calls == 0
+    assert api.mark_all_unread_calls == [None]
+    assert api.mark_all_read_calls == []
+
+
+@pytest.mark.asyncio
+async def test_mark_all_unread_under_restricted_scope_passes_the_readable_projects() -> None:
+    api = _FakeNotificationApi()
+    service = _service(
+        api=api, settings=_restricted_write_settings(), readable_projects=_FakeReadableProjects(frozenset({1}))
+    )
+
+    await service.mark_all_unread(confirm=True)
+
+    assert api.mark_all_unread_calls == [frozenset({1})]
+
+
+@pytest.mark.asyncio
+async def test_mark_all_unread_refuses_when_no_project_is_readable() -> None:
+    api = _FakeNotificationApi()
+    service = _service(
+        api=api, settings=_restricted_write_settings(), readable_projects=_FakeReadableProjects(frozenset())
+    )
+
+    with pytest.raises(ProjectScopeDeniedError, match="OPENPROJECT_READ_PROJECTS"):
+        await service.mark_all_unread(confirm=True)
+
+    assert api.mark_all_unread_calls == []
+
+
+@pytest.mark.asyncio
+async def test_mark_all_unread_preview_under_restricted_scope_names_the_rule_without_io() -> None:
+    api = _FakeNotificationApi()
+    readable = _FakeReadableProjects()
+    service = _service(api=api, settings=_restricted_write_settings(), readable_projects=readable)
+
+    result = await service.mark_all_unread()
+
+    assert result.state == "preview"
+    assert "read notifications" in result.message and "OPENPROJECT_READ_PROJECTS" in result.message
+    assert readable.calls == 0
+    assert api.mark_all_unread_calls == []
+
+
+# --- get ------------------------------------------------------------------------
+
+
+def _detail_record(
+    notification_id: int = 10,
+    *,
+    project_link: dict | None = None,
+    resource_link: dict | None = None,
+    details: list[NotificationDetailValue] | None = None,
+    activity_id: int | None = 77,
+) -> NotificationRecord:
+    summary = _summary(notification_id)
+    detail = NotificationDetail(**vars(summary), details=details or [], activity_id=activity_id)
+    return NotificationRecord(
+        summary=lambda: summary, project_link=project_link, resource_link=resource_link, detail=lambda: detail
+    )
+
+
+_ALL_DETAILS = [
+    NotificationDetailValue(property="startDate", value="2026-10-01"),
+    NotificationDetailValue(property="dueDate", value="2026-10-05"),
+    NotificationDetailValue(property="date", value="2026-10-05"),
+    NotificationDetailValue(property="note", value="<user-content>Call back</user-content>"),
+    NotificationDetailValue(property="somethingNew", value="not known to this server"),
+]
+
+
+def _read_settings(**overrides):
+    return dataclasses.replace(make_settings(), enable_personal_read=True, **overrides)
+
+
+@pytest.mark.asyncio
+async def test_get_returns_the_known_detail_values_and_the_activity() -> None:
+    api = _FakeNotificationApi(by_id={10: _detail_record(project_link=_DEMO_LINK, details=_ALL_DETAILS)})
+    service = _service(api=api, settings=_read_settings())
+
+    result = await service.get(10)
+
+    assert [d.property for d in result.details] == ["startDate", "dueDate", "date", "note"]
+    assert result.activity_id == 77
+    assert api.get_calls == [10]
+
+
+@pytest.mark.asyncio
+async def test_get_never_passes_on_a_detail_value_it_does_not_know() -> None:
+    api = _FakeNotificationApi(by_id={10: _detail_record(details=_ALL_DETAILS)})
+
+    result = await _service(api=api, settings=_read_settings()).get(10)
+
+    assert "somethingNew" not in [d.property for d in result.details]
+
+
+@pytest.mark.parametrize(
+    ("hidden", "gone"),
+    [
+        ({"reminder": ("note",)}, {"note"}),
+        ({"work_package": ("due_date",)}, {"dueDate", "date"}),
+        ({"work_package": ("start_date",)}, {"startDate", "date"}),
+    ],
+)
+@pytest.mark.asyncio
+async def test_get_honours_the_hide_settings_of_the_entity_a_detail_value_comes_from(
+    hidden: dict, gone: set[str]
+) -> None:
+    api = _FakeNotificationApi(by_id={10: _detail_record(details=_ALL_DETAILS)})
+
+    result = await _service(api=api, settings=_read_settings(hidden_fields=hidden)).get(10)
+
+    shown = {d.property for d in result.details}
+    assert shown == {"startDate", "dueDate", "date", "note"} - gone
+
+
+@pytest.mark.asyncio
+async def test_get_hides_the_details_and_the_activity_through_the_notification_entity() -> None:
+    api = _FakeNotificationApi(by_id={10: _detail_record(details=_ALL_DETAILS)})
+    settings = _read_settings(hidden_fields={"notification": ("details", "activity_id")})
+
+    payload = _to_payload(await _service(api=api, settings=settings).get(10))
+
+    assert "details" not in payload and "activity_id" not in payload
+
+
+@pytest.mark.asyncio
+async def test_get_under_a_restricted_scope_returns_a_notification_about_an_allowed_project() -> None:
+    api = _FakeNotificationApi(by_id={10: _detail_record(project_link=_DEMO_LINK)})
+
+    result = await _service(api=api, settings=_restricted_write_settings()).get(10)
+
+    assert result.id == 10
+
+
+@pytest.mark.asyncio
+async def test_get_refuses_a_notification_about_a_project_outside_the_read_allowlist() -> None:
+    api = _FakeNotificationApi(by_id={10: _detail_record(project_link=_OTHER_LINK, details=_ALL_DETAILS)})
+
+    with pytest.raises(ProjectScopeDeniedError):
+        await _service(api=api, settings=_restricted_write_settings()).get(10)
+
+
+@pytest.mark.asyncio
+async def test_get_refuses_a_notification_without_project_or_work_package_link_under_a_restricted_scope() -> None:
+    api = _FakeNotificationApi(by_id={10: _detail_record()})
+
+    with pytest.raises(ProjectScopeDeniedError):
+        await _service(api=api, settings=_restricted_write_settings()).get(10)
+
+
+@pytest.mark.asyncio
+async def test_get_decides_a_notification_without_project_link_by_its_work_package() -> None:
+    resource = {"href": "/api/v3/work_packages/5", "title": "Task"}
+    api = _FakeNotificationApi(by_id={10: _detail_record(resource_link=resource)})
+    service = _service(
+        api=api,
+        settings=_restricted_write_settings(),
+        work_package_project_allowed_bulk=_work_package_project_allowed_bulk_from({"/api/v3/work_packages/5"}),
+    )
+
+    assert (await service.get(10)).id == 10
+
+
+@pytest.mark.asyncio
+async def test_get_under_a_wide_open_scope_allows_a_notification_without_links_but_not_a_malformed_project_link() -> (
+    None
+):
+    open_settings = _read_settings()
+    api = _FakeNotificationApi(
+        by_id={
+            10: _detail_record(),
+            11: _detail_record(11, project_link={"href": "https://evil.example/api/v3/projects/1"}),
+        }
+    )
+    service = _service(api=api, settings=open_settings)
+
+    assert (await service.get(10)).id == 10
+    with pytest.raises((ProjectScopeDeniedError, ProjectLinkPrefixError)):
+        await service.get(11)
+
+
+@pytest.mark.asyncio
+async def test_get_denied_without_personal_read_enabled() -> None:
+    api = _FakeNotificationApi(by_id={10: _detail_record()})
+    service = _service(api=api, settings=dataclasses.replace(make_settings(), enable_personal_read=False))
+
+    with pytest.raises(PermissionDeniedError, match="personal"):
+        await service.get(10)
+
+    assert api.get_calls == []
 
 
 # --- entity-scope regression --------------------------------------------------

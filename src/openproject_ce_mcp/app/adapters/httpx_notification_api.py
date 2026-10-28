@@ -21,16 +21,18 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from ...models import NotificationSummary
+from ...models import NotificationDetail, NotificationDetailValue, NotificationSummary
 from ..pagination import page_is_last
 from ..ports.notification_api import NotificationPage, NotificationRecord
 from ..transport.protocol import Transport
-from ._text import SUBJECT_LIMIT
+from ._text import FORMATTABLE_LIMIT, SUBJECT_LIMIT
+from ._text import delimit_user_content as _delimit_user_content
 from ._text import id_from_href as _id_from_href
 from ._text import link_title as _link_title
 from ._text import trim_text as _trim_text
 
 _UNREAD_IN_APP_FILTER: dict[str, Any] = {"readIAN": {"operator": "=", "values": ["f"]}}
+_READ_IN_APP_FILTER: dict[str, Any] = {"readIAN": {"operator": "=", "values": ["t"]}}
 
 
 def _filters_param(filters: list[dict[str, Any]]) -> str:
@@ -73,6 +75,32 @@ def normalize_notification(payload: dict[str, Any]) -> NotificationSummary:
     )
 
 
+def normalize_notification_detail(payload: dict[str, Any]) -> NotificationDetail:
+    """The summary plus the embedded detail values and the activity the notification points at.
+
+    A detail value is a date of the work package or the note of a reminder; the note is user text and is
+    delimited as such. Which values may be shown is a Service decision.
+    """
+    summary = normalize_notification(payload)
+    raw_details = payload.get("_embedded", {}).get("details", [])
+    details = [
+        NotificationDetailValue(
+            property=str(item["property"]),
+            value=_delimit_user_content(_trim_text(item.get("value"), limit=FORMATTABLE_LIMIT))
+            if item.get("property") == "note"
+            else _trim_text(item.get("value"), limit=SUBJECT_LIMIT),
+        )
+        for item in raw_details
+        if isinstance(item, dict) and isinstance(item.get("property"), str)
+    ]
+    activity_link = payload.get("_links", {}).get("activity")
+    return NotificationDetail(
+        **vars(summary),
+        details=details,
+        activity_id=_id_from_href(activity_link.get("href")) if isinstance(activity_link, dict) else None,
+    )
+
+
 class HttpxNotificationApi:
     def __init__(self, transport: Transport) -> None:
         self._transport = transport
@@ -89,6 +117,7 @@ class HttpxNotificationApi:
             summary=lambda: normalize_notification(payload),
             project_link=links.get("project"),
             resource_link=links.get("resource"),
+            detail=lambda: normalize_notification_detail(payload),
         )
 
     async def list_all(self, *, unread_only: bool, offset: int, limit: int) -> NotificationPage:
@@ -103,32 +132,40 @@ class HttpxNotificationApi:
         return NotificationPage(records=records, total=total, exhausted=exhausted)
 
     async def mark_read(self, notification_id: int) -> None:
+        await self._post_state(f"notifications/{notification_id}/read_ian")
+
+    async def mark_unread(self, notification_id: int) -> None:
+        await self._post_state(f"notifications/{notification_id}/unread_ian")
+
+    async def _post_state(self, path: str, *, filters: list[dict[str, Any]] | None = None) -> None:
         # An empty dict, not None -- a bodyless POST here sends no Content-Type
         # header at all (httpx only sets one when `json` is non-None), and
         # OpenProject's Grape endpoint rejects that with 406 "Missing
         # content-type header" even though the POST itself carries no data
         # (same class of bug as UserApi.commit_lock).
-        await self._transport.request_raw("POST", f"notifications/{notification_id}/read_ian", json_body={})
+        params = {"filters": _filters_param(filters)} if filters is not None else None
+        await self._transport.request_raw("POST", path, params=params, json_body={})
 
     async def get(self, notification_id: int) -> NotificationRecord:
         return self._record(await self._transport.get_json(f"notifications/{notification_id}"))
 
     async def mark_all_read(self, *, project_ids: frozenset[int] | None) -> None:
-        # Unfiltered, the bulk route sets read_ian and updated_at on every
-        # visible notification, so each call would rewrite the already-read
-        # ones and move their updatedAt. OpenProject's own mark-all also
-        # touches only unread ones.
-        filters: list[dict[str, Any]] = [_UNREAD_IN_APP_FILTER]
-        if project_ids is not None:
-            if not project_ids:
-                # An empty "=" list is not "no project": refuse rather than
-                # rely on how OpenProject reads it.
-                raise ValueError("project_ids must name at least one project")
-            values = [str(project_id) for project_id in sorted(project_ids)]
-            filters.append({"project": {"operator": "=", "values": values}})
-        await self._transport.request_raw(
-            "POST",
-            "notifications/read_ian",
-            params={"filters": _filters_param(filters)},
-            json_body={},
+        await self._post_state("notifications/read_ian", filters=_bulk_filters(_UNREAD_IN_APP_FILTER, project_ids))
+
+    async def mark_all_unread(self, *, project_ids: frozenset[int] | None) -> None:
+        await self._post_state("notifications/unread_ian", filters=_bulk_filters(_READ_IN_APP_FILTER, project_ids))
+
+
+def _bulk_filters(state_filter: dict[str, Any], project_ids: frozenset[int] | None) -> list[dict[str, Any]]:
+    # Unfiltered, a bulk route sets the state and updated_at on every visible notification, so each call would
+    # rewrite those already in the target state and move their updatedAt. OpenProject's own mark-all also touches
+    # only the ones that change.
+    filters: list[dict[str, Any]] = [state_filter]
+    if project_ids is not None:
+        if not project_ids:
+            # An empty "=" list is not "no project": refuse rather than rely on how OpenProject reads it.
+            raise ValueError("project_ids must name at least one project")
+        filters.append(
+            {"project": {"operator": "=", "values": [str(project_id) for project_id in sorted(project_ids)]}}
         )
+    return filters

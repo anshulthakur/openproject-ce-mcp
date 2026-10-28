@@ -108,16 +108,16 @@ provider may transform or cache the catalog before billing it.
 | --- | ---: | ---: |
 | Fresh install, no project scope | 14 | ~4,188 |
 | Project reads, no writes | 88 | ~43,295 |
-| Work-package writes only | 113 | ~58,781 |
-| Every project readable and writable, other settings default (Glama build) | 152 | ~74,527 |
-| Every write scope | 184 | ~86,551 |
-| Every write scope plus extended metadata | 196 | ~89,003 |
+| Work-package writes only | 114 | ~59,194 |
+| Every project readable and writable, other settings default (Glama build) | 153 | ~74,940 |
+| Every write scope | 187 | ~87,924 |
+| Every write scope plus extended tools | 204 | ~91,995 |
 
 The figures include each tool's MCP annotations (read-only, destructive,
 idempotent and open-world hints) and the parameter descriptions in its input
 schema.
 
-The extended metadata group adds 12 rarely used tools and is opt-in through
+The extended group adds 17 rarely used tools (12 metadata tools and 5 project-bound lists) and is opt-in through
 `OPENPROJECT_ENABLE_EXTENDED_READ=true`; see
 [Configuration](configuration.md#tool-groups). Confirmed writes also omit the
 echoed request `payload` from their response.

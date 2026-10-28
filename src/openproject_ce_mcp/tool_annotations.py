@@ -80,6 +80,7 @@ _EFFECT_BY_TOOL: dict[str, Effect] = {
     "end_recurring_meeting": Effect.REPLACE,
     # The single-notification route sets updated_at on every call, read or not.
     "mark_notifications_read": Effect.OVERWRITE_WITH_REPEAT_EFFECT,
+    "mark_notifications_unread": Effect.OVERWRITE_WITH_REPEAT_EFFECT,
     # Every update bumps the series' ical_sequence (bump_ical_sequence!).
     "update_recurring_meeting": Effect.OVERWRITE_WITH_REPEAT_EFFECT,
     # For a series template id, every update bumps the series' ical_sequence.

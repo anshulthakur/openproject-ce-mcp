@@ -695,6 +695,26 @@ def _delete_time_entry_handler(request: httpx.Request) -> httpx.Response:
     raise AssertionError(f"Unexpected request: {request.method} {request.url}")
 
 
+def _set_query_starred_handler(request: httpx.Request) -> httpx.Response:
+    if request.method == "GET" and request.url.path == "/api/v3/queries/3":
+        return httpx.Response(
+            200,
+            json={
+                "id": 3,
+                "starred": False,
+                "public": True,
+                "_links": {
+                    "project": {"href": "/api/v3/projects/1", "title": "Demo"},
+                    "star": {"href": "/api/v3/queries/3/star", "method": "patch"},
+                },
+            },
+            request=request,
+        )
+    if request.method == "PATCH" and request.url.path == "/api/v3/queries/3/star":
+        return httpx.Response(200, json={"id": 3}, request=request)
+    raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+
+
 def _delete_file_link_handler(request: httpx.Request) -> httpx.Response:
     if request.method == "GET" and request.url.path == "/api/v3/file_links/5":
         return httpx.Response(
@@ -928,6 +948,14 @@ WORK_PACKAGE_CASES: dict[str, WriteToolCase] = {
         write_scope="work_package",
         handler=_update_relation_handler,
         write_request=("PATCH", "/api/v3/relations/99"),
+    ),
+    "set_query_starred": WriteToolCase(
+        tool="set_query_starred",
+        kwargs={"query_id": 3, "starred": True},
+        settings=_SETTINGS,
+        write_scope="work_package",
+        handler=_set_query_starred_handler,
+        write_request=("PATCH", "/api/v3/queries/3/star"),
     ),
     "delete_file_link": WriteToolCase(
         tool="delete_file_link",

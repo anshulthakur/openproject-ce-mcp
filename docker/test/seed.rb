@@ -275,6 +275,59 @@ else
   log("project TST already has categories")
 end
 
+# list_project_budgets has no create endpoint in this server's API to seed one
+# through. The budgets module ships with every version from 16.0 on, but guard
+# the constant so a stripped build does not abort the whole seed.
+if Object.const_defined?(:Budget)
+  if Budget.where(project: project).empty?
+    budget = Budget.create!(project: project, author: admin, subject: "Seed Budget", description: "Seed budget", fixed_date: Date.today)
+    log("created budget id=#{budget.id} subject=#{budget.subject}")
+  else
+    log("project TST already has budgets")
+  end
+end
+
+# list_work_package_revisions has no create endpoint in this server's API to seed one through: a work
+# package linked to a changeset of a local Git repository (never read, only its record is needed).
+if project.enabled_module_names.include?("repository")
+  revision_wp = WorkPackage.find_by(project: project, subject: "Seed revision work package")
+  if revision_wp.nil?
+    type = enabled_types_of(project).first || Type.first
+    status = Status.respond_to?(:default) && Status.default ? Status.default : Status.first
+    priority = (IssuePriority.respond_to?(:default) && IssuePriority.default) || IssuePriority.active.first || IssuePriority.first
+    revision_wp = WorkPackage.create!(
+      project: project, type: type, status: status, priority: priority, author: admin,
+      subject: "Seed revision work package"
+    )
+    log("created revision work package id=#{revision_wp.id}")
+  end
+  repository = Repository::Git.find_by(project: project) ||
+               Repository::Git.create!(project: project, scm_type: "local", url: "/tmp/seed.git")
+  revision = "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"
+  changeset = Changeset.find_by(repository: repository, revision: revision) || Changeset.create!(
+    repository: repository, revision: revision,
+    committer: "Ada Lovelace <ada@example.com>", committed_on: Time.now, commit_date: Date.today,
+    comments: "Seed commit"
+  )
+  unless changeset.work_packages.include?(revision_wp)
+    changeset.work_packages << revision_wp
+    log("linked changeset id=#{changeset.id} to work package id=#{revision_wp.id}")
+  end
+end
+
+# set_query_starred has no query create endpoint in this server's API to seed one through: a public and a
+# private query of the test project, both created unstarred.
+[["Seed query", true], ["Seed private query", false]].each do |query_name, public_query|
+  if Query.where(project: project, name: query_name).empty?
+    seed_query = Query.new(name: query_name, project: project, user: admin, public: public_query, include_subprojects: false)
+    seed_query.add_default_filter if seed_query.respond_to?(:add_default_filter)
+    seed_query.save!
+    log("created query id=#{seed_query.id} name=#{seed_query.name}")
+  else
+    log("project TST already has the query #{query_name}")
+  end
+end
+
 # list_documents/get_document/update_document have no create endpoint in
 # this server's API to seed one through -- two pre-existing documents are
 # needed here (two, not one, so a pagination test can exercise a real

@@ -161,3 +161,48 @@ async def test_project_version_list_leaves_out_shared_versions_of_projects_outsi
 
     scoped = await start_scoped_client(read_projects=(test_project,), write_projects=(test_project,))
     assert (await scoped.version.list(project=test_project, search=name)).results == []
+
+
+async def test_version_projects_lists_every_sharing_project_and_a_restricted_scope_keeps_only_its_own(
+    test_project: str, project_refs: list[str], version_ids: list[int], start_scoped_client
+) -> None:
+    everywhere = await start_scoped_client(read_projects=("*",), write_projects=("*",))
+    other_project = disposable_project_identifier()
+    created = await everywhere.project.create(
+        name=f"[integration-test] {other_project}", identifier=other_project, confirm=True
+    )
+    assert created.ready, created.validation_errors
+    project_refs.append(other_project)
+
+    version = await everywhere.version.create(
+        project=test_project, name=f"[integration-test] shared {uuid.uuid4().hex[:8]}", sharing="system", confirm=True
+    )
+    assert version.ready, version.validation_errors
+    version_ids.append(version.version_id)
+
+    full = await everywhere.version.list_projects(version.version_id, limit=50)
+    assert {test_project.lower(), other_project.lower()} <= {p.identifier.lower() for p in full.results if p.identifier}
+
+    scoped = await start_scoped_client(read_projects=(test_project,), write_projects=(test_project,))
+    own = await scoped.version.list_projects(version.version_id, limit=50)
+    assert [p.identifier.lower() for p in own.results if p.identifier] == [test_project.lower()]
+
+
+async def test_version_projects_refuses_a_version_defined_outside_the_read_scope(
+    test_project: str, project_refs: list[str], start_scoped_client
+) -> None:
+    everywhere = await start_scoped_client(read_projects=("*",), write_projects=("*",))
+    other_project = disposable_project_identifier()
+    created = await everywhere.project.create(
+        name=f"[integration-test] {other_project}", identifier=other_project, confirm=True
+    )
+    assert created.ready, created.validation_errors
+    project_refs.append(other_project)
+    version = await everywhere.version.create(
+        project=other_project, name=f"[integration-test] foreign {uuid.uuid4().hex[:8]}", sharing="system", confirm=True
+    )
+    assert version.ready, version.validation_errors
+
+    scoped = await start_scoped_client(read_projects=(test_project,), write_projects=(test_project,))
+    with pytest.raises(PermissionDeniedError):
+        await scoped.version.list_projects(version.version_id)

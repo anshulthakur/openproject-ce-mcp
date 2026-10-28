@@ -36,3 +36,24 @@ async def test_work_package_pickers(client: OpenProjectClient, test_project: str
     )
     assert second in {c.id for c in candidates.results}
     assert first not in {c.id for c in candidates.results}
+
+
+async def test_available_watchers_and_projects_page_and_stay_in_scope(
+    client: OpenProjectClient, test_project: str, wp_ids: list[int], start_scoped_client
+) -> None:
+    work_package = await _new_work_package(client, test_project, wp_ids, f"picker-c {uuid.uuid4().hex}")
+
+    watchers = await client.work_package_picker.available_watchers(work_package)
+    assert watchers.count == len(watchers.results) > 0
+    assert watchers.total >= watchers.count
+    one = await client.work_package_picker.available_watchers(work_package, limit=1)
+    assert one.count == 1
+    assert (one.next_offset is not None) == (watchers.total > 1)
+
+    projects = await client.work_package_picker.available_projects(work_package, limit=50)
+    identifiers = {p.identifier.lower() for p in projects.results if p.identifier}
+    assert test_project.lower() in identifiers
+
+    scoped = await start_scoped_client(read_projects=(test_project,), write_projects=(test_project,))
+    own = await scoped.work_package_picker.available_projects(work_package, limit=50)
+    assert [p.identifier.lower() for p in own.results if p.identifier] == [test_project.lower()]

@@ -9,12 +9,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from ...models import PrincipalSummary, RelationCandidateSummary
+from ...models import PrincipalSummary, RelationCandidateSummary, WatcherSummary
 from ..transport.protocol import Transport
 from ._text import SUBJECT_LIMIT
 from ._text import link_title as _link_title
 from ._text import trim_text as _trim_text
 from .httpx_principal_api import normalize_principal
+from .httpx_watcher_api import normalize_watcher
 
 
 def normalize_relation_candidate(payload: dict[str, Any]) -> RelationCandidateSummary:
@@ -59,3 +60,13 @@ class HttpxWorkPackagePickerApi:
             f"work_packages/{work_package_id}/available_relation_candidates", params=params
         )
         return [(normalize_relation_candidate(item), item) for item in _elements(payload)]
+
+    async def available_watchers(
+        self, work_package_id: int, *, offset: int, page_size: int
+    ) -> tuple[list[WatcherSummary], int]:
+        payload = await self._transport.get_json(
+            f"work_packages/{work_package_id}/available_watchers",
+            params={"offset": str(offset), "pageSize": str(page_size)},
+        )
+        elements = _elements(payload)
+        return [normalize_watcher(item) for item in elements], int(payload.get("total", len(elements)))

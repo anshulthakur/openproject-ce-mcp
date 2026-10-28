@@ -13,16 +13,19 @@ from dataclasses import replace
 from typing import Any
 
 from ...config import Settings
-from ...models import VersionDetail, VersionListResult, VersionSummary, VersionWriteResult
+from ...models import ProjectListResult, VersionDetail, VersionListResult, VersionSummary, VersionWriteResult
 from ..api_href import api_href as _api_href
 from ..pagination import clamp_limit
 from ..policies import access, hidden_fields
 from ..policies import scope as scope_policy
+from ..ports.project_api import ProjectApi
 from ..ports.project_ref import ProjectRefResolver
 from ..ports.project_resolution import ProjectResolutionContext
 from ..ports.version_api import VersionApi
+from ..resolvers.project_query import fetch_allowed_project_page
 from ..resolvers.version_query import fetch_version_page
 from ._write_outcome import _finalize_write, _WriteOutcome
+from .project_service import _stamp_project
 
 
 class VersionService:
@@ -34,8 +37,10 @@ class VersionService:
         project_id_to_identifier: Mapping[int, str],
         resolve_project_ref: ProjectRefResolver,
         api_prefix: str,
+        project_api: ProjectApi,
     ) -> None:
         self._api = api
+        self._project_api = project_api
         self._settings = settings
         self._project_id_to_identifier = project_id_to_identifier
         self._resolve_project_ref = resolve_project_ref
@@ -120,6 +125,50 @@ class VersionService:
             project_id_to_identifier=self._project_id_to_identifier,
         )
         return self._stamp(record.to_detail())
+
+    async def list_projects(self, version_id: int, *, offset: int = 1, limit: int | None = None) -> ProjectListResult:
+        """The projects a version is shared with, kept to those the read scope covers.
+
+        The version is judged first: a version defined outside the read scope names no project at all.
+        """
+        access.ensure_read_enabled("version", settings=self._settings)
+        access.ensure_read_enabled("project", settings=self._settings)
+        record = await self._api.get(version_id)
+        scope_policy.ensure_defining_project_link_allowed(
+            record.defining_project_link,
+            settings=self._settings,
+            project_id_to_identifier=self._project_id_to_identifier,
+        )
+        effective_limit = clamp_limit(
+            limit,
+            default_page_size=self._settings.default_page_size,
+            max_page_size=self._settings.max_page_size,
+            max_results=self._settings.max_results,
+        )
+        page_results, total, next_offset, truncated = await fetch_allowed_project_page(
+            fetch_page=lambda server_offset, server_page_size: self._project_api.list_for_version(
+                version_id,
+                server_offset=server_offset,
+                server_page_size=server_page_size,
+                text_limit=self._settings.text_limit,
+            ),
+            settings=self._settings,
+            offset=offset,
+            limit=effective_limit,
+        )
+        stamped = [
+            _stamp_project(item, settings=self._settings, project_id_to_identifier=self._project_id_to_identifier)
+            for item in page_results
+        ]
+        return ProjectListResult(
+            offset=offset,
+            limit=effective_limit,
+            total=total,
+            count=len(stamped),
+            next_offset=next_offset,
+            truncated=truncated,
+            results=stamped,
+        )
 
     async def create(
         self,
