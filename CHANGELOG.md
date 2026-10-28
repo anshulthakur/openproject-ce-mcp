@@ -9,6 +9,15 @@ development baseline.
 
 ## [0.4.4] - Unreleased
 
+### Security
+
+- The package now requires `certifi` 2026.10.18 or newer. Earlier releases of
+  its CA bundle include emSign root certificates whose intermediate CA keys
+  are compromised; `httpx` verifies the TLS connection to OpenProject against
+  that bundle, so an installation with an older `certifi` could trust a
+  certificate issued under them. Upgrade with `pip install -U openproject-ce-mcp`
+  or `uv tool upgrade openproject-ce-mcp`.
+
 ### Fixed
 
 - The release workflow no longer fails when GitHub does not list the release draft
