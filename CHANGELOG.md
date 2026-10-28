@@ -102,7 +102,7 @@ to install and discover.
 
 Thanks to our contributor: [@feci](https://github.com/feci) ([#35](https://github.com/jtauschl/openproject-ce-mcp/pull/35), [#36](https://github.com/jtauschl/openproject-ce-mcp/pull/36), [#43](https://github.com/jtauschl/openproject-ce-mcp/pull/43), [#44](https://github.com/jtauschl/openproject-ce-mcp/pull/44)).
 
-## [0.4.4] - Unreleased
+## [0.4.4] - 2026-10-28
 
 ### Security
 
@@ -116,303 +116,136 @@ Thanks to our contributor: [@feci](https://github.com/feci) ([#35](https://githu
 ### Security
 
 - A work package field hidden with `OPENPROJECT_HIDE_WORK_PACKAGE_FIELDS` could
-  still be read through a query. `list_work_packages` and `search_work_packages`
-  now refuse a filter, search text, `sort_by` or `group_by` on a hidden field
-  and leave out its sums; `list_my_open_work_packages` is refused while
-  `assignee` or `status` is hidden.
-- Versions, sprints (17.3 and later) and backlog buckets (17.6 and later) shared
-  into a covered project from a project outside `OPENPROJECT_READ_PROJECTS` are
-  no longer named in work package results, `execute_query` rows, write results
-  and previews, or version custom fields. A group named after one keeps its
-  count and sums as `[outside read scope]`, and a version custom field accepts,
-  by name or id, only versions a result may name. `version` names a version only
-  when it is the whole assignment, and a sprint the token cannot view loses its
-  name too. A restricted scope costs one cached lookup (five minutes) per
-  version, sprint or bucket; under `*` nothing changes.
+  still be read through a query; filters, search, `sort_by` and `group_by` on it
+  are refused.
+- Versions, sprints (17.3+) and backlog buckets (17.6+) shared in from a project
+  outside `OPENPROJECT_READ_PROJECTS` are no longer named in results; groups
+  keep their counts as `[outside read scope]`.
 - A version, sprint or bucket whose defining project the token cannot see is
-  covered under `*` and not under a restricted scope, on 16.x (link omitted) and
-  17.x (placeholder) alike.
-- A project link counts for `OPENPROJECT_READ_PROJECTS` and
-  `OPENPROJECT_WRITE_PROJECTS` only if it points to a project on the configured
-  instance; a link to another host or resource is denied, also under `*`.
-- `create_grid` accepts only the scopes `/my/page`, `/projects/<identifier>` and
-  `/projects/<identifier>/boards`, also under `*`.
-- A project renamed in OpenProject 17.3 or later was still readable and writable
-  through its former identifier when only that identifier matched
-  `OPENPROJECT_READ_PROJECTS` or `OPENPROJECT_WRITE_PROJECTS`. A project now
-  matches only by id, current identifier and name.
-- Content of a project renamed while the server ran stayed admitted by its
-  former identifier until the next rescan. The server now reads the current
-  identifier first, one request per project and response.
-- `list_work_packages` without a `project` counted work packages of a project
-  renamed out of the read allowlist, by identifier or by name, in `total`,
-  `groups` and `total_sums` for up to five minutes; it now reads the projects in
-  its filter that no pattern matches by id and drops any that no longer match.
-- `mark_notifications_read` ignored `OPENPROJECT_READ_PROJECTS`. It now marks
-  only unread notifications about covered projects (refused when none is
-  readable), and a notification outside the allowlist is refused, in the preview
-  too.
-- `update_relation` and `delete_relation` checked only the relation's source
-  work package. Both work packages must now be covered by both allowlists,
-  checked before the preview.
-- `list_work_package_meeting_agenda_items` leaves out items of meetings in
-  projects the read allowlist does not cover and counts only what it returns.
-- `list_versions` with a `project` and version lookups by name inside a project
-  leave out versions defined outside the read allowlist, and the allowed values
-  in `get_project_work_package_context` and `get_project_admin_context` leave
-  out such versions, sprints and buckets; a shared version defined outside the
-  allowlist can no longer be assigned by name.
-- `list_time_entry_activities` names only projects the read allowlist covers.
-- Write previews, the `copy_project` preview and `get_board` show a title only
-  for links to resources everyone sees alike (type, status, priority, users,
-  roles, target project) and the link for any other.
-- `get_project`, `list_projects` and the project results of writes no longer
-  name a parent or ancestor project outside the read allowlist; work package
-  reads, lists, `execute_query`, write results and the `delete_work_package`
-  preview no longer show the id of a parent in such a project, and the delete
-  preview no longer shows its children and ancestors.
-- `list_work_packages` and `search_work_packages` no longer count, group or sum
-  work packages of subprojects outside the read allowlist; under a restricted
-  scope the filter names the covered subprojects itself and turns the expansion
-  off; under `*` nothing changes.
-- `get_work_package_activities` leaves out change details unless the read scope
-  is `*` and whenever a hidden field could appear in them; the entry and the
-  `add_work_package_comment` result carry `details_omitted: true`.
-- `render_text` is refused unless `OPENPROJECT_READ_PROJECTS` is `*` and no
-  field of work packages, projects, versions, documents, meetings, posts, users,
-  groups, principals or views is hidden, because macros such as `#123` rendered
-  names regardless of scope.
+  covered only under `*`.
+- A project link counts for the allowlists only if it points to a project on the
+  configured instance, also under `*`.
+- `create_grid` accepts only `/my/page`, `/projects/<identifier>` and
+  `/projects/<identifier>/boards`.
+- A project renamed in 17.3+ stayed reachable by its former identifier, and list
+  totals counted it for up to five minutes; allowlists now match the current
+  identifier.
+- `mark_notifications_read` ignored `OPENPROJECT_READ_PROJECTS`; it now marks
+  only notifications of covered projects, in the preview too.
+- `update_relation` and `delete_relation` check both work packages against both
+  allowlists before the preview.
+- `list_work_package_meeting_agenda_items` leaves out meetings of projects the
+  read allowlist does not cover.
+- Version lists, version lookups by name and the allowed values of
+  `get_project_work_package_context` and `get_project_admin_context` leave out
+  versions, sprints and buckets defined outside the read allowlist;
+  `list_time_entry_activities` names only covered projects.
+- Write previews, the `copy_project` preview and `get_board` show titles only
+  for links everyone sees alike.
+- Parent and ancestor projects outside the read allowlist are no longer named,
+  and the delete preview no longer shows children or ancestors there.
+- Work package lists no longer count, group or sum subprojects outside the read
+  allowlist.
+- `get_work_package_activities` omits change details unless the read scope is
+  `*` and no hidden field can appear (`details_omitted: true`).
+- `render_text` is refused unless `OPENPROJECT_READ_PROJECTS` is `*` and none of
+  the fields its macros name is hidden.
 
 ### Added
 
 - Listed in the official MCP Registry as
   `io.github.jtauschl/openproject-ce-mcp`.
-- Installable on macOS with Homebrew: `brew tap jtauschl/tap`, `brew trust
-  --formula jtauschl/tap/openproject-ce-mcp`, `brew install openproject-ce-mcp`.
-- Every tool declares MCP tool annotations (read-only, destructive, idempotent,
-  open-world), so clients can tell reading tools from tools that change or
-  delete data.
+- Installable with Homebrew: `brew tap jtauschl/tap`, `brew trust --formula
+  jtauschl/tap/openproject-ce-mcp`, `brew install openproject-ce-mcp`.
+- Every tool declares MCP annotations (read-only, destructive, idempotent,
+  open-world).
 
 ### Changed
 
-- `list_work_package_wiki_links` says it checks only the work package against
-  `OPENPROJECT_READ_PROJECTS`, because a link carries no project.
-- Tool descriptions state each action and its consequences, delete tools say
-  when a deletion cannot be undone, shared parameters describe themselves in the
-  schema, and `select` lists every field it accepts.
-- If `OPENPROJECT_BASE_URL` has a different path than OpenProject uses in its
-  links (for example behind a path-rewriting proxy), project checks fail with a
-  `[configuration_error]` naming both paths; they used to pass unchecked under
-  `*`. Set `OPENPROJECT_BASE_URL` to the path OpenProject itself uses.
-- A capability without a project (the global context) is visible only when
+- Tool descriptions state each action and its consequences, `select` lists every
+  accepted field, and the server instructions name every opt-in tool group.
+- If `OPENPROJECT_BASE_URL` has another path than OpenProject uses in its links
+  (path-rewriting proxy), project checks fail with `[configuration_error]`
+  naming both paths instead of passing under `*`.
+- A capability without a project is visible only when
   `OPENPROJECT_READ_PROJECTS` is `*`.
-- The server instructions name every opt-in tool group, so an agent can tell a
-  missing tool is switched off.
-- `configure` and `doctor` read Codex's configuration from `CODEX_HOME` when it
-  is set.
-- With Codex installed, `doctor` runs `codex mcp list` up to twice (at most 20
-  seconds each); Codex may contact configured HTTP MCP servers.
-- The package declares `pydantic` 2.12 or newer and `typing-extensions` 4.16 or
-  newer, installs `httpx` (below 0.29) with its SOCKS extra so a `socks5://`
-  `ALL_PROXY` starts, and on Python 3.10 depends on `tomli`.
+- `configure` and `doctor` read Codex's configuration from `CODEX_HOME`;
+  `doctor` runs `codex mcp list` up to twice.
+- The package requires `pydantic` 2.12+ and `typing-extensions` 4.16+, installs
+  `httpx` (below 0.29) with SOCKS support, and needs `tomli` on Python 3.10.
 - An allowlist pattern like `my-project` also matches a project named "My
-  Project" in `list_projects`, `get_project`, `update_project` and
-  `create_project`, as it already did elsewhere.
+  Project" in the project tools.
 
 ### Fixed
 
-- `doctor` finds a project's Claude Code local-scope entry on Windows whether
-  `~/.claude.json` keys it with backslashes or with the forward slashes `git`
-  prints.
-- On OpenProject 17.8 and later, where a work package can have several versions
-  (the default of the 17.8 and 17.9 images), `create_work_package`,
-  `create_subtask`, `update_work_package` and the bulk tools reported success
-  for `version` but assigned nothing, and `version: none` cleared nothing. They
-  now write it through `target_versions` there, so the result shows the
-  assignment.
-- A missing resource in a version-gated feature (meetings and their parts, wiki
-  page links, user working hours and non-working times, reminders, project
-  favorites) was reported as "requires OpenProject X or newer; this instance
-  appears to be older", also on a current instance. The error now says the
-  resource was not found, or that the feature is not available and needs that
-  release.
-- A collection was treated as read to its end when a page came back shorter than
-  asked, so on an instance with a lower maximum page size later elements went
-  missing (versions, sprint names, relations, time entry sums, reminders,
-  notifications, project searches, saved queries, scanned results under a
-  restricted scope). A collection now ends at the server's `total` or an empty
-  page, and at startup the server lowers `OPENPROJECT_MAX_PAGE_SIZE` and the
-  default page size to the instance maximum, with a warning.
-- A form field with several violated constraints showed only "Multiple field
-  constraints have been violated."; the nested messages are now listed.
-- A board filter operator without a title came back percent-encoded (`%3D`); it
-  is `=` now.
-- With identifier-based allowlists every response re-read each linked project.
-  The projects of a response are now read in one request, once per tool call.
-- The current user, statuses, priorities and instance configuration were cached
-  until restart; they expire after five minutes, and concurrent first reads
-  share one request.
-- `list_work_packages` and `search_work_packages` stopped paging when the
-  allowlist dropped a row of a full page; `next_offset` now follows the server
-  page.
-- `list_work_package_attachments(include_total_size=true)` returned the sum of
-  the first `OPENPROJECT_MAX_RESULTS` attachments as the total; it now returns
-  none then.
-- `update_board` with only `hidden` is refused like an empty update, and
-  `create_board` and `update_board` no longer send or preview `hidden`, which
-  OpenProject discards.
-- `list_time_entries` with `user` compared display names, mixing up users who
-  share one. The reference ("me", id or exact name) is resolved to an id among
-  the users the token can see, a shared name is reported as ambiguous, and time
-  entries carry `user_id` beside `user` (hidden together), which works for a
-  user no longer visible by name.
-- The `user` of an activity and of a comment posted with
-  `add_work_package_comment` was always empty; it is read from the user (one
-  request per distinct user, cached five minutes) unless hidden.
-- `assignee: "me"` and a version, sprint or project given by name failed with a
-  permission error when another tool group's read switch was off; those lookups
-  no longer check it.
-- `OPENPROJECT_TIMEOUT`, `OPENPROJECT_RETRY_BASE_DELAY` and
-  `OPENPROJECT_RETRY_MAX_DELAY` accepted `nan` and `inf`, a non-finite
-  `Retry-After` was used, and a huge time entry duration became infinity; all
-  are rejected or ignored now.
-- `update_work_package` and `bulk_update_work_packages` refuse to change
-  `version`, `target_versions`, `sprint` or a version custom field while the
-  work package holds such an assignment outside the read scope; the change would
-  have removed it unseen.
-- `execute_query` rows kept values of hidden custom fields, their comments, and
-  the description length and truncation flag of a hidden `description`; they are
-  masked like every other work package read.
-- `render_text` failed with `OpenProject returned invalid JSON` on every
-  supported version; it now returns the rendered markup as `html`.
-- The SBOM named an `unknown` component and no dependency edges; it is exported
-  from the lock file with `openproject-ce-mcp` as root and every runtime
-  dependency.
-- The items of `bulk_create_work_packages` and `bulk_update_work_packages` are
-  checked against a schema the tool input schema lists. A wrong type used to be
-  converted (`true` for a subject became "True") or crash the validator; it is
-  refused with its position (`items.2.subject`) before any request, like an
-  unknown key or a missing `project`, `type`, `subject` or `work_package_id`.
-- The reminder tools answered a bare not-found on OpenProject 16.0; they now say
-  they need 16.1 or newer.
-- Help texts and the bodies of GitHub pull requests and GitLab issues and merge
-  requests now carry the `<user-content>` delimiter.
-- `responsible`, `priority`, `category`, `project_phase` and custom field
-  options given by title wrote the first of several matches; they report the
-  title as ambiguous and name the ids, like `assignee`, and so does a custom
-  field name shared by two fields.
-- A user or group given by name (an assignee, a responsible, a reference in the
-  user and group tools) and `list_principals(search=...)` treated `_` and `%` as
-  wildcards and read only the first page of matches; the text is searched
-  literally and every page is read, so a second exact match is reported as
-  ambiguous.
-- `create_work_package`, `update_work_package`, `create_subtask` and the bulk
-  update items accept a numeric `parent`, `assignee` and `responsible`; every
-  other tool that takes a reference accepts the id as a JSON number. `get_user`,
-  the user-schedule `user_ref` tools and the `list_time_entries` `user` filter
-  pass the reference to OpenProject, which also matches the login.
-- A project given as digits is looked up by id only and no longer falls back to
-  a project whose name contains them; digits for category, priority, phase and
-  `responsible` match by id only.
-- `bulk_create_work_packages` rejects a boolean or decimal `project` or `type`.
-- A confirmed `delete_project`, `delete_user` or `delete_group` no longer
-  reports the deletion as done, because OpenProject only schedules it, and
-  `delete_project` no longer returns the project as before.
-- The `delete_user` and `delete_group` previews look the target up and show it,
-  so a wrong id fails before approval.
-- `list_work_package_file_links` takes `offset` and `limit`, so file links
-  beyond the first page can be listed with the `next_offset` it returns.
-- Tool descriptions and docs no longer state wrong facts: `get_project`,
-  `set_project_favorite` and `list_sprints` accept a project name; agenda item
-  tools need 17.6 and `list_work_package_meeting_agenda_items` 17.7;
-  `update_recurring_meeting` changes materialized occurrences and can delete
-  cancelled ones; a cancelled occurrence can be restored; `end_after` takes
-  `specific_date`; the storage, user non-working time and watcher tools describe
-  their checks and effects correctly; older-server errors are `[not_found]`;
-  `OPENPROJECT_LOG_LEVEL` accepts `DEBUG`.
-- `version_status` needs OpenProject 16.4; a rejected call keeps OpenProject's
-  message and adds that an older instance does not support it.
-- `OPENPROJECT_VERIFY_SSL=false` and the proxy settings (`HTTP_PROXY`,
-  `HTTPS_PROXY`, `ALL_PROXY` including `socks5://`, `NO_PROXY`) take effect
-  while retries are enabled, the default; before they worked only with
-  `OPENPROJECT_MAX_RETRIES=0`.
-- Project grids, including the boards page grid, are matched against the
-  allowlists by their project; boards page grids were hidden from `list_grids`
-  and `get_grid` and could not be updated or deleted.
-- `list_time_entries`, `list_documents`, `list_news`, `list_views`,
-  `list_boards` and `list_project_storages` with a `project` filter no longer
-  return items of another project with the same name.
-- `search_work_packages` no longer looks up each free-text term as a work
-  package; only numeric ids and display ids like `PROJ-42` are, and any other id
-  is rejected before a request.
-- A work package id with leading zeros, such as `007`, resolves on OpenProject
-  17.4 and later.
-- Starting the server with missing or invalid configuration prints a short error
-  naming the problem and exits with status 1 instead of a traceback.
-- `doctor` lists the meeting and user-schedule write settings in its scope
-  summary.
-- `doctor` checks each MCP client's OpenProject entry on its own, with that
-  client's way of passing variables and the entry's proxy and certificate
-  settings; an incomplete or broken entry is no longer hidden by another
-  client's entry or by the shell running `doctor`.
-- `configure --help` and `openproject-ce-mcp-setup --help` show the command that
-  was run.
-- `create_board` and `update_board` apply a `sort_by` written as `"id:asc"` or
-  as a bare field (ascending); OpenProject used to drop it silently.
-- A board `sort_by` direction in upper or mixed case (`"id-DESC"`) sorts in that
-  direction instead of ascending, and an invalid one (`"id-up"`) is rejected.
-- `list_work_packages` and `search_work_packages` accept a `sort_by` written as
-  `"status-desc"` as well as `"status:desc"`.
-- `get_query_sort_by` accepts `"field:direction"`, `"field-direction"` or a bare
-  field name; a bare name used to fail with not found.
-- The wiki link tools name the release they need: `list_work_package_wiki_links`
-  17.5, `delete_work_package_wiki_link` 17.6, `create_work_package_wiki_link`
-  17.7 (17.6 was reported as too old for it); on 17.5 an OpenProject bug usually
-  makes the delete fail earlier with a server error.
-- `delete_work_package_wiki_link` with the id of an inline link (from a wiki
-  link in the work package's description or from a wiki page that mentions it)
-  is rejected before the request, with the hint to edit that text; only relation
-  links can be deleted, with the "Manage wiki page links" permission.
-- The sprint tools say they need OpenProject 17.3 or later, and `get_sprint`,
-  `get_backlog_bucket` and a sprint given by id name the version the sprint API
-  (17.3) or the bucket API (17.6) needs.
-- `update_recurring_meeting` without `title` (for example to change `iterations`
-  or `start_time`) no longer erases the titles of materialized future
-  occurrences on OpenProject 17.4 and later.
-- `mark_notifications_read` without `notification_id` changes only unread
-  notifications, so already-read ones keep their `updatedAt` and a repeated call
-  changes nothing.
-- An invalid `select` error says that no request was sent, and the bulk
-  descriptions say that `select` names write-result fields.
-- `create_user_working_hours` and `update_user_working_hours` sent
-  `availability_factor` as a decimal OpenProject rejects; it is a whole number
-  from 0 to 100 now, and anything else is rejected before a request.
-- `update_work_package` read a boolean `percentage_done` as a number (`true` set
-  1 percent) and accepted `40.0` or `"40"`; it takes only a whole number from 0
-  to 100.
-- `delete_meeting` deleted the template meeting of a recurring series when given
-  its id; it is rejected before the preview, and `delete_recurring_meeting`
-  deletes the series.
-- `create_meeting` silently dropped `state` and `notify`, which OpenProject
-  always starts as draft and off; they are rejected with a pointer to
-  `update_meeting`.
-- `create_meeting` dropped `participant_user_refs` (the meeting got only its
-  creator); it now has exactly the named participants, and an empty list is
-  rejected. `update_meeting` rejects `participant_user_refs`, which OpenProject
-  17.4 and 17.5 would append as duplicates and cannot remove.
-- `sort_by` and `group_by` on the work package lists rejected columns
-  OpenProject offers (`observed_in_versions`, `target_versions`, `sprint`,
-  `backlog_bucket`, `position`); a column that needs a newer release comes back
-  with OpenProject's rejection plus that release (`project_phase` 16.1, `sprint`
-  17.4, `backlog_bucket` 17.6, `target_versions` 17.8, `observed_in_versions`
-  17.9).
-- A project reference or `list_projects` search containing `_` or `%` matched
-  other projects (`a_b` and `axb`); the text is searched literally.
-- Tool arguments were converted instead of checked (`true` read as id 1,
-  `confirm` accepted `"yes"` and `1`, so a delete ran on a non-`true` answer).
-  Each argument must now arrive with its own JSON type; a mistyped one is
-  rejected before any request with `[validation_error]` and the argument's name,
-  a list sent as JSON text still works, and `NaN` and `Infinity` are no numbers.
+- On OpenProject 17.8+, `version` on create, update and bulk tools reported
+  success but assigned nothing, and `version: none` cleared nothing; it is
+  written through `target_versions` now.
+- A missing resource in a version-gated feature was reported as "requires
+  OpenProject X or newer" on current instances; the error now says what is
+  missing.
+- A collection was treated as complete when a page came back short, so elements
+  went missing under a lower maximum page size; it ends at the server's `total`,
+  and startup lowers the page size to the instance maximum.
+- Lists no longer stop paging when the allowlist drops a row of a full page, and
+  a partial attachment size sum is no longer returned as the total.
+- Fewer requests: linked projects are read once per call, and the current user,
+  statuses, priorities and configuration expire after five minutes.
+- Form errors with several violated constraints list every message, and a board
+  filter operator is no longer percent-encoded.
+- `list_time_entries` with `user` resolves the reference to an id and reports
+  ambiguous names; entries carry `user_id`.
+- The `user` of an activity or a posted comment is filled, and `assignee: "me"`
+  or a name lookup works when another group's read switch is off.
+- Tool arguments are checked, not converted: a wrong type (`true` as an id,
+  `"yes"` as `confirm`) is refused with `[validation_error]` before any request,
+  bulk items follow the documented schema, and `NaN`, `Infinity` and non-finite
+  timeouts are rejected.
+- Updates refuse to change `version`, `target_versions`, `sprint` or a version
+  custom field when that would silently remove an assignment outside the read
+  scope.
+- `execute_query` masks hidden custom fields and the metadata of a hidden
+  `description`; `render_text` returns its markup as `html`.
+- The SBOM names `openproject-ce-mcp` as root with every runtime dependency.
+- Help texts and GitHub and GitLab bodies carry the `<user-content>` delimiter.
+- Titles for `responsible`, `priority`, `category`, `project_phase`, custom
+  field options, users and groups report ambiguity instead of taking the first
+  match; names are searched literally (`_`, `%`) across all pages.
+- Reference parameters accept numeric ids; a project given as digits matches by
+  id only, and `search_work_packages` looks up only numeric and display ids.
+- A confirmed `delete_project`, `delete_user` or `delete_group` no longer claims
+  the deletion finished, and the user and group previews show their target.
+- `list_work_package_file_links` takes `offset` and `limit`.
+- Wrong facts in tool descriptions and docs are corrected, including version
+  floors (reminders 16.1, `version_status` 16.4, sprints 17.3, backlog buckets
+  17.6, wiki links 17.5 to 17.7, agenda items 17.6 and 17.7).
+- `OPENPROJECT_VERIFY_SSL=false` and the proxy settings take effect while
+  retries are enabled, the default.
+- Project grids and boards page grids are matched against the allowlists by
+  their project, and project filters no longer return items of another project
+  with the same name.
+- Board `sort_by` accepts `"id:asc"` and a bare field, honors upper-case
+  directions and rejects invalid ones; `sort_by` on work package lists and
+  `get_query_sort_by` accept `field-direction` as well as `field:direction`.
+- `update_board` with only `hidden` is refused, and the board tools no longer
+  send `hidden`.
+- `sort_by` and `group_by` accept `observed_in_versions`, `target_versions`,
+  `sprint`, `backlog_bucket` and `position`, naming the release a column needs.
+- `delete_work_package_wiki_link` rejects the id of an inline link before the
+  request.
+- `update_recurring_meeting` without `title` no longer erases the titles of
+  future occurrences (17.4+); `delete_meeting` rejects a recurring template's
+  id.
+- `create_meeting` rejects `state` and `notify` and creates exactly the named
+  participants; `update_meeting` rejects `participant_user_refs`.
+- `mark_notifications_read` without an id changes only unread notifications.
+- `availability_factor` is a whole number from 0 to 100, and `percentage_done`
+  takes only a whole number from 0 to 100.
+- Invalid `select` errors say no request was sent.
+- Starting with missing or invalid configuration prints a short error and exits
+  with status 1; `configure --help` shows the command run.
+- `doctor` finds Claude Code's local-scope entry on Windows, lists the meeting
+  and user-schedule write settings, and checks each client's entry on its own.
 
 Thanks to our contributor: [@webadmin-stattreisen](https://github.com/webadmin-stattreisen) ([#45](https://github.com/jtauschl/openproject-ce-mcp/pull/45)).
 
@@ -422,9 +255,9 @@ Thanks to our contributor: [@webadmin-stattreisen](https://github.com/webadmin-s
 
 - Bumped `pyjwt` and `urllib3` to fix known vulnerabilities in transitive
   dependencies.
-- `list_work_packages` without a project counted work packages of projects that
-  matched only `OPENPROJECT_WRITE_PROJECTS` in `total`, group counts and sums;
-  the work packages themselves were already left out.
+- `list_work_packages` without a project no longer counts work packages of
+  projects that match only `OPENPROJECT_WRITE_PROJECTS` in totals, groups and
+  sums.
 
 ### Changed
 
@@ -432,33 +265,21 @@ Thanks to our contributor: [@webadmin-stattreisen](https://github.com/webadmin-s
 
 ### Fixed
 
-- The server no longer limits long-text writes (descriptions, comments, custom
-  field strings) to 10,000 characters, so work packages whose description grew
-  longer in the web editor can be edited again.
-- The server instructions no longer list Budgets as Enterprise-only; they are in
-  the Community Edition.
-- `bulk_create_work_packages` and `bulk_update_work_packages` rejected the
-  per-item fields `index`, `success` and `error` in `select`, and
-  `get_work_packages` rejected `success` and `error`, although every item
-  carries them regardless of `select`; naming them is accepted and leaves the
-  item untouched.
-- `list_time_entry_activities` failed on servers that answer the
-  `time_entries/activities` probe with HTTP 400 instead of 404; the per-project
-  fallback now runs then too.
-- With `mcp` 2.1 or later, rejected input and failed OpenProject calls reached
-  the agent only as `Error executing tool <name>`; the error category and
-  message are shown again.
-- With `mcp` 2.1 or later, a call with an unknown argument was logged as a
-  server crash with a traceback; it is logged as a rejected call.
-- Projects created after the server started (a copy, the web UI, another client)
-  were denied by identifier- or pattern-based `OPENPROJECT_READ_PROJECTS` and
-  `OPENPROJECT_WRITE_PROJECTS` entries until a restart, and `list_work_packages`
-  without a project left out their work packages. They are recognized from the
-  responses that link them, and the list includes them within five minutes.
-- `list_work_packages` without a project failed with "Project filter has invalid
-  values" when an archived project matched `OPENPROJECT_READ_PROJECTS`.
-- The `CONTRIBUTING.md` links on the PyPI project page now point to the
-  repository.
+- Long-text writes (descriptions, comments, custom field strings) are no longer
+  limited to 10,000 characters.
+- The server instructions no longer call Budgets Enterprise-only.
+- `select` on the bulk tools and `get_work_packages` accepts the per-item fields
+  `index`, `success` and `error`.
+- `list_time_entry_activities` works on servers that answer the activities probe
+  with HTTP 400.
+- With `mcp` 2.1 or later, rejected input and failed calls show their error
+  category and message again instead of `Error executing tool <name>`, and an
+  unknown argument is logged as a rejected call, not a crash.
+- Projects created after the server started are recognized by identifier- and
+  pattern-based allowlists without a restart.
+- `list_work_packages` without a project no longer fails when an archived
+  project matches the read allowlist.
+- The `CONTRIBUTING.md` links on the PyPI page point to the repository.
 
 ## [0.4.1] - 2026-09-22
 
