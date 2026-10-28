@@ -9,6 +9,11 @@ development baseline.
 
 ## [0.4.4] - Unreleased
 
+### Fixed
+
+- The release workflow no longer fails when GitHub does not list the release draft
+  it has just created; it takes the draft from the response of the create call.
+
 ## [0.4.3] - 2026-10-28
 
 ### Security
