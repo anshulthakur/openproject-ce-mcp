@@ -8,7 +8,7 @@ import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 from mcp.server.mcpserver import MCPServer
 
@@ -177,6 +177,74 @@ class _SettingsError(Exception):
     other ConfigErrors, which signal a defect and keep their traceback."""
 
 
+def _run_http(app: StrictMCPServer, transport: str, settings: Settings) -> None:
+    host = os.environ.get("MCP_HTTP_HOST", "0.0.0.0")
+    port_str = os.environ.get("PORT") or os.environ.get("MCP_HTTP_PORT") or "8000"
+    try:
+        port = int(port_str)
+    except ValueError as exc:
+        raise _SettingsError(f"Invalid PORT: {port_str!r} is not an integer") from exc
+
+    http_token = os.environ.get("MCP_HTTP_TOKEN", "").strip()
+    if not http_token:
+        raise _SettingsError("MCP_HTTP_TOKEN must be configured when TRANSPORT is http or sse")
+
+    import uvicorn
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.responses import JSONResponse, Response
+
+    if transport == "sse":
+        starlette_app = app.sse_app(host=host)
+        endpoint = "/sse"
+    else:
+        starlette_app = app.streamable_http_app(host=host, streamable_http_path="/mcp")
+        endpoint = "/mcp"
+
+    class AuthMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request: Any, call_next: Any) -> Any:
+            if request.url.path == "/health":
+                return JSONResponse({
+                    "status": "ok",
+                    "server": "openproject-ce-mcp",
+                    "version": __version__,
+                })
+            if request.method == "OPTIONS":
+                return Response(
+                    status_code=204,
+                    headers={
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "GET, POST, OPTIONS, DELETE",
+                        "Access-Control-Allow-Headers": "Authorization, Content-Type, Accept",
+                    },
+                )
+            auth_header = request.headers.get("authorization")
+            query_token = request.query_params.get("token") or request.query_params.get("auth")
+            is_valid = auth_header == f"Bearer {http_token}" or query_token == http_token
+            if not is_valid:
+                return JSONResponse(
+                    {"error": "Unauthorized"},
+                    status_code=401,
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            return await call_next(request)
+
+    starlette_app.add_middleware(AuthMiddleware)
+
+    print(
+        f"OpenProject CE MCP Server v{__version__} running on http://{host}:{port}{endpoint}",
+        file=sys.stderr,
+    )
+
+    config = uvicorn.Config(
+        starlette_app,
+        host=host,
+        port=port,
+        log_level=settings.log_level.lower(),
+    )
+    server = uvicorn.Server(config)
+    asyncio.run(server.serve())
+
+
 def _run_server() -> None:
     # os.environ is already the fully-merged view here — the MCP client launcher
     # injects the config file's env block directly as this subprocess's
@@ -195,7 +263,12 @@ def _run_server() -> None:
     # MCPServer.call_tool is wired into request dispatch, instead of silently
     # letting StrictMCPServer's validation go dark. See strict_mcpserver.py.
     asyncio.run(verify_strict_dispatch(app))
-    app.run(transport="stdio")
+
+    transport = os.environ.get("TRANSPORT", "stdio").strip().lower()
+    if transport in ("http", "sse", "streamable-http"):
+        _run_http(app, transport, settings)
+    else:
+        app.run(transport="stdio")
 
 
 def _build_parser() -> argparse.ArgumentParser:

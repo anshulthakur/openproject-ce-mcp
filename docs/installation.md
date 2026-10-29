@@ -132,6 +132,28 @@ publication source; the tap's formula follows each release. See the [tap
 repository](https://github.com/jtauschl/homebrew-tap) for formula maintenance
 details and why a dedicated tap rather than Homebrew Core.
 
+### Docker / Docker Compose
+
+To deploy the MCP server as a standalone container (e.g. for a LAN OpenProject instance):
+
+1. Copy `.env.example` to `.env` and fill in your OpenProject URL and credentials:
+   ```bash
+   cp .env.example .env
+   ```
+2. Build and run via Docker Compose:
+   ```bash
+   docker compose up -d --build
+   ```
+3. Verify the container is healthy:
+   ```bash
+   curl http://localhost:8000/health
+   # Returns: {"status":"ok","server":"openproject-ce-mcp","version":"..."}
+   ```
+
+The container supports:
+- **Streamable HTTP / SSE mode** (default in container via `TRANSPORT=http` on port `8000`), authenticated using `Authorization: Bearer <MCP_HTTP_TOKEN>` or query parameter `?token=<MCP_HTTP_TOKEN>`.
+- **Stdio mode** (for MCP clients running the container directly via `docker run -i --rm --env-file .env openproject-ce-mcp:latest`).
+
 ## Update
 
 Upgrade the installed PyPI package, then restart your MCP client:
