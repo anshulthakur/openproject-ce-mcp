@@ -16,6 +16,8 @@ to install and discover.
 
 ### Added
 
+- Deploy the MCP server as a standalone Docker container via Docker Compose
+  with HTTP/SSE transport and Bearer token authentication.
 - `update_work_package_comment` previews and confirms replacement of an existing
   comment, including permission checks and warnings about notifications and
   irreversible text replacement.
